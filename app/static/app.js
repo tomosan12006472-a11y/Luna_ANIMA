@@ -46,6 +46,7 @@
     characterSearchTimer: 0,
     promptSheetMode: "favorites",
     promptSheetItems: [],
+    recipes: [],
     promptSheetQueryTimer: 0,
     dictQueryTimer: 0,
     dictStatusLoaded: false,
@@ -721,6 +722,133 @@
     });
     state.promptSheetItems = Array.isArray(data.items) ? data.items : [];
     renderPromptSheet();
+    UI.toast(data.removed ? "削除しました" : "見つかりませんでした");
+  }
+
+  function recipeAutoName(request) {
+    const character = state.slots.character1?.displayName || request.character1 || "Random";
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    return `${character || "Random"} / ${request.quality_preset || "standard"} / ${request.width}x${request.height} / ${hh}:${mm}`.slice(0, 60);
+  }
+
+  function recipeSummary(request) {
+    return [
+      request.rating || "safe",
+      request.quality_preset || "standard",
+      `${request.width || 0}x${request.height || 0}`,
+      `${request.steps || 0}steps`,
+    ].join(" · ").slice(0, 120);
+  }
+
+  function setRecipeListLoading(message) {
+    $("#recipeList")?.replaceChildren();
+    text("#recipeCountLbl", "-");
+    text("#recipeStatus", message);
+  }
+
+  function renderRecipes(items = state.recipes) {
+    const root = $("#recipeList");
+    if (!root) return;
+    const recipes = Array.isArray(items) ? items : [];
+    root.replaceChildren();
+    if (!recipes.length) {
+      const empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent = "レシピはまだありません";
+      root.appendChild(empty);
+    } else {
+      for (const item of recipes) {
+        const row = document.createElement("div");
+        row.style.display = "grid";
+        row.style.gridTemplateColumns = "minmax(0, 1fr) auto";
+        row.style.alignItems = "stretch";
+        row.style.gap = "8px";
+
+        const apply = document.createElement("button");
+        apply.type = "button";
+        apply.dataset.recipeId = item.id || "";
+        apply.style.textAlign = "left";
+
+        const label = document.createElement("span");
+        label.textContent = item.name || "Untitled Recipe";
+
+        const summary = document.createElement("span");
+        summary.className = "tag";
+        summary.textContent = item.summary || "";
+        apply.append(label, summary);
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "ghost";
+        remove.dataset.recipeDeleteId = item.id || "";
+        remove.textContent = "削除";
+
+        row.append(apply, remove);
+        root.appendChild(row);
+      }
+    }
+    text("#recipeCountLbl", String(recipes.length));
+    text("#recipeStatus", "");
+  }
+
+  async function saveRecipe() {
+    const request = collectRequest();
+    const data = await api("/api/recipes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: recipeAutoName(request),
+        summary: recipeSummary(request),
+        request,
+      }),
+    });
+    state.recipes = Array.isArray(data.items) ? data.items : state.recipes;
+    text("#recipeStatus", "保存しました");
+    text("#recipeCountLbl", String(data.count ?? state.recipes.length));
+    UI.toast("レシピを保存しました");
+    if ($("#recipeSheet")?.classList.contains("is-open")) renderRecipes();
+  }
+
+  async function openRecipes() {
+    state.recipes = [];
+    setRecipeListLoading("読み込み中...");
+    UI.openSheet("#recipeSheet");
+    const data = await api("/api/recipes");
+    state.recipes = Array.isArray(data.items) ? data.items : [];
+    renderRecipes();
+  }
+
+  async function applyRecipe(recipeId) {
+    const item = state.recipes.find((recipe) => String(recipe.id || "") === String(recipeId || ""));
+    if (!item || !item.request || typeof item.request !== "object") {
+      UI.toast("レシピを適用できませんでした", "error");
+      return;
+    }
+    applyHistoryReuseData(reuseDataFromRequest(item.request));
+    UI.closeSheets();
+    UI.switchTab("expose");
+    UI.toast("レシピを適用しました");
+    try {
+      const data = await api(`/api/recipes/${escapePathSegment(item.id)}/used`, {
+        method: "POST",
+        body: "{}",
+      });
+      if (data.item) {
+        state.recipes = state.recipes.map((recipe) => recipe.id === data.item.id ? data.item : recipe);
+      }
+    } catch (error) {
+      console.debug("recipe used update failed", error);
+    }
+  }
+
+  async function deleteRecipeItem(recipeId) {
+    if (!recipeId) return;
+    const data = await api(`/api/recipes/${escapePathSegment(recipeId)}`, {
+      method: "DELETE",
+    });
+    if (data.removed) state.recipes = state.recipes.filter((item) => item.id !== recipeId);
+    renderRecipes();
     UI.toast(data.removed ? "削除しました" : "見つかりませんでした");
   }
 
@@ -1872,10 +2000,19 @@
       slots,
       rating: item.rating || "safe",
       quality_preset: item.quality_preset || "standard",
+      meta_prompt: item.meta_prompt || "anime illustration",
+      year_prompt: item.year_prompt || "",
+      outfit_prompt: item.outfit_prompt || "",
+      expression_prompt: item.expression_prompt || "",
+      pose_prompt: item.pose_prompt || "",
+      background_prompt: item.background_prompt || "",
+      lighting_prompt: item.lighting_prompt || "",
+      camera_prompt: item.camera_prompt || "",
       positive_prompt: historyPositiveText(item),
       negative_prompt: historyNegativeText(item),
       negative_prompt_mode: "custom",
       negative_preset: item.negative_preset || "anima_recommended",
+      prompt_ban: item.prompt_ban || "",
       natural_description: item.natural_description || "",
       model: item.model || state.defaults.model || "",
       width: numberFrom(item.width, 1024),
@@ -1889,6 +2026,10 @@
       seed_mode: "fixed",
       official_loras: historyOfficialLoras(item.official_loras || {}),
       loras: historyLoras(item.loras || []),
+      dynamic_prompt: { enabled: false },
+      image_to_image: historyImageToImageRequest(item),
+      reference_modules: historyReferenceModulesRequest(item),
+      face_detailer: historyFaceDetailerRequest(item),
       source_item: item,
     };
   }
@@ -1903,10 +2044,19 @@
     renderSlots();
     UI.setSegValue("#ratingSeg", "rating", data.rating);
     UI.setSegValue("#qualitySeg", "quality", data.quality_preset);
+    setValue("#metaPrompt", data.meta_prompt);
+    setValue("#yearPrompt", data.year_prompt);
+    setValue("#outfitPrompt", data.outfit_prompt);
+    setValue("#expressionPrompt", data.expression_prompt);
+    setValue("#posePrompt", data.pose_prompt);
+    setValue("#backgroundPrompt", data.background_prompt);
+    setValue("#cameraPrompt", data.camera_prompt);
+    setValue("#lightingPrompt", data.lighting_prompt);
     setValue("#positivePrompt", data.positive_prompt);
     setValue("#negativePrompt", data.negative_prompt);
     setValue("#negativeMode", data.negative_prompt_mode);
     setValue("#negativePreset", data.negative_preset);
+    setValue("#promptBan", data.prompt_ban);
     setValue("#naturalDescription", data.natural_description);
     setValue("#modelSelect", data.model);
     setValue("#widthInput", data.width);
@@ -1924,6 +2074,41 @@
     setValue("#officialTurboStrength", data.official_loras.turbo.strength);
     $("#loraSlots")?.replaceChildren();
     for (const lora of data.loras || []) addLoraRow(lora);
+    setChecked("#dynamicEnabled", Boolean(data.dynamic_prompt?.enabled));
+
+    const i2i = data.image_to_image || {};
+    const i2iImageId = i2i.enabled ? String(i2i.image_id || "") : "";
+    state.i2i = { imageId: i2iImageId, thumb: "", name: String(i2i.image_name || i2iImageId || "") };
+    setChecked("#i2iEnabled", Boolean(i2iImageId));
+    setValue("#i2iDenoise", i2i.denoise ?? 0.45);
+    setValue("#i2iResize", i2i.resize_mode || "fit");
+    setChecked("#i2iUseSource", Boolean(i2i.use_source_size));
+    renderI2iPreview();
+
+    const modules = data.reference_modules || {};
+    const outfit = modules.outfit || {};
+    const pose = modules.pose || {};
+    const outfitImageId = outfit.enabled ? String(outfit.image_id || "") : "";
+    const poseImageId = pose.enabled ? String(pose.image_id || "") : "";
+    state.refmod.outfit = { imageId: outfitImageId, thumb: "", name: String(outfit.image_name || outfitImageId || "") };
+    state.refmod.pose = { imageId: poseImageId, thumb: "", name: String(pose.image_name || poseImageId || "") };
+    setChecked("#outfitEnabled", Boolean(outfitImageId));
+    setValue("#outfitStrength", outfit.strength ?? 0.45);
+    setValue("#outfitStart", outfit.start_at ?? 0);
+    setValue("#outfitEnd", outfit.end_at ?? 0.75);
+    setChecked("#poseEnabled", Boolean(poseImageId));
+    setValue("#poseMode", pose.mode || "pose_image");
+    setValue("#poseStrength", pose.strength ?? 0.75);
+    setValue("#poseStart", pose.start_at ?? 0);
+    setValue("#poseEnd", pose.end_at ?? 0.85);
+    renderRefmodPreviews();
+
+    const face = data.face_detailer || {};
+    setChecked("#fdEnabled", Boolean(face.enabled));
+    setValue("#fdSteps", face.steps ?? 12);
+    setValue("#fdCfg", face.cfg ?? 4.0);
+    setValue("#fdDenoise", face.denoise ?? 0.3);
+    setValue("#fdBbox", face.bbox_threshold ?? 0.5);
     updateSummaries();
   }
 
@@ -1932,6 +2117,68 @@
     if (item?.value) return item.value;
     if (slotName === "character1") return "Random";
     return "None";
+  }
+
+  function slotItemFromRequest(slotName, rawValue) {
+    const raw = String(rawValue || "").trim();
+    if (!raw || raw === "None" || (slotName === "character1" && raw === "Random")) return null;
+    const original = slotName === "original";
+    const display = raw.startsWith("original:") ? raw.slice("original:".length) : raw;
+    return {
+      source: original ? "original_character" : "wai_characters",
+      id: display,
+      displayName: display,
+      promptTag: "",
+      kind: original ? "original" : "wai",
+      value: raw,
+    };
+  }
+
+  function reuseDataFromRequest(request = {}) {
+    const req = request && typeof request === "object" ? request : {};
+    const defaultPositive = state.appSettings.default_positive_prompt ?? state.defaults.positive_prompt ?? "";
+    const defaultNegative = state.appSettings.default_negative_prompt ?? state.defaults.negative_prompt ?? "";
+    return {
+      slots: {
+        character1: slotItemFromRequest("character1", req.character1 ?? "Random"),
+        character2: slotItemFromRequest("character2", req.character2 ?? "None"),
+        character3: slotItemFromRequest("character3", req.character3 ?? "None"),
+        original: slotItemFromRequest("original", req.original_character ?? "None"),
+      },
+      rating: req.rating || state.appSettings.rating || "safe",
+      quality_preset: req.quality_preset || state.appSettings.quality_preset || "standard",
+      meta_prompt: req.meta_prompt ?? state.appSettings.meta_prompt ?? "anime illustration",
+      year_prompt: req.year_prompt ?? state.appSettings.year_prompt ?? "",
+      outfit_prompt: req.outfit_prompt ?? state.appSettings.outfit_prompt ?? "",
+      expression_prompt: req.expression_prompt ?? state.appSettings.expression_prompt ?? "",
+      pose_prompt: req.pose_prompt ?? state.appSettings.pose_prompt ?? "",
+      background_prompt: req.background_prompt ?? state.appSettings.background_prompt ?? "",
+      lighting_prompt: req.lighting_prompt ?? state.appSettings.lighting_prompt ?? "",
+      camera_prompt: req.camera_prompt ?? state.appSettings.camera_prompt ?? "",
+      positive_prompt: req.positive_prompt ?? defaultPositive,
+      negative_prompt: req.negative_prompt_raw ?? req.negative_prompt ?? defaultNegative,
+      negative_prompt_mode: req.negative_prompt_mode || state.appSettings.negative_prompt_mode || "append",
+      negative_preset: req.negative_preset || state.appSettings.negative_preset || "anima_recommended",
+      prompt_ban: req.prompt_ban ?? "",
+      natural_description: req.natural_description ?? state.appSettings.natural_description ?? "",
+      model: req.model || state.appSettings.model || state.defaults.model || "",
+      width: numberFrom(req.width, numberFrom(state.appSettings.width ?? state.defaults.width, 1024)),
+      height: numberFrom(req.height, numberFrom(state.appSettings.height ?? state.defaults.height, 1536)),
+      steps: intFrom(req.steps, intFrom(state.appSettings.steps ?? state.defaults.steps, 32)),
+      cfg: numberFrom(req.cfg, numberFrom(state.appSettings.cfg ?? state.defaults.cfg, 4.5)),
+      shift: numberFrom(req.shift, numberFrom(state.appSettings.shift ?? state.defaults.shift, 4)),
+      sampler: req.sampler || state.appSettings.sampler || state.defaults.sampler || "er_sde",
+      scheduler: req.scheduler || state.appSettings.scheduler || state.defaults.scheduler || "simple",
+      seed: intFrom(req.seed, intFrom(state.appSettings.seed ?? state.defaults.seed, -1)),
+      seed_mode: req.seed_mode || state.appSettings.seed_mode || "fixed",
+      official_loras: historyOfficialLoras(req.official_loras || {}),
+      loras: historyLoras(req.loras || []),
+      dynamic_prompt: req.dynamic_prompt && typeof req.dynamic_prompt === "object" ? req.dynamic_prompt : { enabled: false },
+      image_to_image: historyImageToImageRequest({ image_to_image: req.image_to_image }),
+      reference_modules: historyReferenceModulesRequest({ reference_modules: req.reference_modules }),
+      face_detailer: historyFaceDetailerRequest({ face_detailer: req.face_detailer }),
+      source_item: req,
+    };
   }
 
   function historyRequestFromItem(item = {}) {
@@ -2229,6 +2476,8 @@
     if (action === "save-positive-fav") return savePositiveFavorite();
     if (action === "open-positive-favs") return openPositiveFavorites();
     if (action === "open-templates") return openPositiveTemplates();
+    if (action === "save-recipe") return saveRecipe();
+    if (action === "open-recipes") return openRecipes();
     if (action === "load-more") return loadContact(false);
     if (action === "frame-favorite") return toggleFrameFavorite();
     if (action === "frame-public-save") return savePublicImage();
@@ -2313,6 +2562,24 @@
       }, 250);
     });
 
+    $("#recipeList")?.addEventListener("click", (event) => {
+      const deleteTarget = event.target.closest("[data-recipe-delete-id]");
+      if (deleteTarget) {
+        event.preventDefault();
+        deleteRecipeItem(deleteTarget.dataset.recipeDeleteId).catch((error) => {
+          text("#recipeStatus", errorMessage(error));
+          UI.toast(errorMessage(error), "error");
+        });
+        return;
+      }
+      const row = event.target.closest("[data-recipe-id]");
+      if (!row) return;
+      applyRecipe(row.dataset.recipeId).catch((error) => {
+        text("#recipeStatus", errorMessage(error));
+        UI.toast(errorMessage(error), "error");
+      });
+    });
+
     $("#charSlots")?.addEventListener("click", (event) => {
       const slot = event.target.closest(".slot[data-slot]");
       if (!slot) return;
@@ -2386,6 +2653,7 @@
         if (action?.startsWith("i2i-")) text("#i2iStatus", errorMessage(error));
         if (action?.startsWith("outfit-") || action?.startsWith("pose-")) text("#refModStatus", errorMessage(error));
         if (["save-defaults", "reset-defaults", "reload-models"].includes(action)) text("#settingsStatus", errorMessage(error));
+        if (["save-recipe", "open-recipes"].includes(action)) text("#recipeStatus", errorMessage(error));
       });
     });
 

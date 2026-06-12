@@ -68,6 +68,7 @@ from .positive_prompt_favorites_store import (
 )
 from .positive_prompt_templates_store import list_positive_prompt_templates
 from .prompt_dictionary_store import prompt_dictionary_status, search_prompt_dictionary
+from .recipes_store import add_recipe, delete_recipe, list_recipes, mark_recipe_used
 from .anima_adapter import catalog, load_settings
 from .settings_store import load_app_settings, reset_app_settings, save_app_settings
 from .validators import (
@@ -213,6 +214,12 @@ class PositivePromptFavoritePatch(BaseModel):
     tags: Any = None
     note: str | None = None
     favorite: bool | None = None
+
+
+class RecipeRequest(BaseModel):
+    name: str = ""
+    summary: str = ""
+    request: dict[str, Any] = Field(default_factory=dict)
 
 
 class LoraReviewRequest(BaseModel):
@@ -512,6 +519,40 @@ def use_positive_prompt_favorite(favorite_id: str, anima_claude_session: str | N
         return JSONResponse(status_code=404, content={"ok": False, "status": 404, "stage": "positive_prompt_favorite_used", "message": "Favorite not found"})
     payload = list_positive_prompt_favorites()
     return JSONResponse(status_code=200, content={"ok": True, "item": item, "count": len(payload["items"]), **payload})
+
+
+@app.get("/api/recipes")
+def recipes(anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+    require_auth(anima_claude_session)
+    payload = list_recipes()
+    return {"ok": True, "count": len(payload["items"]), **payload}
+
+
+@app.post("/api/recipes")
+def post_recipe(data: RecipeRequest, anima_claude_session: str | None = Cookie(default=None)) -> JSONResponse:
+    require_auth(anima_claude_session)
+    try:
+        item = add_recipe(data.name, data.summary, data.request)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "status": 400, "stage": "recipe_add", "message": str(exc)})
+    payload = list_recipes()
+    return JSONResponse(status_code=201, content={"ok": True, "item": item, "count": len(payload["items"]), **payload})
+
+
+@app.delete("/api/recipes/{recipe_id}")
+def delete_recipe_route(recipe_id: str, anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+    require_auth(anima_claude_session)
+    return {"ok": True, "removed": delete_recipe(recipe_id)}
+
+
+@app.post("/api/recipes/{recipe_id}/used")
+def use_recipe(recipe_id: str, anima_claude_session: str | None = Cookie(default=None)) -> JSONResponse:
+    require_auth(anima_claude_session)
+    try:
+        item = mark_recipe_used(recipe_id)
+    except KeyError:
+        return JSONResponse(status_code=404, content={"ok": False, "status": 404, "stage": "recipe_used", "message": "Recipe not found"})
+    return JSONResponse(status_code=200, content={"ok": True, "item": item})
 
 
 @app.get("/api/prompts/positive-templates")
