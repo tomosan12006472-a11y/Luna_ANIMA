@@ -334,3 +334,10 @@ details.tray > summary .lbl {
 }
 details.tray > summary h2 { white-space: nowrap; }
 .exif td:last-child { line-break: anywhere; }
+
+/* v1.4: i2i source preview */
+.i2i-preview { border: 1px dashed var(--line-strong); padding: 8px; margin-top: 10px;
+  font-size: 14px; color: var(--ink-faint); display: flex; gap: 10px; align-items: center; }
+.i2i-preview img { max-height: 96px; max-width: 40%; display: block; border: 1px solid var(--line); }
+.i2i-preview.is-empty { justify-content: center; min-height: 48px; }
+input[type="file"] { width: 100%; color: var(--ink-dim); font-size: 13px; margin-top: 10px; }
