@@ -325,3 +325,12 @@ pre.printout {
   .frame img.developing { animation: none; }
   .frame.is-skeleton::after { animation: none; }
 }
+
+/* v1.3: prevent mid-text wraps inside controls (buttons wrap as units instead) */
+button.ghost, .chip, .seg button, .slot > .lbl,
+#safelightStatus span, #safelightStatus strong { white-space: nowrap; }
+details.tray > summary .lbl {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%;
+}
+details.tray > summary h2 { white-space: nowrap; }
+.exif td:last-child { line-break: anywhere; }
