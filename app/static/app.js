@@ -1873,6 +1873,13 @@
     ]);
   }
 
+  function historyRawPositiveText(item = {}) {
+    return firstHistoryText(item, [
+      "positive_prompt",
+      "dynamic_prompt.raw_positive_prompt",
+    ]);
+  }
+
   function historyNegativeText(item = {}) {
     return firstHistoryText(item, [
       "dynamic_prompt.expanded_negative_prompt",
@@ -2106,6 +2113,79 @@
     };
   }
 
+  const HISTORY_QUALITY_PROMPTS = {
+    standard: "masterpiece, best quality, score_7",
+    high: "masterpiece, best quality, high quality, highly detailed, score_8, score_7",
+    character_check: "best quality, clean character design, clear face, full body",
+  };
+  const HISTORY_RATING_TAGS = {
+    safe: "safe",
+    sensitive: "sensitive",
+    nsfw: "nsfw",
+    explicit: "explicit",
+  };
+  function promptTerms(textValue) {
+    return String(textValue || "").split(/,|\n/).map((term) => term.trim()).filter(Boolean);
+  }
+
+  function normalizePromptTerm(term) {
+    return String(term || "").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  function escapeHistoryCharacterTag(tag) {
+    return String(tag || "").replaceAll("\\", "\\\\").replaceAll("(", "\\(").replaceAll(")", "\\)");
+  }
+
+  function inferHistoryQualityPreset(item = {}) {
+    if (item.quality_preset) return item.quality_preset;
+    const terms = new Set(promptTerms(historyPositiveText(item)).map(normalizePromptTerm));
+    if (terms.has("clean character design") || terms.has("clear face") || terms.has("full body")) return "character_check";
+    if (terms.has("score_8") || terms.has("high quality") || terms.has("highly detailed")) return "high";
+    return "standard";
+  }
+
+  function historyGeneratedPositiveParts(item = {}, qualityPreset = "standard") {
+    const parts = [
+      HISTORY_QUALITY_PROMPTS[qualityPreset] || HISTORY_QUALITY_PROMPTS.standard,
+      item.meta_prompt || "anime illustration",
+      item.year_prompt || "",
+      HISTORY_RATING_TAGS[item.rating || "safe"] || "safe",
+      item.common || "",
+      item.outfit_prompt || "",
+      item.expression_prompt || "",
+      item.pose_prompt || "",
+      item.background_prompt || "",
+      item.camera_prompt || "",
+      item.lighting_prompt || "",
+      item.natural_description || "",
+    ];
+    const characters = Array.isArray(item.characters) ? item.characters : [];
+    const characterCount = characters.length;
+    if (characterCount === 1) parts.push("1girl");
+    if (characterCount > 1) parts.push(`${characterCount}girls`);
+    for (const char of characters) {
+      if (!char || typeof char !== "object") continue;
+      parts.push(char.prompt_tag || "");
+      parts.push(escapeHistoryCharacterTag(char.prompt_tag || ""));
+      parts.push(char.identity_prompt || "");
+    }
+    return parts;
+  }
+
+  function stripGeneratedHistoryPositive(item = {}, qualityPreset = "standard") {
+    const positive = historyPositiveText(item);
+    if (!positive) return "";
+    const rawPositive = historyRawPositiveText(item);
+    if (rawPositive) return rawPositive;
+    const generated = new Set(
+      historyGeneratedPositiveParts(item, qualityPreset)
+        .flatMap(promptTerms)
+        .map(normalizePromptTerm)
+        .filter(Boolean),
+    );
+    return promptTerms(positive).filter((term) => !generated.has(normalizePromptTerm(term))).join(", ");
+  }
+
   function historyReuseData(item = {}) {
     const slots = { character1: null, character2: null, character3: null, original: null };
     for (const char of item.characters || []) {
@@ -2119,10 +2199,11 @@
       });
       slots[slotName] = { ...normalized, value: historyCharacterValue(char, slotName) };
     }
+    const qualityPreset = inferHistoryQualityPreset(item);
     return {
       slots,
       rating: item.rating || "safe",
-      quality_preset: item.quality_preset || "standard",
+      quality_preset: qualityPreset,
       meta_prompt: item.meta_prompt || "anime illustration",
       year_prompt: item.year_prompt || "",
       outfit_prompt: item.outfit_prompt || "",
@@ -2131,7 +2212,7 @@
       background_prompt: item.background_prompt || "",
       lighting_prompt: item.lighting_prompt || "",
       camera_prompt: item.camera_prompt || "",
-      positive_prompt: historyPositiveText(item),
+      positive_prompt: stripGeneratedHistoryPositive(item, qualityPreset),
       negative_prompt: historyNegativeText(item),
       negative_prompt_mode: "custom",
       negative_preset: item.negative_preset || "anima_recommended",
