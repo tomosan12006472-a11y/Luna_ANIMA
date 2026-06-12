@@ -4,6 +4,8 @@ from copy import deepcopy
 from datetime import datetime
 import json
 import shutil
+from threading import Lock
+import time
 from typing import Any
 
 from ._shared_utils import clamp_float, clamp_strength, normalize_lora_strengths, write_json_atomic
@@ -11,6 +13,9 @@ from .config import SETTINGS_PATH
 from .face_detailer import DEFAULT_FACE_DETAILER_SETTINGS, sanitize_face_detailer_settings
 from .i2i_store import sanitize_image_to_image
 from .reference_modules import DEFAULT_REFERENCE_MODULES, sanitize_reference_modules
+
+
+_SETTINGS_LOCK = Lock()
 
 
 DEFAULT_APP_SETTINGS: dict[str, Any] = {
@@ -219,13 +224,22 @@ def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_app_settings() -> dict[str, Any]:
+    with _SETTINGS_LOCK:
+        return _load_app_settings_unlocked()
+
+
+def _load_app_settings_unlocked() -> dict[str, Any]:
     if not SETTINGS_PATH.exists():
         return deepcopy(DEFAULT_APP_SETTINGS)
     try:
         raw = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
     except Exception:
-        backup_broken_settings()
-        return deepcopy(DEFAULT_APP_SETTINGS)
+        time.sleep(0.05)
+        try:
+            raw = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            backup_broken_settings()
+            return deepcopy(DEFAULT_APP_SETTINGS)
     if not isinstance(raw, dict):
         backup_broken_settings()
         return deepcopy(DEFAULT_APP_SETTINGS)
@@ -234,11 +248,13 @@ def load_app_settings() -> dict[str, Any]:
 
 def save_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     merged = sanitize_app_settings(settings)
-    write_json_atomic(SETTINGS_PATH, merged)
+    with _SETTINGS_LOCK:
+        write_json_atomic(SETTINGS_PATH, merged)
     return merged
 
 
 def reset_app_settings() -> dict[str, Any]:
     settings = deepcopy(DEFAULT_APP_SETTINGS)
-    write_json_atomic(SETTINGS_PATH, settings)
+    with _SETTINGS_LOCK:
+        write_json_atomic(SETTINGS_PATH, settings)
     return settings

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 import json
 from threading import Lock
+import time
 from typing import Any
 
 from ._shared_utils import write_json_atomic
@@ -23,17 +24,30 @@ def default_flags() -> dict[str, Any]:
     return {"favorite": False, "post_candidate": False, "hidden": False, "tags": []}
 
 
+def empty_payload() -> dict[str, Any]:
+    return {"schema_version": 1, "app_scope": APP_SCOPE, "items": {}}
+
+
 def load_history_flags() -> dict[str, Any]:
+    with _FLAGS_LOCK:
+        return _load_history_flags_unlocked()
+
+
+def _load_history_flags_unlocked() -> dict[str, Any]:
     if not FLAGS_PATH.exists():
-        return {"schema_version": 1, "app_scope": APP_SCOPE, "items": {}}
+        return empty_payload()
     try:
         data = json.loads(FLAGS_PATH.read_text(encoding="utf-8"))
     except Exception:
-        return {"schema_version": 1, "app_scope": APP_SCOPE, "items": {}}
+        time.sleep(0.05)
+        try:
+            data = json.loads(FLAGS_PATH.read_text(encoding="utf-8"))
+        except Exception as second_error:
+            raise RuntimeError("history flags are temporarily unreadable") from second_error
     if not isinstance(data, dict):
-        return {"schema_version": 1, "app_scope": APP_SCOPE, "items": {}}
+        return empty_payload()
     if data.get("app_scope") != APP_SCOPE:
-        return {"schema_version": 1, "app_scope": APP_SCOPE, "items": {}}
+        return empty_payload()
     if not isinstance(data.get("items"), dict):
         data["items"] = {}
     data.setdefault("schema_version", 1)
@@ -42,6 +56,11 @@ def load_history_flags() -> dict[str, Any]:
 
 
 def save_history_flags(data: dict[str, Any]) -> None:
+    with _FLAGS_LOCK:
+        _save_history_flags_unlocked(data)
+
+
+def _save_history_flags_unlocked(data: dict[str, Any]) -> None:
     write_json_atomic(FLAGS_PATH, data)
 
 
@@ -111,11 +130,11 @@ def update_history_flags(history_id: str, patch: dict[str, Any]) -> dict[str, An
         else:
             clean_patch[key] = bool(value)
     with _FLAGS_LOCK:
-        data = load_history_flags()
+        data = _load_history_flags_unlocked()
         items = data.setdefault("items", {})
         current = normalize_flags(items.get(history_id))
         current.update(clean_patch)
         current["updated_at"] = now_iso()
         items[history_id] = current
-        save_history_flags(data)
+        _save_history_flags_unlocked(data)
         return current

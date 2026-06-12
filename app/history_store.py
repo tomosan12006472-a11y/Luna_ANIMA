@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import shutil
 from threading import Lock
+import time
 import uuid
 from typing import Any
 
@@ -51,7 +52,11 @@ def load_history_item(history_id: str) -> dict[str, Any] | None:
     try:
         item = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return None
+        time.sleep(0.05)
+        try:
+            item = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
     if not isinstance(item, dict):
         return None
     return normalize_history_item(item)
@@ -104,8 +109,12 @@ def _load_visible_history_from_paths(paths: list[Path]) -> tuple[list[dict[str, 
         try:
             item = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
-            warnings.append(f"Skipped broken history entry: {path.name}")
-            continue
+            time.sleep(0.05)
+            try:
+                item = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                warnings.append(f"Skipped broken history entry: {path.name}")
+                continue
         if not isinstance(item, dict):
             warnings.append(f"Skipped invalid history entry: {path.name}")
             continue

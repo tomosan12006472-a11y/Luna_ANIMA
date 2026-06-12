@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 from threading import Lock
+import time
 from typing import Any
 
 from ._shared_utils import write_json_atomic
@@ -76,17 +77,31 @@ def normalize_favorites(raw: Any) -> dict[str, list[dict[str, Any]]]:
 
 
 def load_favorites() -> dict[str, list[dict[str, Any]]]:
+    with _FAVORITES_LOCK:
+        return _load_favorites_unlocked()
+
+
+def _load_favorites_unlocked() -> dict[str, list[dict[str, Any]]]:
     if not FAVORITES_PATH.exists():
         return empty_favorites()
     try:
         raw = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
     except Exception:
-        backup_broken_favorites()
-        return empty_favorites()
+        time.sleep(0.05)
+        try:
+            raw = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            backup_broken_favorites()
+            return empty_favorites()
     return normalize_favorites(raw)
 
 
 def save_favorites(data: dict[str, list[dict[str, Any]]]) -> None:
+    with _FAVORITES_LOCK:
+        _save_favorites_unlocked(data)
+
+
+def _save_favorites_unlocked(data: dict[str, list[dict[str, Any]]]) -> None:
     write_json_atomic(FAVORITES_PATH, normalize_favorites(data))
 
 
@@ -134,13 +149,13 @@ def add_favorite(item: dict[str, Any]) -> tuple[str, dict[str, Any], dict[str, l
         "updated_at": now,
     }
     with _FAVORITES_LOCK:
-        data = load_favorites()
+        data = _load_favorites_unlocked()
         key = "original_characters" if source == "original_character" else "characters"
         existing = next((entry for entry in data[key] if entry["id"] == favorite["id"]), None)
         if existing:
             return "already_exists", existing, data
         data[key].append(favorite)
-        save_favorites(data)
+        _save_favorites_unlocked(data)
         return "created", favorite, data
 
 
@@ -148,13 +163,13 @@ def remove_favorite(source: str, favorite_id: str) -> tuple[bool, dict[str, list
     if source not in FAVORITE_SOURCES:
         raise ValueError("Unknown favorite source")
     with _FAVORITES_LOCK:
-        data = load_favorites()
+        data = _load_favorites_unlocked()
         key = "original_characters" if source == "original_character" else "characters"
         before = len(data[key])
         data[key] = [item for item in data[key] if item.get("id") != favorite_id]
         removed = len(data[key]) != before
         if removed:
-            save_favorites(data)
+            _save_favorites_unlocked(data)
         return removed, data
 
 
@@ -162,13 +177,13 @@ def mark_favorite_used(source: str, favorite_id: str) -> dict[str, Any] | None:
     if source not in FAVORITE_SOURCES:
         return None
     with _FAVORITES_LOCK:
-        data = load_favorites()
+        data = _load_favorites_unlocked()
         key = "original_characters" if source == "original_character" else "characters"
         for item in data[key]:
             if item.get("id") == favorite_id:
                 item["use_count"] = int(item.get("use_count") or 0) + 1
                 item["last_used_at"] = now_iso()
                 item["updated_at"] = item["last_used_at"]
-                save_favorites(data)
+                _save_favorites_unlocked(data)
                 return item
         return None

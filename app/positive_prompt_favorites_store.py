@@ -119,13 +119,17 @@ def _load_payload_unlocked() -> dict[str, Any]:
 
 
 def _save_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    with _FAVORITES_LOCK:
+        return _save_payload_unlocked(payload)
+
+
+def _save_payload_unlocked(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = {
         "version": 1,
         "app_scope": APP_SCOPE,
         "items": [_normalize_item(item) for item in payload.get("items", []) if isinstance(item, dict)],
     }
-    with _FAVORITES_LOCK:
-        write_json_atomic(FAVORITES_PATH, normalized)
+    write_json_atomic(FAVORITES_PATH, normalized)
     return normalized
 
 
@@ -152,52 +156,56 @@ def add_positive_prompt_favorite(data: dict[str, Any]) -> dict[str, Any]:
         "source": "positive_prompt",
         "favorite": True,
     })
-    payload = _load_payload()
-    payload["items"].insert(0, item)
-    _save_payload(payload)
-    return item
+    with _FAVORITES_LOCK:
+        payload = _load_payload_unlocked()
+        payload["items"].insert(0, item)
+        _save_payload_unlocked(payload)
+        return item
 
 
 def update_positive_prompt_favorite(favorite_id: str, patch: dict[str, Any]) -> dict[str, Any]:
-    payload = _load_payload()
-    for index, item in enumerate(payload["items"]):
-        if item.get("id") != favorite_id:
-            continue
-        next_item = {**item}
-        for key in ("title", "prompt", "tags", "note", "favorite"):
-            if key in patch and patch[key] is not None:
-                next_item[key] = patch[key]
-        if not str(next_item.get("prompt") or "").strip():
-            raise ValueError("Positive prompt is empty")
-        next_item["updated_at"] = _now()
-        payload["items"][index] = _normalize_item(next_item)
-        _save_payload(payload)
-        return payload["items"][index]
+    with _FAVORITES_LOCK:
+        payload = _load_payload_unlocked()
+        for index, item in enumerate(payload["items"]):
+            if item.get("id") != favorite_id:
+                continue
+            next_item = {**item}
+            for key in ("title", "prompt", "tags", "note", "favorite"):
+                if key in patch and patch[key] is not None:
+                    next_item[key] = patch[key]
+            if not str(next_item.get("prompt") or "").strip():
+                raise ValueError("Positive prompt is empty")
+            next_item["updated_at"] = _now()
+            payload["items"][index] = _normalize_item(next_item)
+            _save_payload_unlocked(payload)
+            return payload["items"][index]
     raise KeyError(favorite_id)
 
 
 def delete_positive_prompt_favorite(favorite_id: str) -> bool:
-    payload = _load_payload()
-    before = len(payload["items"])
-    payload["items"] = [item for item in payload["items"] if item.get("id") != favorite_id]
-    removed = len(payload["items"]) != before
-    if removed:
-        _save_payload(payload)
-    return removed
+    with _FAVORITES_LOCK:
+        payload = _load_payload_unlocked()
+        before = len(payload["items"])
+        payload["items"] = [item for item in payload["items"] if item.get("id") != favorite_id]
+        removed = len(payload["items"]) != before
+        if removed:
+            _save_payload_unlocked(payload)
+        return removed
 
 
 def mark_positive_prompt_favorite_used(favorite_id: str) -> dict[str, Any]:
-    payload = _load_payload()
-    for index, item in enumerate(payload["items"]):
-        if item.get("id") != favorite_id:
-            continue
-        next_item = {
-            **item,
-            "use_count": int(item.get("use_count") or 0) + 1,
-            "last_used_at": _now(),
-            "updated_at": _now(),
-        }
-        payload["items"][index] = _normalize_item(next_item)
-        _save_payload(payload)
-        return payload["items"][index]
+    with _FAVORITES_LOCK:
+        payload = _load_payload_unlocked()
+        for index, item in enumerate(payload["items"]):
+            if item.get("id") != favorite_id:
+                continue
+            next_item = {
+                **item,
+                "use_count": int(item.get("use_count") or 0) + 1,
+                "last_used_at": _now(),
+                "updated_at": _now(),
+            }
+            payload["items"][index] = _normalize_item(next_item)
+            _save_payload_unlocked(payload)
+            return payload["items"][index]
     raise KeyError(favorite_id)

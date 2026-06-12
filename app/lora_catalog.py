@@ -7,9 +7,11 @@ import json
 import os
 import re
 from pathlib import Path
+from threading import Lock
+import time
 from typing import Any
 
-from ._shared_utils import clamp_strength
+from ._shared_utils import clamp_strength, write_json_atomic
 from .config import (
     ANIMA_HIGHRES_LORA_NAME,
     ANIMA_TURBO_LORA_V01_NAME,
@@ -23,6 +25,9 @@ APP_SCOPE = "anima"
 CATALOG_PATH = USER_DATA_DIR / "lora_catalog_anima.json"
 FAVORITES_PATH = USER_DATA_DIR / "lora_favorites_anima.json"
 DISCOVERY_DIR = USER_DATA_DIR / "lora_discovery"
+_CATALOG_LOCK = Lock()
+_LORA_FAVORITES_LOCK = Lock()
+_DISCOVERY_REVIEW_LOCK = Lock()
 
 SLOT_DEFAULTS: dict[str, dict[str, Any]] = {
     "character": {"enabled": False, "lora_id": "none", "model_strength": 0.70, "clip_strength": 0.70, "max_strength": 1.0},
@@ -121,12 +126,21 @@ def default_catalog() -> dict[str, Any]:
 
 
 def load_catalog() -> dict[str, Any]:
+    with _CATALOG_LOCK:
+        return _load_catalog_unlocked()
+
+
+def _load_catalog_unlocked() -> dict[str, Any]:
     if not CATALOG_PATH.exists():
         return default_catalog()
     try:
         data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     except Exception:
-        return default_catalog()
+        time.sleep(0.05)
+        try:
+            data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        except Exception as second_error:
+            raise RuntimeError("lora catalog is temporarily unreadable") from second_error
     if not isinstance(data, dict):
         return default_catalog()
     items = data.get("items")
@@ -143,8 +157,8 @@ def load_catalog() -> dict[str, Any]:
 
 def refresh_catalog() -> dict[str, Any]:
     catalog = default_catalog()
-    CATALOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CATALOG_PATH.write_text(json.dumps(catalog, ensure_ascii=False, indent=2), encoding="utf-8")
+    with _CATALOG_LOCK:
+        write_json_atomic(CATALOG_PATH, catalog)
     return catalog
 
 
@@ -161,12 +175,21 @@ def _favorite_match_keys(item: dict[str, Any]) -> set[str]:
 
 
 def load_lora_favorites() -> dict[str, Any]:
+    with _LORA_FAVORITES_LOCK:
+        return _load_lora_favorites_unlocked()
+
+
+def _load_lora_favorites_unlocked() -> dict[str, Any]:
     if not FAVORITES_PATH.exists():
         return {"schema_version": 1, "app_scope": APP_SCOPE, "favorites": {}}
     try:
         data = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
     except Exception:
-        return {"schema_version": 1, "app_scope": APP_SCOPE, "favorites": {}}
+        time.sleep(0.05)
+        try:
+            data = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
+        except Exception as second_error:
+            raise RuntimeError("lora favorites are temporarily unreadable") from second_error
     if not isinstance(data, dict) or data.get("app_scope") != APP_SCOPE:
         return {"schema_version": 1, "app_scope": APP_SCOPE, "favorites": {}}
     favorites = data.get("favorites")
@@ -178,11 +201,15 @@ def load_lora_favorites() -> dict[str, Any]:
 
 
 def write_lora_favorites(data: dict[str, Any]) -> None:
+    with _LORA_FAVORITES_LOCK:
+        _write_lora_favorites_unlocked(data)
+
+
+def _write_lora_favorites_unlocked(data: dict[str, Any]) -> None:
     data["schema_version"] = 1
     data["app_scope"] = APP_SCOPE
     data["updated_at"] = datetime.now().isoformat(timespec="seconds")
-    FAVORITES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    FAVORITES_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json_atomic(FAVORITES_PATH, data)
 
 
 def favorite_key_set(data: dict[str, Any] | None = None) -> set[str]:
@@ -226,9 +253,22 @@ def selectable_loras(catalog: dict[str, Any] | None = None) -> list[dict[str, An
     return [deepcopy(item) for item in data.get("items", []) if isinstance(item, dict) and _is_selectable(item)]
 
 
+def _selectable_loras_without_favorites(catalog: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    data = deepcopy(catalog or load_catalog())
+    return [deepcopy(item) for item in data.get("items", []) if isinstance(item, dict) and _is_selectable(item)]
+
+
 def find_selectable_lora(query: dict[str, Any]) -> dict[str, Any] | None:
     query_keys = _favorite_match_keys(query)
     for item in selectable_loras():
+        if _favorite_match_keys(item) & query_keys:
+            return item
+    return None
+
+
+def _find_selectable_lora_without_favorites(query: dict[str, Any]) -> dict[str, Any] | None:
+    query_keys = _favorite_match_keys(query)
+    for item in _selectable_loras_without_favorites():
         if _favorite_match_keys(item) & query_keys:
             return item
     return None
@@ -250,37 +290,44 @@ def list_lora_favorites() -> dict[str, Any]:
 
 
 def set_lora_favorite(query: dict[str, Any], favorite: bool | None = None) -> dict[str, Any]:
-    data = load_lora_favorites()
-    favorites = data.setdefault("favorites", {})
-    query_keys = _favorite_match_keys(query)
-    existing_keys = [key for key, item in favorites.items() if key in query_keys or (isinstance(item, dict) and _favorite_match_keys(item) & query_keys)]
-    currently_favorite = bool(existing_keys)
-    desired = (not currently_favorite) if favorite is None else bool(favorite)
+    item_response: dict[str, Any] | None = None
+    removed_response: bool | None = None
+    with _LORA_FAVORITES_LOCK:
+        data = _load_lora_favorites_unlocked()
+        favorites = data.setdefault("favorites", {})
+        query_keys = _favorite_match_keys(query)
+        existing_keys = [key for key, item in favorites.items() if key in query_keys or (isinstance(item, dict) and _favorite_match_keys(item) & query_keys)]
+        currently_favorite = bool(existing_keys)
+        desired = (not currently_favorite) if favorite is None else bool(favorite)
 
-    if not desired:
-        for key in existing_keys:
-            favorites.pop(key, None)
-        write_lora_favorites(data)
-        return {"ok": True, "favorite": False, "removed": bool(existing_keys), **list_lora_favorites()}
+        if not desired:
+            for key in existing_keys:
+                favorites.pop(key, None)
+            _write_lora_favorites_unlocked(data)
+            removed_response = bool(existing_keys)
 
-    item = find_selectable_lora(query)
-    if item is None:
-        return {"ok": False, "favorite": False, "status": "not_selectable", "message": "LoRA is not selectable for this app scope."}
-    key = _favorite_identity(item)
-    if not key:
-        return {"ok": False, "favorite": False, "status": "missing_identity", "message": "LoRA does not have a stable identity."}
-    now = datetime.now().isoformat(timespec="seconds")
-    favorites[key] = {
-        "lora_id": item.get("lora_id", ""),
-        "relative_path": item.get("relative_path", ""),
-        "file_name": item.get("file_name", ""),
-        "display_name": item.get("display_name") or item.get("file_name") or item.get("lora_id") or key,
-        "app_scope": APP_SCOPE,
-        "added_at": (favorites.get(key, {}).get("added_at") if isinstance(favorites.get(key), dict) else "") or now,
-    }
-    write_lora_favorites(data)
+        else:
+            item = _find_selectable_lora_without_favorites(query)
+            if item is None:
+                return {"ok": False, "favorite": False, "status": "not_selectable", "message": "LoRA is not selectable for this app scope."}
+            key = _favorite_identity(item)
+            if not key:
+                return {"ok": False, "favorite": False, "status": "missing_identity", "message": "LoRA does not have a stable identity."}
+            now = datetime.now().isoformat(timespec="seconds")
+            favorites[key] = {
+                "lora_id": item.get("lora_id", ""),
+                "relative_path": item.get("relative_path", ""),
+                "file_name": item.get("file_name", ""),
+                "display_name": item.get("display_name") or item.get("file_name") or item.get("lora_id") or key,
+                "app_scope": APP_SCOPE,
+                "added_at": (favorites.get(key, {}).get("added_at") if isinstance(favorites.get(key), dict) else "") or now,
+            }
+            item_response = dict(favorites[key])
+            _write_lora_favorites_unlocked(data)
+    if removed_response is not None:
+        return {"ok": True, "favorite": False, "removed": removed_response, **list_lora_favorites()}
     response = list_lora_favorites()
-    response.update({"favorite": True, "item": favorites[key]})
+    response.update({"favorite": True, "item": item_response})
     return response
 
 
@@ -430,32 +477,37 @@ def read_discovery_file(name: str) -> dict[str, Any]:
 def review_candidate(candidate_id: str, review_status: str, app_scope: str, note: str = "") -> dict[str, Any]:
     DISCOVERY_DIR.mkdir(parents=True, exist_ok=True)
     path = DISCOVERY_DIR / "fate_review_queue.json"
-    if path.exists():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
+    with _DISCOVERY_REVIEW_LOCK:
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                time.sleep(0.05)
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                except Exception as second_error:
+                    raise RuntimeError("lora review queue is temporarily unreadable") from second_error
+        else:
             data = {"schema_version": 1, "scope": "fate", "items": []}
-    else:
-        data = {"schema_version": 1, "scope": "fate", "items": []}
-    items = data.setdefault("items", [])
-    found = None
-    for item in items:
-        if item.get("candidate_id") == candidate_id:
-            found = item
-            break
-    if found is None:
-        found = {"candidate_id": candidate_id}
-        items.append(found)
-    found.update(
-        {
-            "review_status": review_status,
-            "app_scope": app_scope,
-            "note": note,
-            "reviewed_at": datetime.now().isoformat(timespec="seconds"),
-        }
-    )
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"ok": True, "review": found, "path": str(path)}
+        items = data.setdefault("items", [])
+        found = None
+        for item in items:
+            if item.get("candidate_id") == candidate_id:
+                found = item
+                break
+        if found is None:
+            found = {"candidate_id": candidate_id}
+            items.append(found)
+        found.update(
+            {
+                "review_status": review_status,
+                "app_scope": app_scope,
+                "note": note,
+                "reviewed_at": datetime.now().isoformat(timespec="seconds"),
+            }
+        )
+        write_json_atomic(path, data)
+        return {"ok": True, "review": found, "path": str(path)}
 
 
 def file_sha256(path: Path) -> str:

@@ -5,6 +5,8 @@ from hashlib import sha256
 from io import BytesIO
 import json
 from pathlib import Path
+from threading import Lock
+import time
 import uuid
 from typing import Any
 
@@ -21,6 +23,7 @@ MANIFEST_PATH = I2I_DIR / "i2i_inputs.json"
 MAX_I2I_SIDE = 4096
 MAX_UPLOAD_BYTES = 30 * 1024 * 1024
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+_MANIFEST_LOCK = Lock()
 
 I2I_DIR.mkdir(parents=True, exist_ok=True)
 THUMB_DIR.mkdir(parents=True, exist_ok=True)
@@ -47,15 +50,28 @@ def _round_to_multiple(value: Any, multiple: int = 8) -> int:
     return max(multiple, int(round(number / multiple) * multiple))
 
 
+def empty_manifest() -> dict[str, Any]:
+    return {"schema_version": 1, "items": {}}
+
+
 def load_manifest() -> dict[str, Any]:
+    with _MANIFEST_LOCK:
+        return _load_manifest_unlocked()
+
+
+def _load_manifest_unlocked() -> dict[str, Any]:
     if not MANIFEST_PATH.exists():
-        return {"schema_version": 1, "items": {}}
+        return empty_manifest()
     try:
         data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     except Exception:
-        return {"schema_version": 1, "items": {}}
+        time.sleep(0.05)
+        try:
+            data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        except Exception as second_error:
+            raise RuntimeError("i2i manifest is temporarily unreadable") from second_error
     if not isinstance(data, dict):
-        return {"schema_version": 1, "items": {}}
+        return empty_manifest()
     if not isinstance(data.get("items"), dict):
         data["items"] = {}
     data.setdefault("schema_version", 1)
@@ -63,6 +79,11 @@ def load_manifest() -> dict[str, Any]:
 
 
 def save_manifest(data: dict[str, Any]) -> None:
+    with _MANIFEST_LOCK:
+        _save_manifest_unlocked(data)
+
+
+def _save_manifest_unlocked(data: dict[str, Any]) -> None:
     write_json_atomic(MANIFEST_PATH, data)
 
 
@@ -139,9 +160,10 @@ def save_i2i_upload(filename: str, data: bytes, *, app_scope: str, source: str =
         "prepared": {},
         "comfyui_image": {"name": None, "subfolder": "", "type": "input", "uploaded_at": None},
     }
-    manifest = load_manifest()
-    manifest["items"][image_id] = item
-    save_manifest(manifest)
+    with _MANIFEST_LOCK:
+        manifest = _load_manifest_unlocked()
+        manifest["items"][image_id] = item
+        _save_manifest_unlocked(manifest)
     return public_item(item)
 
 
@@ -152,106 +174,109 @@ def save_i2i_from_path(path: Path, *, app_scope: str, source_history_id: str) ->
 
 
 def prepare_i2i_image(image_id: str, *, width: int, height: int, resize_mode: str = "fit", use_source_size: bool = False) -> dict[str, Any]:
-    manifest = load_manifest()
-    item = manifest.get("items", {}).get(str(image_id or ""))
-    if not isinstance(item, dict):
-        raise ValueError("i2i image not found")
-    image_path = Path(str(item.get("path") or ""))
-    if not image_path.exists():
-        raise ValueError("i2i image file not found")
-    source_width = int(item.get("width") or 0)
-    source_height = int(item.get("height") or 0)
-    target_width = _round_to_multiple(source_width if use_source_size else width)
-    target_height = _round_to_multiple(source_height if use_source_size else height)
-    resize_mode = str(resize_mode or "fit").lower()
-    if resize_mode not in {"fit", "cover", "stretch"}:
-        resize_mode = "fit"
-    key = f"{target_width}x{target_height}_{resize_mode}"
-    prepared = item.setdefault("prepared", {})
-    existing = prepared.get(key) if isinstance(prepared.get(key), dict) else {}
-    prepared_path = Path(str(existing.get("path") or ""))
-    if not prepared_path.is_file():
-        prepared_name = f"{item['image_id']}_{key}.png"
-        prepared_path = PREPARED_DIR / prepared_name
-        with Image.open(image_path) as raw:
-            image = ImageOps.exif_transpose(raw).convert("RGB")
-            if resize_mode == "stretch":
-                output = image.resize((target_width, target_height), Image.Resampling.LANCZOS)
-            elif resize_mode == "cover":
-                output = ImageOps.fit(image, (target_width, target_height), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-            else:
-                output = ImageOps.pad(image, (target_width, target_height), method=Image.Resampling.LANCZOS, color=(0, 0, 0), centering=(0.5, 0.5))
-            output.save(prepared_path, "PNG", optimize=True)
-        existing = {
-            "filename": prepared_name,
-            "path": str(prepared_path),
-            "width": target_width,
-            "height": target_height,
+    with _MANIFEST_LOCK:
+        manifest = _load_manifest_unlocked()
+        item = manifest.get("items", {}).get(str(image_id or ""))
+        if not isinstance(item, dict):
+            raise ValueError("i2i image not found")
+        image_path = Path(str(item.get("path") or ""))
+        if not image_path.exists():
+            raise ValueError("i2i image file not found")
+        source_width = int(item.get("width") or 0)
+        source_height = int(item.get("height") or 0)
+        target_width = _round_to_multiple(source_width if use_source_size else width)
+        target_height = _round_to_multiple(source_height if use_source_size else height)
+        resize_mode = str(resize_mode or "fit").lower()
+        if resize_mode not in {"fit", "cover", "stretch"}:
+            resize_mode = "fit"
+        key = f"{target_width}x{target_height}_{resize_mode}"
+        prepared = item.setdefault("prepared", {})
+        existing = prepared.get(key) if isinstance(prepared.get(key), dict) else {}
+        prepared_path = Path(str(existing.get("path") or ""))
+        if not prepared_path.is_file():
+            prepared_name = f"{item['image_id']}_{key}.png"
+            prepared_path = PREPARED_DIR / prepared_name
+            with Image.open(image_path) as raw:
+                image = ImageOps.exif_transpose(raw).convert("RGB")
+                if resize_mode == "stretch":
+                    output = image.resize((target_width, target_height), Image.Resampling.LANCZOS)
+                elif resize_mode == "cover":
+                    output = ImageOps.fit(image, (target_width, target_height), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+                else:
+                    output = ImageOps.pad(image, (target_width, target_height), method=Image.Resampling.LANCZOS, color=(0, 0, 0), centering=(0.5, 0.5))
+                output.save(prepared_path, "PNG", optimize=True)
+            existing = {
+                "filename": prepared_name,
+                "path": str(prepared_path),
+                "width": target_width,
+                "height": target_height,
+                "resize_mode": resize_mode,
+                "created_at": now_iso(),
+                "comfyui_image": {"name": None, "subfolder": "", "type": "input", "uploaded_at": None},
+            }
+            prepared[key] = existing
+            item["updated_at"] = now_iso()
+            manifest["items"][item["image_id"]] = item
+            _save_manifest_unlocked(manifest)
+        return {
+            **public_item(item),
+            "prepared_key": key,
+            "prepared": existing,
+            "prepared_path": str(prepared_path),
+            "prepared_filename": existing.get("filename") or prepared_path.name,
+            "prepared_width": target_width,
+            "prepared_height": target_height,
+            "source_width": source_width,
+            "source_height": source_height,
             "resize_mode": resize_mode,
-            "created_at": now_iso(),
-            "comfyui_image": {"name": None, "subfolder": "", "type": "input", "uploaded_at": None},
         }
-        prepared[key] = existing
-        item["updated_at"] = now_iso()
-        manifest["items"][item["image_id"]] = item
-        save_manifest(manifest)
-    return {
-        **public_item(item),
-        "prepared_key": key,
-        "prepared": existing,
-        "prepared_path": str(prepared_path),
-        "prepared_filename": existing.get("filename") or prepared_path.name,
-        "prepared_width": target_width,
-        "prepared_height": target_height,
-        "source_width": source_width,
-        "source_height": source_height,
-        "resize_mode": resize_mode,
-    }
 
 
 def update_prepared_comfy_upload(image_id: str, prepared_key: str, upload_result: dict[str, Any]) -> dict[str, Any] | None:
-    manifest = load_manifest()
-    item = manifest.get("items", {}).get(str(image_id or ""))
-    if not isinstance(item, dict):
-        return None
-    prepared = item.get("prepared") if isinstance(item.get("prepared"), dict) else {}
-    entry = prepared.get(prepared_key) if isinstance(prepared.get(prepared_key), dict) else None
-    if entry is None:
-        return None
-    parsed = upload_result.get("json") if isinstance(upload_result, dict) else {}
-    if not isinstance(parsed, dict):
-        parsed = {}
-    entry["comfyui_image"] = {
-        "name": parsed.get("name") or entry.get("filename"),
-        "subfolder": parsed.get("subfolder") or "",
-        "type": parsed.get("type") or "input",
-        "uploaded_at": now_iso(),
-    }
-    entry["updated_at"] = now_iso()
-    prepared[prepared_key] = entry
-    item["prepared"] = prepared
-    item["updated_at"] = now_iso()
-    manifest["items"][item["image_id"]] = item
-    save_manifest(manifest)
-    return public_item(item)
+    with _MANIFEST_LOCK:
+        manifest = _load_manifest_unlocked()
+        item = manifest.get("items", {}).get(str(image_id or ""))
+        if not isinstance(item, dict):
+            return None
+        prepared = item.get("prepared") if isinstance(item.get("prepared"), dict) else {}
+        entry = prepared.get(prepared_key) if isinstance(prepared.get(prepared_key), dict) else None
+        if entry is None:
+            return None
+        parsed = upload_result.get("json") if isinstance(upload_result, dict) else {}
+        if not isinstance(parsed, dict):
+            parsed = {}
+        entry["comfyui_image"] = {
+            "name": parsed.get("name") or entry.get("filename"),
+            "subfolder": parsed.get("subfolder") or "",
+            "type": parsed.get("type") or "input",
+            "uploaded_at": now_iso(),
+        }
+        entry["updated_at"] = now_iso()
+        prepared[prepared_key] = entry
+        item["prepared"] = prepared
+        item["updated_at"] = now_iso()
+        manifest["items"][item["image_id"]] = item
+        _save_manifest_unlocked(manifest)
+        return public_item(item)
 
 
 def delete_i2i_image(image_id: str) -> bool:
-    manifest = load_manifest()
-    item = manifest.get("items", {}).pop(str(image_id or ""), None)
-    if not isinstance(item, dict):
-        return False
-    for key in ("path", "thumbnail_path"):
-        path = Path(str(item.get(key) or ""))
-        if path.exists() and I2I_DIR in path.parents:
-            path.unlink()
-    prepared = item.get("prepared") if isinstance(item.get("prepared"), dict) else {}
-    for entry in prepared.values():
-        path = Path(str((entry or {}).get("path") or ""))
-        if path.exists() and I2I_DIR in path.parents:
-            path.unlink()
-    save_manifest(manifest)
-    return True
+    with _MANIFEST_LOCK:
+        manifest = _load_manifest_unlocked()
+        item = manifest.get("items", {}).pop(str(image_id or ""), None)
+        if not isinstance(item, dict):
+            return False
+        for key in ("path", "thumbnail_path"):
+            path = Path(str(item.get(key) or ""))
+            if path.exists() and I2I_DIR in path.parents:
+                path.unlink()
+        prepared = item.get("prepared") if isinstance(item.get("prepared"), dict) else {}
+        for entry in prepared.values():
+            path = Path(str((entry or {}).get("path") or ""))
+            if path.exists() and I2I_DIR in path.parents:
+                path.unlink()
+        _save_manifest_unlocked(manifest)
+        return True
 
 
 def object_choices(info: dict[str, Any], class_name: str, input_name: str) -> list[str]:

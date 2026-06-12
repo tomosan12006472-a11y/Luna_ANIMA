@@ -5,6 +5,8 @@ from hashlib import sha256
 from io import BytesIO
 import json
 from pathlib import Path
+from threading import Lock
+import time
 import uuid
 from typing import Any
 
@@ -18,6 +20,7 @@ REFERENCE_DIR = ROOT_DIR / "user_data" / "reference_inputs"
 THUMB_DIR = REFERENCE_DIR / "thumbs"
 MANIFEST_PATH = REFERENCE_DIR / "reference_inputs.json"
 MAX_REFERENCE_SIDE = 2048
+_MANIFEST_LOCK = Lock()
 
 REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
 THUMB_DIR.mkdir(parents=True, exist_ok=True)
@@ -35,15 +38,28 @@ def clamp_float(value: Any, default: float, minimum: float = 0.0, maximum: float
     return max(minimum, min(maximum, number))
 
 
+def empty_manifest() -> dict[str, Any]:
+    return {"schema_version": 1, "items": {}}
+
+
 def load_manifest() -> dict[str, Any]:
+    with _MANIFEST_LOCK:
+        return _load_manifest_unlocked()
+
+
+def _load_manifest_unlocked() -> dict[str, Any]:
     if not MANIFEST_PATH.exists():
-        return {"schema_version": 1, "items": {}}
+        return empty_manifest()
     try:
         data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     except Exception:
-        return {"schema_version": 1, "items": {}}
+        time.sleep(0.05)
+        try:
+            data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        except Exception as second_error:
+            raise RuntimeError("reference manifest is temporarily unreadable") from second_error
     if not isinstance(data, dict):
-        return {"schema_version": 1, "items": {}}
+        return empty_manifest()
     items = data.get("items")
     if not isinstance(items, dict):
         data["items"] = {}
@@ -52,6 +68,11 @@ def load_manifest() -> dict[str, Any]:
 
 
 def save_manifest(data: dict[str, Any]) -> None:
+    with _MANIFEST_LOCK:
+        _save_manifest_unlocked(data)
+
+
+def _save_manifest_unlocked(data: dict[str, Any]) -> None:
     write_json_atomic(MANIFEST_PATH, data)
 
 
@@ -116,43 +137,46 @@ def save_reference_upload(filename: str, data: bytes, *, app_scope: str, module:
         "updated_at": now_iso(),
         "comfyui_image": {"name": None, "subfolder": "", "type": "input", "uploaded_at": None},
     }
-    manifest = load_manifest()
-    manifest["items"][image_id] = item
-    save_manifest(manifest)
+    with _MANIFEST_LOCK:
+        manifest = _load_manifest_unlocked()
+        manifest["items"][image_id] = item
+        _save_manifest_unlocked(manifest)
     return public_item(item)
 
 
 def update_comfy_upload(image_id: str, upload_result: dict[str, Any]) -> dict[str, Any] | None:
-    manifest = load_manifest()
-    item = manifest.get("items", {}).get(image_id)
-    if not isinstance(item, dict):
-        return None
-    parsed = upload_result.get("json") if isinstance(upload_result, dict) else {}
-    if not isinstance(parsed, dict):
-        parsed = {}
-    item["comfyui_image"] = {
-        "name": parsed.get("name") or item.get("filename"),
-        "subfolder": parsed.get("subfolder") or "",
-        "type": parsed.get("type") or "input",
-        "uploaded_at": now_iso(),
-    }
-    item["updated_at"] = now_iso()
-    manifest["items"][image_id] = item
-    save_manifest(manifest)
-    return public_item(item)
+    with _MANIFEST_LOCK:
+        manifest = _load_manifest_unlocked()
+        item = manifest.get("items", {}).get(image_id)
+        if not isinstance(item, dict):
+            return None
+        parsed = upload_result.get("json") if isinstance(upload_result, dict) else {}
+        if not isinstance(parsed, dict):
+            parsed = {}
+        item["comfyui_image"] = {
+            "name": parsed.get("name") or item.get("filename"),
+            "subfolder": parsed.get("subfolder") or "",
+            "type": parsed.get("type") or "input",
+            "uploaded_at": now_iso(),
+        }
+        item["updated_at"] = now_iso()
+        manifest["items"][image_id] = item
+        _save_manifest_unlocked(manifest)
+        return public_item(item)
 
 
 def delete_reference_image(image_id: str) -> bool:
-    manifest = load_manifest()
-    item = manifest.get("items", {}).pop(image_id, None)
-    if not isinstance(item, dict):
-        return False
-    for key in ("path", "thumbnail_path"):
-        path = Path(str(item.get(key) or ""))
-        if path.exists() and REFERENCE_DIR in path.parents:
-            path.unlink()
-    save_manifest(manifest)
-    return True
+    with _MANIFEST_LOCK:
+        manifest = _load_manifest_unlocked()
+        item = manifest.get("items", {}).pop(image_id, None)
+        if not isinstance(item, dict):
+            return False
+        for key in ("path", "thumbnail_path"):
+            path = Path(str(item.get(key) or ""))
+            if path.exists() and REFERENCE_DIR in path.parents:
+                path.unlink()
+        _save_manifest_unlocked(manifest)
+        return True
 
 
 def object_choices(info: dict[str, Any], class_name: str, input_name: str) -> list[str]:
