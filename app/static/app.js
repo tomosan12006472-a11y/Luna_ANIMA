@@ -40,6 +40,7 @@
     contactLoaded: false,
     contactStatusById: new Map(),
     contactPollTimer: 0,
+    contactPollFailures: 0,
     pollHadActive: false,
     detailItem: null,
     characterSearchTimer: 0,
@@ -128,6 +129,14 @@
     return error?.data?.message || error?.data?.detail || error?.message || String(error);
   }
 
+  function isUnauthorized(error) {
+    return Number(error?.status || error?.data?.status || 0) === 401;
+  }
+
+  function authExpiredMessage() {
+    return "ログインが切れました。PINで入り直してください。";
+  }
+
   function exitToLogin(message = "") {
     UI.closeSheets();
     $("#loginView")?.classList.add("is-active");
@@ -136,6 +145,29 @@
     $("#exposeBar")?.classList.add("hidden");
     UI.safelight("idle");
     if (message) text("#loginStatus", message);
+  }
+
+  async function fetchWithAuthHandling(path, options = {}) {
+    const response = await fetch(path, {
+      credentials: "same-origin",
+      ...options,
+    });
+    if (response.status === 401) {
+      const message = authExpiredMessage();
+      exitToLogin(message);
+      const error = new Error(message);
+      error.status = response.status;
+      error.data = { ok: false, status: response.status, message };
+      throw error;
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      const error = new Error(response.statusText || "Request failed");
+      error.status = response.status;
+      error.data = { ok: false, status: response.status, body: body.slice(0, 300) };
+      throw error;
+    }
+    return response;
   }
 
   async function api(path, options = {}) {
@@ -151,14 +183,21 @@
       headers,
     });
     const raw = await response.text();
+    const contentType = response.headers.get("content-type") || "";
     let data = {};
     try {
       data = raw ? JSON.parse(raw) : {};
     } catch {
-      data = { ok: false, message: "Response was not JSON" };
+      data = {
+        ok: false,
+        message: "Response was not JSON",
+        status: response.status,
+        content_type: contentType,
+        body: raw.slice(0, 300),
+      };
     }
     if (response.status === 401) {
-      exitToLogin("ログインが切れました。PINで入り直してください。");
+      exitToLogin(authExpiredMessage());
     }
     if (!response.ok || data?.ok === false) {
       const error = new Error(data?.message || data?.detail || response.statusText || "Request failed");
@@ -443,6 +482,22 @@
   async function loadFavorites() {
     const data = await api("/api/favorites");
     setFavorites(data);
+  }
+
+  async function markFavoriteUsedWithRetry(source, favoriteId) {
+    if (!source || !favoriteId) return;
+    const path = `/api/favorites/${escapePathSegment(source)}/${escapePathSegment(favoriteId)}/use`;
+    const options = { method: "POST", body: "{}" };
+    try {
+      setFavorites(await api(path, options));
+    } catch (error) {
+      console.debug("favorite use update failed; retrying", error);
+      try {
+        setFavorites(await api(path, options));
+      } catch (retryError) {
+        console.debug("favorite use update failed", retryError);
+      }
+    }
   }
 
   async function toggleFavoriteForArmedSlot() {
@@ -1385,14 +1440,34 @@
     text("#contactCount", `${state.contactItems.length} / ${state.contactTotal || 0}`);
   }
 
+  function stopContactPolling(message = "") {
+    if (state.contactPollTimer) {
+      window.clearInterval(state.contactPollTimer);
+      state.contactPollTimer = 0;
+    }
+    state.pollHadActive = false;
+    if (message) text("#contactCount", message);
+  }
+
+  function handleContactPollingError(error) {
+    console.warn(error);
+    if (isUnauthorized(error)) {
+      stopContactPolling("履歴更新停止: ログイン切れ");
+      return;
+    }
+    state.contactPollFailures += 1;
+    if (state.contactPollFailures >= 3) {
+      stopContactPolling("履歴更新停止: 通信エラー");
+      UI.toast("履歴更新に連続失敗したため自動更新を停止しました", "error");
+    }
+  }
+
   function updateContactPolling(activeCount) {
     if (activeCount > 0) {
       state.pollHadActive = true;
       if (!state.contactPollTimer) {
         state.contactPollTimer = window.setInterval(() => {
-          loadContact(false, { polling: true, knownRevision: true }).catch((error) => {
-            console.warn(error);
-          });
+          loadContact(false, { polling: true, knownRevision: true }).catch(handleContactPollingError);
         }, 3000);
       }
       return;
@@ -1422,6 +1497,7 @@
     });
     if (options.knownRevision && state.contactRevision) params.set("known_revision", state.contactRevision);
     const data = await api(`/api/history?${params.toString()}`);
+    state.contactPollFailures = 0;
     if (data.unchanged) {
       updateContactPolling((state.contactItems || []).filter(isActiveItem).length);
       return data;
@@ -1623,8 +1699,7 @@
       const item = data?.item || state.detailItem;
       const imageUrl = data?.public_image_url || publicImageUrl(item);
       if (!imageUrl) throw new Error("公開画像URLを取得できませんでした");
-      const response = await fetch(imageUrl, { credentials: "same-origin" });
-      if (!response.ok) throw new Error("共有用画像を取得できませんでした");
+      const response = await fetchWithAuthHandling(imageUrl);
       const blob = await response.blob();
       const filename = String(data?.filename || item.filename || `${item.id}_public.png`).replace(/[^\w.-]/g, "_");
       const file = new File([blob], filename, { type: blob.type || "image/png" });
@@ -1816,6 +1891,28 @@
     }
   }
 
+  function reportBootstrapFailures(results, tasks) {
+    const failures = results
+      .map((result, index) => ({ result, task: tasks[index] || {} }))
+      .filter((entry) => entry.result.status === "rejected");
+    if (!failures.length) return;
+    for (const failure of failures) {
+      console.warn(`bootstrap optional failed: ${failure.task.label || "optional"}`, failure.result.reason);
+    }
+    const authFailure = failures.find((failure) => isUnauthorized(failure.result.reason));
+    if (authFailure) {
+      const message = errorMessage(authFailure.result.reason) || authExpiredMessage();
+      text("#loginStatus", message);
+      exitToLogin(message);
+      throw authFailure.result.reason;
+    }
+    const labels = failures.map((failure) => failure.task.label || "optional").join(" / ");
+    UI.toast(`起動時の一部読み込みに失敗: ${labels}`, "error");
+    for (const failure of failures) {
+      if (failure.task.status) text(failure.task.status, `${failure.task.label}: ${errorMessage(failure.result.reason)}`);
+    }
+  }
+
   async function bootstrap(initialData = null) {
     const data = initialData || await api("/api/bootstrap");
     state.bootstrap = data;
@@ -1831,11 +1928,20 @@
       fillSelect("#samplerSelect", [], state.defaults.sampler || state.appSettings.sampler || "er_sde");
       fillSelect("#schedulerSelect", [], state.defaults.scheduler || state.appSettings.scheduler || "simple");
     }
+    reportBootstrapFailures(modelResult, [
+      { label: "モデル一覧", status: "#settingsStatus" },
+      { label: "LoRA一覧", status: "#settingsStatus" },
+    ]);
     renderConfiguredLoras(state.appSettings);
-    await Promise.allSettled([
+    const optionalResults = await Promise.allSettled([
       loadFavorites(),
       searchCharacters(),
       loadContact(true),
+    ]);
+    reportBootstrapFailures(optionalResults, [
+      { label: "お気に入り", status: "#catalogCount" },
+      { label: "キャラ検索", status: "#catalogCount" },
+      { label: "履歴", status: "#contactCount" },
     ]);
     updateSummaries();
   }
@@ -1845,8 +1951,10 @@
       const data = await api("/api/bootstrap");
       UI.enterDarkroom();
       await bootstrap(data);
-    } catch {
-      exitToLogin();
+    } catch (error) {
+      const message = errorMessage(error) || authExpiredMessage();
+      text("#loginStatus", message);
+      exitToLogin(message);
     }
   }
 
@@ -1994,10 +2102,7 @@
           display_name: favorite.dataset.favoriteName,
           prompt_tag: favorite.dataset.favoritePromptTag,
         });
-        api(`/api/favorites/${escapePathSegment(favorite.dataset.favoriteSource)}/${escapePathSegment(favorite.dataset.favoriteId)}/use`, {
-          method: "POST",
-          body: "{}",
-        }).then(setFavorites).catch(() => {});
+        markFavoriteUsedWithRetry(favorite.dataset.favoriteSource, favorite.dataset.favoriteId);
         clearCharacterSearch();
         UI.toast(`${favorite.dataset.favoriteName} を反映しました`);
         return;
