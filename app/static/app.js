@@ -12,6 +12,7 @@
     character3: "未選択",
     original: "未選択",
   };
+  const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 
   const state = {
     bootstrap: null,
@@ -43,6 +44,7 @@
     promptSheetQueryTimer: 0,
     dictQueryTimer: 0,
     dictStatusLoaded: false,
+    i2i: { imageId: "", thumb: "", name: "" },
   };
 
   function text(selector, value) {
@@ -231,6 +233,7 @@
   function collectRequest() {
     const negative = value("#negativePrompt", "");
     const seedMode = value("#seedModeSelect", "fixed");
+    const i2iEnabled = checked("#i2iEnabled") && Boolean(state.i2i.imageId);
     return {
       workflow_mode: "anima",
       character1: slotRequestValue("character1"),
@@ -281,7 +284,15 @@
       dynamic_prompt: { enabled: checked("#dynamicEnabled") },
       hires_fix: { enabled: false },
       reference_assist: { enabled: false },
-      image_to_image: { enabled: false },
+      image_to_image: {
+        enabled: i2iEnabled,
+        image_id: state.i2i.imageId,
+        denoise: numberValue("#i2iDenoise", 0.45),
+        resize_mode: value("#i2iResize", "fit"),
+        use_source_size: checked("#i2iUseSource"),
+        allow_with_hires_fix: false,
+        allow_with_reference_assist: false,
+      },
       face_detailer: { enabled: false },
       reference_modules: {
         enabled: false,
@@ -770,6 +781,99 @@
     UI.toast(`追加: ${tag}`);
   }
 
+  function i2iItemState(item = {}) {
+    const imageId = String(item.image_id || "").trim();
+    return {
+      imageId,
+      thumb: String(item.thumbnail_url || item.thumb || "").trim(),
+      name: String(item.original_filename || item.filename || item.name || imageId || "").trim(),
+    };
+  }
+
+  function renderI2iPreview() {
+    const root = $("#i2iPreview");
+    if (!root) return;
+    root.replaceChildren();
+    if (!state.i2i.imageId) {
+      root.classList.add("is-empty");
+      root.textContent = I2I_EMPTY_TEXT;
+      return;
+    }
+    root.classList.remove("is-empty");
+    if (state.i2i.thumb) {
+      const img = document.createElement("img");
+      img.src = state.i2i.thumb;
+      img.alt = state.i2i.name || "i2i source";
+      img.loading = "lazy";
+      img.decoding = "async";
+      root.appendChild(img);
+    }
+    const label = document.createElement("span");
+    label.textContent = state.i2i.name || state.i2i.imageId;
+    root.appendChild(label);
+  }
+
+  function applyI2iItem(item = {}) {
+    state.i2i = i2iItemState(item);
+    setChecked("#i2iEnabled", Boolean(state.i2i.imageId));
+    renderI2iPreview();
+    updateSummaries();
+  }
+
+  function clearI2iImage() {
+    state.i2i = { imageId: "", thumb: "", name: "" };
+    setChecked("#i2iEnabled", false);
+    setValue("#i2iFile", "");
+    text("#i2iStatus", "");
+    renderI2iPreview();
+    updateSummaries();
+  }
+
+  async function uploadI2iImage() {
+    const input = $("#i2iFile");
+    const file = input?.files?.[0];
+    if (!file) {
+      text("#i2iStatus", "下絵ファイルを選択してください");
+      UI.toast("下絵ファイルを選択してください", "error");
+      return;
+    }
+    text("#i2iStatus", "アップロード中...");
+    const form = new FormData();
+    form.append("file", file);
+    const data = await api("/api/i2i/upload", {
+      method: "POST",
+      body: form,
+    });
+    applyI2iItem(data.item);
+    text("#i2iStatus", "下絵を設定しました");
+    UI.toast("下絵を設定しました");
+  }
+
+  async function setFrameAsI2iSource() {
+    if (!state.detailItem?.id) return;
+    text("#frameActionStatus", "下絵を準備中...");
+    const data = await api("/api/i2i/from-history", {
+      method: "POST",
+      body: JSON.stringify({ history_id: state.detailItem.id }),
+    });
+    applyI2iItem(data.item);
+    UI.closeSheets();
+    UI.switchTab("expose");
+    const fold = $("details[data-fold='i2i']");
+    if (fold) fold.open = true;
+    text("#i2iStatus", "下絵を設定しました");
+    UI.toast("下絵に設定しました");
+  }
+
+  function canSubmitGenerateRequest() {
+    if (checked("#i2iEnabled") && !state.i2i.imageId) {
+      text("#i2iStatus", "下絵が未選択です");
+      UI.toast("下絵が未選択です", "error");
+      return false;
+    }
+    return true;
+  }
+
   function renderCharacterResults(items) {
     const root = $("#charResults");
     if (!root) return;
@@ -1025,6 +1129,7 @@
     const custom = req.negative_prompt ? "+custom" : "no custom";
     text("#negativeSummary", `${req.negative_preset} · ${negMode} · ${custom}`);
     text("#dynamicSummary", req.dynamic_prompt.enabled ? "ON" : "OFF");
+    text("#i2iSummary", checked("#i2iEnabled") ? `ON · ${req.image_to_image.denoise}` : "OFF");
     updateSizeChips();
   }
 
@@ -1176,6 +1281,7 @@
   }
 
   async function generate() {
+    if (!canSubmitGenerateRequest()) return;
     const button = $("#exposeBtn");
     button?.setAttribute("disabled", "disabled");
     try {
@@ -1606,6 +1712,9 @@
       if (state.detailItem) applyHistoryToForm(state.detailItem);
       return;
     }
+    if (action === "frame-to-i2i") return setFrameAsI2iSource();
+    if (action === "i2i-upload") return uploadI2iImage();
+    if (action === "i2i-clear") return clearI2iImage();
     if (action === "save-defaults") return saveDefaults();
     if (action === "reset-defaults") return resetDefaults();
     if (action === "reload-models") return reloadModels();
@@ -1746,6 +1855,7 @@
       handleAction(action, actionTarget).catch((error) => {
         UI.toast(errorMessage(error), "error");
         if (action?.startsWith("frame-")) text("#frameActionStatus", errorMessage(error));
+        if (action?.startsWith("i2i-")) text("#i2iStatus", errorMessage(error));
         if (["save-defaults", "reset-defaults", "reload-models"].includes(action)) text("#settingsStatus", errorMessage(error));
       });
     });
@@ -1768,6 +1878,7 @@
   function init() {
     bindEvents();
     clearCharacterSearch();
+    renderI2iPreview();
     renderSlots();
     updateSummaries();
     tryBootstrapSession();
