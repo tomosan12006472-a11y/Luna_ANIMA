@@ -38,6 +38,9 @@
     pollHadActive: false,
     detailItem: null,
     characterSearchTimer: 0,
+    promptSheetMode: "favorites",
+    promptSheetItems: [],
+    promptSheetQueryTimer: 0,
   };
 
   function text(selector, value) {
@@ -273,7 +276,7 @@
       loras: collectLoras(),
       count: selectedQueueCount(),
       wait: false,
-      dynamic_prompt: { enabled: false },
+      dynamic_prompt: { enabled: checked("#dynamicEnabled") },
       hires_fix: { enabled: false },
       reference_assist: { enabled: false },
       image_to_image: { enabled: false },
@@ -426,6 +429,236 @@
     });
     setFavorites(data);
     UI.toast(data.action === "already_exists" ? "追加済みです" : "お気に入りに追加しました");
+  }
+
+  function insertPositivePromptText(insertText) {
+    const el = $("#positivePrompt");
+    if (!el) return;
+    const textValue = String(insertText || "");
+    const start = Number.isFinite(el.selectionStart) ? el.selectionStart : el.value.length;
+    const end = Number.isFinite(el.selectionEnd) ? el.selectionEnd : start;
+    el.value = `${el.value.slice(0, start)}${textValue}${el.value.slice(end)}`;
+    const cursor = start + textValue.length;
+    el.focus();
+    el.setSelectionRange(cursor, cursor);
+    updateSummaries();
+  }
+
+  function appendPositivePrompt(prompt) {
+    const nextPrompt = String(prompt || "").trim();
+    if (!nextPrompt) return;
+    const current = value("#positivePrompt", "").trim();
+    setValue("#positivePrompt", current ? `${current}, ${nextPrompt}` : nextPrompt);
+    updateSummaries();
+  }
+
+  function promptItemPrompt(item = {}) {
+    return String(item.prompt || item.positive_prompt || item.text || "").trim();
+  }
+
+  function promptItemTitle(item = {}) {
+    const prompt = promptItemPrompt(item);
+    return String(item.title || item.name || prompt.slice(0, 40) || "Untitled").trim();
+  }
+
+  function promptExcerpt(prompt, limit = 60) {
+    const compact = String(prompt || "").replace(/\s+/g, " ").trim();
+    return compact.length > limit ? `${compact.slice(0, limit)}...` : compact;
+  }
+
+  function renderPromptSheet(items = state.promptSheetItems) {
+    const root = $("#promptSheetList");
+    if (!root) return;
+    const query = value("#promptSheetQuery", "").trim().toLowerCase();
+    const sourceItems = Array.isArray(items) ? items : [];
+    const visibleItems = state.promptSheetMode === "favorites" && query
+      ? sourceItems.filter((item) => {
+        const haystack = [
+          promptItemTitle(item),
+          promptItemPrompt(item),
+          ...(Array.isArray(item.tags) ? item.tags : []),
+          item.note || "",
+        ].join("\n").toLowerCase();
+        return haystack.includes(query);
+      })
+      : sourceItems;
+
+    root.replaceChildren();
+    if (!visibleItems.length) {
+      const empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent = query ? "一致する項目がありません" : "項目がありません";
+      root.appendChild(empty);
+    } else {
+      for (const item of visibleItems) {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.dataset.promptItemId = item.id || "";
+        row.dataset.promptKind = state.promptSheetMode;
+
+        const label = document.createElement("span");
+        label.textContent = promptItemTitle(item);
+
+        const tag = document.createElement("span");
+        tag.className = "tag";
+        tag.textContent = promptExcerpt(promptItemPrompt(item));
+
+        if (state.promptSheetMode === "favorites") {
+          const remove = document.createElement("span");
+          remove.className = "tag";
+          remove.dataset.promptDeleteId = item.id || "";
+          remove.setAttribute("role", "button");
+          remove.setAttribute("tabindex", "0");
+          remove.textContent = "削除";
+          row.append(label, tag, remove);
+        } else {
+          row.append(label, tag);
+        }
+        root.appendChild(row);
+      }
+    }
+
+    text("#promptSheetCount", String(visibleItems.length));
+    text("#promptSheetStatus", "");
+  }
+
+  function setPromptSheetLoading(message) {
+    $("#promptSheetList")?.replaceChildren();
+    text("#promptSheetCount", "-");
+    text("#promptSheetStatus", message);
+  }
+
+  async function loadPositiveFavorites() {
+    const data = await api("/api/prompts/positive-favorites");
+    state.promptSheetItems = Array.isArray(data.items) ? data.items : [];
+    renderPromptSheet();
+    return data;
+  }
+
+  async function loadPositiveTemplates(query = value("#promptSheetQuery", "")) {
+    const params = new URLSearchParams({
+      query: String(query || "").trim(),
+      limit: "50",
+    });
+    const data = await api(`/api/prompts/positive-templates?${params.toString()}`);
+    state.promptSheetItems = Array.isArray(data.items) ? data.items : [];
+    renderPromptSheet();
+    return data;
+  }
+
+  async function savePositiveFavorite() {
+    const prompt = value("#positivePrompt", "").trim();
+    if (!prompt) {
+      UI.toast("Positiveが空です", "error");
+      return;
+    }
+    await api("/api/prompts/positive-favorites", {
+      method: "POST",
+      body: JSON.stringify({
+        title: prompt.slice(0, 40),
+        prompt,
+        tags: [],
+        note: "",
+      }),
+    });
+    UI.toast("保存しました");
+    if (state.promptSheetMode === "favorites" && $("#promptSheet")?.classList.contains("is-open")) {
+      await loadPositiveFavorites();
+    }
+  }
+
+  async function openPositiveFavorites() {
+    state.promptSheetMode = "favorites";
+    state.promptSheetItems = [];
+    text("#promptSheetTitle", "Positiveお気に入り");
+    setValue("#promptSheetQuery", "");
+    setPromptSheetLoading("読み込み中...");
+    UI.openSheet("#promptSheet");
+    await loadPositiveFavorites();
+  }
+
+  async function openPositiveTemplates() {
+    state.promptSheetMode = "templates";
+    state.promptSheetItems = [];
+    text("#promptSheetTitle", "テンプレート");
+    setValue("#promptSheetQuery", "");
+    setPromptSheetLoading("読み込み中...");
+    UI.openSheet("#promptSheet");
+    await loadPositiveTemplates("");
+  }
+
+  async function usePromptSheetItem(itemId) {
+    const item = state.promptSheetItems.find((candidate) => String(candidate.id || "") === String(itemId || ""));
+    const prompt = promptItemPrompt(item);
+    if (!prompt) return;
+    appendPositivePrompt(prompt);
+    if (state.promptSheetMode === "favorites" && item?.id) {
+      await api(`/api/prompts/positive-favorites/${escapePathSegment(item.id)}/used`, {
+        method: "POST",
+        body: "{}",
+      });
+    }
+    UI.closeSheets();
+    UI.toast("Positiveに追加しました");
+  }
+
+  async function deletePositiveFavorite(favoriteId) {
+    if (!favoriteId) return;
+    const data = await api(`/api/prompts/positive-favorites/${escapePathSegment(favoriteId)}`, {
+      method: "DELETE",
+    });
+    state.promptSheetItems = Array.isArray(data.items) ? data.items : [];
+    renderPromptSheet();
+    UI.toast(data.removed ? "削除しました" : "見つかりませんでした");
+  }
+
+  async function loadDynamicWildcards() {
+    const data = await api("/api/dynamic-prompts/wildcards");
+    const root = $("#wildcardChips");
+    if (!root) return data;
+    root.replaceChildren();
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (!items.length) {
+      const empty = document.createElement("span");
+      empty.className = "lbl";
+      empty.textContent = "ワイルドカードなし";
+      root.appendChild(empty);
+    } else {
+      for (const item of items) {
+        const name = String(item.name || "").trim();
+        if (!name) continue;
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip";
+        chip.dataset.wildcardName = name;
+        chip.textContent = `__${name}__`;
+        root.appendChild(chip);
+      }
+    }
+    if (Array.isArray(data.warnings) && data.warnings.length) {
+      UI.toast(data.warnings.map((warning) => warning.message || String(warning)).slice(0, 2).join(" / "));
+    }
+    return data;
+  }
+
+  async function previewDynamicPrompt() {
+    const data = await api("/api/dynamic-prompts/preview", {
+      method: "POST",
+      body: JSON.stringify({
+        positive_prompt: value("#positivePrompt", ""),
+        negative_prompt: "",
+        seed: Math.trunc(numberValue("#seedInput", -1)),
+        enabled: true,
+      }),
+    });
+    const preview = $("#dynamicPreview");
+    if (preview) {
+      preview.textContent = data.expanded_positive_prompt || "";
+      preview.classList.remove("hidden");
+    }
+    if (Array.isArray(data.warnings) && data.warnings.length) {
+      UI.toast(data.warnings.map((warning) => warning.message || String(warning)).slice(0, 2).join(" / "));
+    }
   }
 
   function renderCharacterResults(items) {
@@ -682,6 +915,7 @@
     const negMode = req.negative_prompt_mode || "append";
     const custom = req.negative_prompt ? "+custom" : "no custom";
     text("#negativeSummary", `${req.negative_preset} · ${negMode} · ${custom}`);
+    text("#dynamicSummary", req.dynamic_prompt.enabled ? "ON" : "OFF");
     updateSizeChips();
   }
 
@@ -1250,6 +1484,11 @@
     }
     if (action === "preview") return previewPayload();
     if (action === "generate") return generate();
+    if (action === "dynamic-wildcards") return loadDynamicWildcards();
+    if (action === "dynamic-preview") return previewDynamicPrompt();
+    if (action === "save-positive-fav") return savePositiveFavorite();
+    if (action === "open-positive-favs") return openPositiveFavorites();
+    if (action === "open-templates") return openPositiveTemplates();
     if (action === "load-more") return loadContact(false);
     if (action === "frame-favorite") return toggleFrameFavorite();
     if (action === "frame-public-save") return savePublicImage();
@@ -1277,6 +1516,39 @@
     });
 
     $("#charSearch")?.addEventListener("input", scheduleCharacterSearch);
+
+    $("#wildcardChips")?.addEventListener("click", (event) => {
+      const chip = event.target.closest(".chip[data-wildcard-name]");
+      if (!chip) return;
+      insertPositivePromptText(`__${chip.dataset.wildcardName}__, `);
+    });
+
+    $("#promptSheetList")?.addEventListener("click", (event) => {
+      const deleteTarget = event.target.closest("[data-prompt-delete-id]");
+      if (deleteTarget) {
+        event.preventDefault();
+        deletePositiveFavorite(deleteTarget.dataset.promptDeleteId).catch((error) => UI.toast(errorMessage(error), "error"));
+        return;
+      }
+      const row = event.target.closest("[data-prompt-item-id]");
+      if (!row) return;
+      usePromptSheetItem(row.dataset.promptItemId).catch((error) => UI.toast(errorMessage(error), "error"));
+    });
+
+    $("#promptSheetQuery")?.addEventListener("input", () => {
+      window.clearTimeout(state.promptSheetQueryTimer);
+      if (state.promptSheetMode === "favorites") {
+        renderPromptSheet();
+        return;
+      }
+      state.promptSheetQueryTimer = window.setTimeout(() => {
+        text("#promptSheetStatus", "読み込み中...");
+        loadPositiveTemplates().catch((error) => {
+          text("#promptSheetStatus", errorMessage(error));
+          UI.toast(errorMessage(error), "error");
+        });
+      }, 250);
+    });
 
     $("#charSlots")?.addEventListener("click", (event) => {
       const slot = event.target.closest(".slot[data-slot]");
