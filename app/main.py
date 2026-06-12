@@ -52,9 +52,11 @@ from .history_store import (
     create_pending_history_item,
     ensure_small_thumbnail,
     history_collection_revision,
+    list_all_history_with_warnings,
     list_history,
     load_history_item,
     lite_history_item,
+    update_pending_history_status,
 )
 from .model_info_cache import _object_choice, cached_object_info, model_cache_status as _model_cache_status
 from .multipart_uploads import parse_multipart_file_upload
@@ -222,6 +224,10 @@ class RecipeRequest(BaseModel):
     request: dict[str, Any] = Field(default_factory=dict)
 
 
+class QueueCancelRequest(BaseModel):
+    prompt_id: str = ""
+
+
 class LoraReviewRequest(BaseModel):
     candidate_id: str
     review_status: str = "hold"
@@ -251,6 +257,60 @@ class OriginalCharacterRequest(BaseModel):
 def require_auth(session: str | None) -> None:
     if session not in SESSIONS:
         raise HTTPException(status_code=401, detail="login required")
+
+
+def _pending_history_by_prompt_id() -> dict[str, dict[str, Any]]:
+    items, _warnings = list_all_history_with_warnings()
+    result: dict[str, dict[str, Any]] = {}
+    for item in items:
+        status = str(item.get("status") or "")
+        prompt_id = str(item.get("prompt_id") or "")
+        if status in {"queued", "running"} and prompt_id:
+            result[prompt_id] = item
+    return result
+
+
+def _looks_like_prompt_id(value: str) -> bool:
+    text = str(value or "").strip()
+    if len(text) < 8:
+        return False
+    return "-" in text or all(char in "0123456789abcdefABCDEF" for char in text)
+
+
+def _queue_entry_prompt_id(entry: Any) -> str:
+    if isinstance(entry, dict):
+        for key in ("prompt_id", "id"):
+            value = entry.get(key)
+            if isinstance(value, str) and value:
+                return value
+    if isinstance(entry, (list, tuple)):
+        for index in (1, 0):
+            if index < len(entry) and isinstance(entry[index], str) and _looks_like_prompt_id(entry[index]):
+                return entry[index]
+        for value in entry:
+            prompt_id = _queue_entry_prompt_id(value)
+            if prompt_id:
+                return prompt_id
+    return ""
+
+
+def _queue_rows(entries: Any, history_by_prompt_id: dict[str, dict[str, Any]], *, include_position: bool) -> list[dict[str, Any]]:
+    if not isinstance(entries, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for index, entry in enumerate(entries):
+        prompt_id = _queue_entry_prompt_id(entry)
+        history_item = history_by_prompt_id.get(prompt_id)
+        row: dict[str, Any] = {
+            "prompt_id": prompt_id,
+            "ours": bool(history_item),
+        }
+        if include_position:
+            row["position"] = index + 1
+        if history_item:
+            row["history_id"] = history_item.get("id") or history_item.get("history_id")
+        rows.append(row)
+    return rows
 
 
 def _float_input_spec(info: dict[str, Any] | None, class_name: str, input_name: str) -> dict[str, Any]:
@@ -1184,6 +1244,55 @@ def generate(
             "shift": request_data.get("shift"),
         },
     )
+
+
+@app.get("/api/queue")
+def queue_status(anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+    require_auth(anima_claude_session)
+    settings = load_settings()
+    addr = settings.get("api_addr") or COMFYUI_ADDR_DEFAULT
+    try:
+        queue = comfy_client.queue_info(addr)
+    except Exception as exc:
+        return {"ok": False, "message": str(exc), "running": [], "pending": []}
+    history_by_prompt_id = _pending_history_by_prompt_id()
+    running = _queue_rows(queue.get("queue_running"), history_by_prompt_id, include_position=False)
+    pending = _queue_rows(queue.get("queue_pending"), history_by_prompt_id, include_position=True)
+    return {"ok": True, "running": running, "pending": pending}
+
+
+@app.post("/api/queue/cancel")
+def queue_cancel(data: QueueCancelRequest, anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+    require_auth(anima_claude_session)
+    prompt_id = str(data.prompt_id or "").strip()
+    if not prompt_id:
+        return {"ok": False, "message": "prompt_id is required"}
+    settings = load_settings()
+    addr = settings.get("api_addr") or COMFYUI_ADDR_DEFAULT
+    result = comfy_client.queue_delete(addr, [prompt_id])
+    if not result.get("ok"):
+        return {"ok": False, "message": result.get("text") or "ComfyUI queue delete failed", "result": result}
+    history_item = _pending_history_by_prompt_id().get(prompt_id)
+    updated = None
+    if history_item and history_item.get("id"):
+        updated = update_pending_history_status(str(history_item["id"]), "failed", "Cancelled by user")
+    return {
+        "ok": True,
+        "result": result,
+        "history_id": history_item.get("id") if history_item else None,
+        "history_updated": bool(updated),
+    }
+
+
+@app.post("/api/queue/interrupt")
+def queue_interrupt(anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+    require_auth(anima_claude_session)
+    settings = load_settings()
+    addr = settings.get("api_addr") or COMFYUI_ADDR_DEFAULT
+    result = comfy_client.interrupt(addr)
+    if not result.get("ok"):
+        return {"ok": False, "message": result.get("text") or "ComfyUI interrupt failed", "result": result}
+    return {"ok": True, "result": result}
 
 
 @app.get("/api/history")

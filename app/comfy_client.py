@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import base64
 import json
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import traceback
@@ -86,6 +87,42 @@ def queue_prompt(addr: str, payload: dict[str, Any], timeout: float = 30) -> dic
         return {"ok": False, "status": exc.code, "json": parsed, "text": text}
     except Exception as exc:
         return {"ok": False, "status": 0, "json": None, "text": str(exc)}
+
+
+def queue_delete(addr: str, prompt_ids: list[str], timeout: float = 10) -> dict[str, Any]:
+    body = json.dumps({"delete": prompt_ids}).encode("utf-8")
+    request = urllib.request.Request(
+        f"http://{addr}/queue",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            text = response.read().decode("utf-8", errors="replace")
+            return {"ok": True, "status": response.status, "text": text}
+    except urllib.error.HTTPError as exc:
+        text = exc.read().decode("utf-8", errors="replace")
+        return {"ok": False, "status": exc.code, "text": text}
+    except Exception as exc:
+        return {"ok": False, "status": 0, "text": str(exc)}
+
+
+def interrupt(addr: str, timeout: float = 10) -> dict[str, Any]:
+    request = urllib.request.Request(
+        f"http://{addr}/interrupt",
+        data=b"",
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            text = response.read().decode("utf-8", errors="replace")
+            return {"ok": True, "status": response.status, "text": text}
+    except urllib.error.HTTPError as exc:
+        text = exc.read().decode("utf-8", errors="replace")
+        return {"ok": False, "status": exc.code, "text": text}
+    except Exception as exc:
+        return {"ok": False, "status": 0, "text": str(exc)}
 
 
 def upload_image(
