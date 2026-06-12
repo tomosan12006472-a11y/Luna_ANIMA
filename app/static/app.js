@@ -13,6 +13,10 @@
     original: "未選択",
   };
   const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
+  const REFMOD_EMPTY_TEXT = {
+    outfit: "Outfit参照は未選択です。",
+    pose: "Pose参照は未選択です。",
+  };
 
   const state = {
     bootstrap: null,
@@ -45,6 +49,10 @@
     dictQueryTimer: 0,
     dictStatusLoaded: false,
     i2i: { imageId: "", thumb: "", name: "" },
+    refmod: {
+      outfit: { imageId: "", thumb: "", name: "" },
+      pose: { imageId: "", thumb: "", name: "" },
+    },
   };
 
   function text(selector, value) {
@@ -234,6 +242,8 @@
     const negative = value("#negativePrompt", "");
     const seedMode = value("#seedModeSelect", "fixed");
     const i2iEnabled = checked("#i2iEnabled") && Boolean(state.i2i.imageId);
+    const outfitEnabled = checked("#outfitEnabled");
+    const poseEnabled = checked("#poseEnabled");
     return {
       workflow_mode: "anima",
       character1: slotRequestValue("character1"),
@@ -295,9 +305,29 @@
       },
       face_detailer: { enabled: false },
       reference_modules: {
-        enabled: false,
-        outfit: { enabled: false },
-        pose: { enabled: false },
+        enabled: true,
+        preset: outfitEnabled && poseEnabled ? "outfit_pose" : outfitEnabled ? "outfit_only" : poseEnabled ? "pose_only" : "off",
+        outfit: {
+          enabled: outfitEnabled,
+          image_id: state.refmod.outfit.imageId,
+          image_name: state.refmod.outfit.name,
+          strength: numberValue("#outfitStrength", 0.45),
+          mode: "image_prompt",
+          strategy: "ip_adapter",
+          crop_mode: "user_prepared",
+          start_at: numberValue("#outfitStart", 0),
+          end_at: numberValue("#outfitEnd", 0.75),
+        },
+        pose: {
+          enabled: poseEnabled,
+          image_id: state.refmod.pose.imageId,
+          image_name: state.refmod.pose.name,
+          mode: value("#poseMode", "pose_image"),
+          strength: numberValue("#poseStrength", 0.75),
+          strategy: "controlnet_openpose",
+          start_at: numberValue("#poseStart", 0),
+          end_at: numberValue("#poseEnd", 0.85),
+        },
       },
     };
   }
@@ -865,10 +895,102 @@
     UI.toast("下絵に設定しました");
   }
 
+  function refmodLabel(module) {
+    return module === "pose" ? "Pose" : "Outfit";
+  }
+
+  function refmodItemState(item = {}) {
+    const imageId = String(item.image_id || "").trim();
+    return {
+      imageId,
+      thumb: String(item.thumbnail_url || item.image_url || item.thumb || "").trim(),
+      name: String(item.original_filename || item.filename || item.name || imageId || "").trim(),
+    };
+  }
+
+  function renderRefmodPreview(module) {
+    const root = $(`#${module}Preview`);
+    if (!root) return;
+    const item = state.refmod[module] || { imageId: "", thumb: "", name: "" };
+    root.replaceChildren();
+    if (!item.imageId) {
+      root.classList.add("is-empty");
+      root.textContent = REFMOD_EMPTY_TEXT[module] || "参照は未選択です。";
+      return;
+    }
+    root.classList.remove("is-empty");
+    if (item.thumb) {
+      const img = document.createElement("img");
+      img.src = item.thumb;
+      img.alt = item.name || `${module} reference`;
+      img.loading = "lazy";
+      img.decoding = "async";
+      root.appendChild(img);
+    }
+    const label = document.createElement("span");
+    label.textContent = item.name || item.imageId;
+    root.appendChild(label);
+  }
+
+  function renderRefmodPreviews() {
+    renderRefmodPreview("outfit");
+    renderRefmodPreview("pose");
+  }
+
+  function applyRefmodItem(module, item = {}) {
+    if (!state.refmod[module]) return;
+    state.refmod[module] = refmodItemState(item);
+    setChecked(`#${module}Enabled`, Boolean(state.refmod[module].imageId));
+    renderRefmodPreview(module);
+    updateSummaries();
+  }
+
+  function clearRefmodImage(module) {
+    if (!state.refmod[module]) return;
+    state.refmod[module] = { imageId: "", thumb: "", name: "" };
+    setChecked(`#${module}Enabled`, false);
+    setValue(`#${module}File`, "");
+    text("#refModStatus", "");
+    renderRefmodPreview(module);
+    updateSummaries();
+  }
+
+  async function uploadRefmodImage(module) {
+    if (!state.refmod[module]) return;
+    const label = refmodLabel(module);
+    const input = $(`#${module}File`);
+    const file = input?.files?.[0];
+    if (!file) {
+      text("#refModStatus", `${label}参照画像を選択してください`);
+      UI.toast(`${label}参照画像を選択してください`, "error");
+      return;
+    }
+    text("#refModStatus", `${label}参照をアップロード中...`);
+    const form = new FormData();
+    form.append("file", file);
+    const data = await api(`/api/reference-modules/upload?module=${encodeURIComponent(module)}`, {
+      method: "POST",
+      body: form,
+    });
+    applyRefmodItem(module, data.item);
+    text("#refModStatus", `${label}参照を設定しました`);
+    UI.toast(`${label}参照を設定しました`);
+  }
+
   function canSubmitGenerateRequest() {
     if (checked("#i2iEnabled") && !state.i2i.imageId) {
       text("#i2iStatus", "下絵が未選択です");
       UI.toast("下絵が未選択です", "error");
+      return false;
+    }
+    if (checked("#outfitEnabled") && !state.refmod.outfit.imageId) {
+      text("#refModStatus", "Outfit参照が未選択です");
+      UI.toast("Outfit参照が未選択です", "error");
+      return false;
+    }
+    if (checked("#poseEnabled") && !state.refmod.pose.imageId) {
+      text("#refModStatus", "Pose参照が未選択です");
+      UI.toast("Pose参照が未選択です", "error");
       return false;
     }
     return true;
@@ -1130,6 +1252,10 @@
     text("#negativeSummary", `${req.negative_preset} · ${negMode} · ${custom}`);
     text("#dynamicSummary", req.dynamic_prompt.enabled ? "ON" : "OFF");
     text("#i2iSummary", checked("#i2iEnabled") ? `ON · ${req.image_to_image.denoise}` : "OFF");
+    const refParts = [];
+    if (checked("#outfitEnabled")) refParts.push("OUTFIT");
+    if (checked("#poseEnabled")) refParts.push("POSE");
+    text("#refModSummary", refParts.length ? refParts.join("+") : "OFF");
     updateSizeChips();
   }
 
@@ -1715,6 +1841,10 @@
     if (action === "frame-to-i2i") return setFrameAsI2iSource();
     if (action === "i2i-upload") return uploadI2iImage();
     if (action === "i2i-clear") return clearI2iImage();
+    if (action === "outfit-upload") return uploadRefmodImage("outfit");
+    if (action === "outfit-clear") return clearRefmodImage("outfit");
+    if (action === "pose-upload") return uploadRefmodImage("pose");
+    if (action === "pose-clear") return clearRefmodImage("pose");
     if (action === "save-defaults") return saveDefaults();
     if (action === "reset-defaults") return resetDefaults();
     if (action === "reload-models") return reloadModels();
@@ -1856,6 +1986,7 @@
         UI.toast(errorMessage(error), "error");
         if (action?.startsWith("frame-")) text("#frameActionStatus", errorMessage(error));
         if (action?.startsWith("i2i-")) text("#i2iStatus", errorMessage(error));
+        if (action?.startsWith("outfit-") || action?.startsWith("pose-")) text("#refModStatus", errorMessage(error));
         if (["save-defaults", "reset-defaults", "reload-models"].includes(action)) text("#settingsStatus", errorMessage(error));
       });
     });
@@ -1879,6 +2010,7 @@
     bindEvents();
     clearCharacterSearch();
     renderI2iPreview();
+    renderRefmodPreviews();
     renderSlots();
     updateSummaries();
     tryBootstrapSession();
