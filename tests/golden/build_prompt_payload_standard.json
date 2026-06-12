@@ -1,0 +1,134 @@
+{
+  "client_id": "golden-client",
+  "prompt": {
+    "1": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "20990101/anima/standard/Anima",
+        "images": [
+          "8",
+          0
+        ]
+      }
+    },
+    "11": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "9051",
+          1
+        ],
+        "text": "masterpiece, best quality, score_7, anime illustration, newest, safe, clean lineart, silver armor, smile, akanbe, simple background, medium shot, soft lighting, A composed character portrait., sharp eyes"
+      }
+    },
+    "12": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "9051",
+          1
+        ],
+        "text": "low quality, blurry, bad anatomy, text, logo"
+      }
+    },
+    "15": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "qwen_image_vae.safetensors"
+      }
+    },
+    "19": {
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": 4.25,
+        "denoise": 1.0,
+        "latent_image": [
+          "28",
+          0
+        ],
+        "model": [
+          "46",
+          0
+        ],
+        "negative": [
+          "12",
+          0
+        ],
+        "positive": [
+          "11",
+          0
+        ],
+        "sampler_name": "er_sde",
+        "scheduler": "simple",
+        "seed": 123456789,
+        "steps": 28
+      }
+    },
+    "28": {
+      "class_type": "EmptyLatentImage",
+      "inputs": {
+        "batch_size": 1,
+        "height": 1280,
+        "width": 896
+      }
+    },
+    "44": {
+      "class_type": "DiffusionModelLoaderKJ",
+      "inputs": {
+        "compute_dtype": "default",
+        "enable_fp16_accumulation": true,
+        "model_name": "Anima\\anima-preview3-base.safetensors",
+        "patch_cublaslinear": false,
+        "sage_attention": "disabled",
+        "weight_dtype": "default"
+      }
+    },
+    "45": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen_3_06b_base.safetensors",
+        "device": "default",
+        "type": "stable_diffusion"
+      }
+    },
+    "46": {
+      "class_type": "ModelSamplingAuraFlow",
+      "inputs": {
+        "model": [
+          "9051",
+          0
+        ],
+        "shift": 4.25
+      }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "19",
+          0
+        ],
+        "vae": [
+          "15",
+          0
+        ]
+      }
+    },
+    "9051": {
+      "class_type": "LoraLoader",
+      "inputs": {
+        "clip": [
+          "45",
+          0
+        ],
+        "lora_name": "style\\example_lora.safetensors",
+        "model": [
+          "44",
+          0
+        ],
+        "strength_clip": 0.25,
+        "strength_model": 0.7
+      }
+    }
+  }
+}

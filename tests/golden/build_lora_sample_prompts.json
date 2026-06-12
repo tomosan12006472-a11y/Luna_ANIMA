@@ -1,0 +1,33 @@
+{
+  "character_metadata": [],
+  "characters": [],
+  "dynamic_prompt": {
+    "enabled": true,
+    "expanded_negative_prompt": "text, logo",
+    "expanded_positive_prompt": "diagnostic pose, akanbe",
+    "raw_negative_prompt": "text, logo",
+    "raw_positive_prompt": "diagnostic pose, __pose__",
+    "selections": [
+      {
+        "file": "pose.txt",
+        "location": "config",
+        "name": "pose",
+        "overrides_config": false,
+        "selected": "akanbe",
+        "source": "__pose__",
+        "type": "wildcard"
+      }
+    ],
+    "type": "text_file_wildcard",
+    "warnings": [],
+    "wildcard_seed": 24680
+  },
+  "natural_description": "",
+  "negative": "text, logo",
+  "negative_guards": [],
+  "negative_mode": "custom",
+  "negative_preset": "light",
+  "positive": "diagnostic pose, akanbe",
+  "rating": "safe",
+  "seed": 123456789
+}

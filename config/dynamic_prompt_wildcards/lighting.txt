@@ -1,0 +1,5 @@
+soft lighting
+night lighting
+sunset lighting
+overcast lighting
+warm indoor lighting

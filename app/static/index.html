@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#060403">
+  <title>ANIMA 暗室</title>
+  <link rel="stylesheet" href="/static/styles.css?v=dev">
+</head>
+<body>
+  <div id="safelight" aria-hidden="true"></div>
+  <div id="safelightStatus" aria-live="polite">
+    <span>ANIMA DARKROOM</span>
+    <strong id="safelightText">SAFELIGHT ON</strong>
+  </div>
+
+  <main>
+    <!-- ログイン -->
+    <section id="loginView" class="view is-active">
+      <p class="mark">ANIMA / CLAUDE BUILD</p>
+      <h1>暗室</h1>
+      <p class="hint">tailnet内専用。PINで入室します。</p>
+      <div class="pinrow">
+        <input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" placeholder="****">
+        <button type="button" class="ghost" data-action="login">入室</button>
+      </div>
+      <p id="loginStatus" class="hint" aria-live="polite"></p>
+    </section>
+
+    <!-- 露光(作る) -->
+    <section id="exposeView" class="view" data-view="expose">
+
+      <div class="tray">
+        <div class="tray-head">
+          <h2>キャラクター</h2>
+          <span class="lbl" id="catalogCount"></span>
+        </div>
+        <div id="charSlots">
+          <button type="button" class="slot is-empty is-armed" data-slot="character1">
+            <span class="lbl">C1 · MAIN</span><span class="name">未選択</span>
+          </button>
+          <button type="button" class="slot is-empty" data-slot="character2">
+            <span class="lbl">C2 · LEFT</span><span class="name">未選択</span>
+          </button>
+          <button type="button" class="slot is-empty" data-slot="character3">
+            <span class="lbl">C3 · RIGHT</span><span class="name">未選択</span>
+          </button>
+          <button type="button" class="slot is-empty" data-slot="original">
+            <span class="lbl">ORIGINAL</span><span class="name">未選択</span>
+          </button>
+        </div>
+        <label class="field"><span class="lbl">検索 — タップでスロットへ</span>
+          <input id="charSearch" type="search" placeholder="2b / scathach / 初音 …" autocomplete="off">
+        </label>
+        <div id="favRow" class="chiprow" aria-label="お気に入り"></div>
+        <div id="charResults" class="resultlist" aria-live="polite"></div>
+        <div class="row">
+          <button type="button" class="ghost" data-action="clear-slot">選択中スロットを空にする</button>
+          <button type="button" class="ghost" data-action="toggle-favorite-slot">★ お気に入り登録/解除</button>
+        </div>
+      </div>
+
+      <div class="tray">
+        <div class="tray-head"><h2>プロンプト</h2><span class="lbl">EXPOSURE</span></div>
+        <label class="field"><span class="lbl">RATING</span></label>
+        <div class="seg" id="ratingSeg" role="group" aria-label="rating">
+          <button type="button" data-rating="safe" class="is-active">safe</button>
+          <button type="button" data-rating="sensitive">sensitive</button>
+          <button type="button" data-rating="nsfw">nsfw</button>
+          <button type="button" data-rating="explicit">explicit</button>
+        </div>
+        <label class="field"><span class="lbl">QUALITY</span></label>
+        <div class="seg" id="qualitySeg" role="group" aria-label="quality">
+          <button type="button" data-quality="standard" class="is-active">標準</button>
+          <button type="button" data-quality="high">高品質</button>
+          <button type="button" data-quality="character_check">キャラ確認</button>
+        </div>
+        <label class="field"><span class="lbl">POSITIVE</span>
+          <textarea id="positivePrompt" rows="3" placeholder="追加のタグや描写"></textarea>
+        </label>
+
+        <details class="tray" data-fold="scene" style="margin-top:10px">
+          <summary><h2>シーン指定</h2><span class="lbl" id="sceneSummary">—</span></summary>
+          <div class="grid2">
+            <label class="field"><span class="lbl">OUTFIT</span><input id="outfitPrompt" type="text"></label>
+            <label class="field"><span class="lbl">EXPRESSION</span><input id="expressionPrompt" type="text"></label>
+            <label class="field"><span class="lbl">POSE</span><input id="posePrompt" type="text"></label>
+            <label class="field"><span class="lbl">BACKGROUND</span><input id="backgroundPrompt" type="text"></label>
+            <label class="field"><span class="lbl">CAMERA</span><input id="cameraPrompt" type="text"></label>
+            <label class="field"><span class="lbl">LIGHTING</span><input id="lightingPrompt" type="text"></label>
+            <label class="field"><span class="lbl">YEAR</span><input id="yearPrompt" type="text" placeholder="newest など"></label>
+            <label class="field"><span class="lbl">META</span><input id="metaPrompt" type="text" value="anime illustration"></label>
+          </div>
+          <label class="field"><span class="lbl">自然文description</span>
+            <textarea id="naturalDescription" rows="3"></textarea>
+          </label>
+        </details>
+
+        <details class="tray" data-fold="negative" style="margin-top:10px">
+          <summary><h2>ネガティブ</h2><span class="lbl" id="negativeSummary">preset+custom</span></summary>
+          <label class="field"><span class="lbl">PRESET</span>
+            <select id="negativePreset">
+              <option value="anima_recommended">ANIMA recommended</option>
+              <option value="light">light</option>
+              <option value="strong">strong</option>
+              <option value="logo_watermark">logo/watermark</option>
+              <option value="hands_eyes">hands/eyes</option>
+              <option value="low_quality">low quality</option>
+            </select>
+          </label>
+          <label class="field"><span class="lbl">MODE</span>
+            <select id="negativeMode">
+              <option value="append">preset + custom</option>
+              <option value="preset">preset only</option>
+              <option value="custom">custom only</option>
+            </select>
+          </label>
+          <label class="field"><span class="lbl">CUSTOM</span>
+            <textarea id="negativePrompt" rows="3"></textarea>
+          </label>
+          <label class="field"><span class="lbl">PROMPT BAN(除去語)</span>
+            <input id="promptBan" type="text">
+          </label>
+        </details>
+      </div>
+
+      <details class="tray" data-fold="tech">
+        <summary><h2>技術設定</h2><span class="lbl" id="techSummary">1024×1536 · 32 · 4.5</span></summary>
+        <label class="field"><span class="lbl">SIZE</span></label>
+        <div class="chiprow" id="sizeChips">
+          <button type="button" class="chip is-active" data-size="1024x1536">縦 1024×1536</button>
+          <button type="button" class="chip" data-size="1024x1024">正方 1024</button>
+          <button type="button" class="chip" data-size="1536x1024">横 1536×1024</button>
+        </div>
+        <div class="grid2" style="margin-top:8px">
+          <label class="field"><span class="lbl">WIDTH</span><input id="widthInput" type="number" min="512" max="2048" step="8" value="1024"></label>
+          <label class="field"><span class="lbl">HEIGHT</span><input id="heightInput" type="number" min="512" max="2048" step="8" value="1536"></label>
+          <label class="field"><span class="lbl">STEPS</span><input id="stepsInput" type="number" min="1" max="100" value="32"></label>
+          <label class="field"><span class="lbl">CFG</span><input id="cfgInput" type="number" min="1" max="20" step="0.1" value="4.5"></label>
+          <label class="field"><span class="lbl">SHIFT</span><input id="shiftInput" type="number" min="0" max="100" step="0.01" value="4"></label>
+          <label class="field"><span class="lbl">SEED(-1=random)</span><input id="seedInput" type="number" value="-1"></label>
+          <label class="field"><span class="lbl">SAMPLER</span><select id="samplerSelect"></select></label>
+          <label class="field"><span class="lbl">SCHEDULER</span><select id="schedulerSelect"></select></label>
+          <label class="field"><span class="lbl">MODEL</span><select id="modelSelect"></select></label>
+          <label class="field"><span class="lbl">SEED MODE</span>
+            <select id="seedModeSelect"><option value="fixed">固定</option><option value="random">ランダム</option></select>
+          </label>
+        </div>
+
+        <div class="tray-head" style="margin-top:14px"><h2>ANIMA公式LoRA</h2><span class="lbl">OFFICIAL</span></div>
+        <div class="switchline">
+          <input id="officialHighresEnabled" type="checkbox">
+          <span class="grow">Highres / Aesthetic Boost</span>
+          <input id="officialHighresStrength" type="number" min="0" max="1" step="0.05" value="0.6" style="width:72px">
+        </div>
+        <div class="switchline">
+          <input id="officialTurboEnabled" type="checkbox">
+          <span class="grow">Turbo <span class="lbl">AUTO→V0.2</span></span>
+          <input id="officialTurboStrength" type="number" min="0" max="1" step="0.05" value="0.6" style="width:72px">
+        </div>
+
+        <div class="tray-head" style="margin-top:14px"><h2>LoRAスロット</h2>
+          <button type="button" class="ghost" data-action="add-lora" style="min-height:32px;padding:4px 10px">+ 追加</button>
+        </div>
+        <div id="loraSlots"></div>
+
+        <div class="row">
+          <button type="button" class="ghost" data-action="preview">payload確認</button>
+          <button type="button" class="ghost" data-action="save-defaults">既定値として保存</button>
+        </div>
+        <pre id="payloadPreview" class="printout hidden"></pre>
+      </details>
+    </section>
+
+    <!-- 密着(見る) -->
+    <section id="contactView" class="view" data-view="contact">
+      <div class="tray-head" style="margin:2px 2px 8px">
+        <h2>密着シート</h2>
+        <span class="lbl" id="contactCount">—</span>
+      </div>
+      <div class="chiprow" style="margin-bottom:8px" id="contactFilters">
+        <button type="button" class="chip is-active" data-filter="all">すべて</button>
+        <button type="button" class="chip" data-filter="favorite">★のみ</button>
+        <button type="button" class="chip" data-filter="active">現像中</button>
+      </div>
+      <div id="contactGrid"></div>
+      <div class="row" style="justify-content:center">
+        <button type="button" class="ghost hidden" id="loadMoreBtn" data-action="load-more">さらに読み込む</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- 露光バー -->
+  <div id="exposeBar" class="hidden">
+    <select id="queueCount" aria-label="枚数">
+      <option>1</option><option>2</option><option>3</option><option>4</option>
+      <option>5</option><option>6</option><option>8</option><option>10</option>
+    </select>
+    <button type="button" id="exposeBtn" data-action="generate">露光する</button>
+  </div>
+
+  <!-- タブ -->
+  <nav id="tabs" class="hidden" aria-label="views">
+    <button type="button" data-tab="expose" class="is-active">露光<small>EXPOSE</small></button>
+    <button type="button" data-tab="contact">密着<small>CONTACT</small></button>
+    <button type="button" data-tab="settings">設定<small>SETUP</small></button>
+  </nav>
+
+  <!-- フレーム詳細シート -->
+  <section id="frameSheet" class="sheet" aria-hidden="true">
+    <button class="backdrop" data-action="close-sheet" aria-label="閉じる"></button>
+    <article class="card" role="dialog" aria-modal="true" aria-label="フレーム詳細">
+      <div class="grab"></div>
+      <div id="frameImageWrap"><img id="frameImage" alt="生成画像"></div>
+      <div class="row">
+        <button type="button" class="ghost" data-action="frame-favorite">★ お気に入り</button>
+        <button type="button" class="ghost" data-action="frame-public-save">透かし付き保存</button>
+        <button type="button" class="ghost" data-action="frame-share">共有</button>
+        <button type="button" class="ghost" data-action="frame-reuse">この設定を再利用</button>
+      </div>
+      <p id="frameActionStatus" class="hint" aria-live="polite"></p>
+      <table class="exif" id="frameMeta"></table>
+    </article>
+  </section>
+
+  <!-- 設定シート -->
+  <section id="settingsSheet" class="sheet" aria-hidden="true">
+    <button class="backdrop" data-action="close-sheet" aria-label="閉じる"></button>
+    <article class="card" role="dialog" aria-modal="true" aria-label="設定">
+      <div class="grab"></div>
+      <div class="tray-head"><h2>設定</h2><span class="lbl" id="diagBadge">—</span></div>
+      <div class="tray">
+        <div class="tray-head"><h2>透かし / 公開保存</h2><span class="lbl">FIX</span></div>
+        <div class="switchline">
+          <input id="watermarkEnabled" type="checkbox" checked>
+          <span class="grow">公開保存時に透かしを焼き込む</span>
+        </div>
+        <div class="grid2">
+          <label class="field"><span class="lbl">TEXT</span><input id="watermarkText" type="text" value="@Luna_AIart_"></label>
+          <label class="field"><span class="lbl">POSITION</span>
+            <select id="watermarkPosition">
+              <option value="bottom_right">右下</option><option value="bottom_left">左下</option>
+              <option value="top_right">右上</option><option value="top_left">左上</option>
+            </select>
+          </label>
+          <label class="field"><span class="lbl">OPACITY</span><input id="watermarkOpacity" type="number" min="0" max="1" step="0.05" value="0.72"></label>
+          <label class="field"><span class="lbl">SIZE</span><input id="watermarkSize" type="number" min="10" max="160" value="36"></label>
+        </div>
+      </div>
+      <div class="tray">
+        <div class="tray-head"><h2>接続</h2><span class="lbl">BENCH</span></div>
+        <table class="exif" id="connMeta"></table>
+        <div class="row">
+          <button type="button" class="ghost" data-action="reload-models">モデル一覧を再取得</button>
+          <button type="button" class="ghost" data-action="save-defaults">既定値として保存</button>
+          <button type="button" class="ghost" data-action="reset-defaults">既定値をリセット</button>
+        </div>
+        <p id="settingsStatus" class="hint" aria-live="polite"></p>
+      </div>
+    </article>
+  </section>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/static/ui.js?v=dev"></script>
+  <script src="/static/app.js?v=dev"></script>
+</body>
+</html>

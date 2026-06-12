@@ -1,0 +1,133 @@
+{
+  "workflow": "config/workflows/anima_base_api.json",
+  "workflow_source": {
+    "source_type": "comfyui_template",
+    "source_name": "ANIMAテンプレ",
+    "source_path": "D:\\AI\\ComfyUI\\ComfyUI\\user\\default\\workflows\\Anima_テンプレ.json",
+    "source_sha256": "a6097e552139c75220c19997a737f27f385b9c78a33275925cc8bc068c00628f",
+    "notes": "ComfyUI UI workflow uses subgraphs. This API workflow is a flattened minimal equivalent using the same model selector and sampler primitives."
+  },
+  "positive_prompt": {
+    "node_id": "11",
+    "input": "text"
+  },
+  "negative_prompt": {
+    "node_id": "12",
+    "input": "text"
+  },
+  "width": {
+    "node_id": "28",
+    "input": "width"
+  },
+  "height": {
+    "node_id": "28",
+    "input": "height"
+  },
+  "batch_size": {
+    "node_id": "28",
+    "input": "batch_size"
+  },
+  "diffusion_model": {
+    "node_id": "44",
+    "class_type": "DiffusionModelLoaderKJ",
+    "input": "model_name",
+    "fixed": "Anima\\anima-preview3-base.safetensors"
+  },
+  "weight_dtype": {
+    "node_id": "44",
+    "input": "weight_dtype",
+    "fixed": "default"
+  },
+  "compute_dtype": {
+    "node_id": "44",
+    "input": "compute_dtype",
+    "fixed": "default"
+  },
+  "sage_attention": {
+    "node_id": "44",
+    "input": "sage_attention",
+    "fixed": "disabled"
+  },
+  "enable_fp16_accumulation": {
+    "node_id": "44",
+    "input": "enable_fp16_accumulation",
+    "fixed": true
+  },
+  "model_sampling": {
+    "node_id": "46",
+    "class_type": "ModelSamplingAuraFlow",
+    "input": "shift",
+    "fixed": 4
+  },
+  "text_encoder": {
+    "node_id": "45",
+    "input": "clip_name",
+    "fixed": "qwen_3_06b_base.safetensors"
+  },
+  "clip_type": {
+    "node_id": "45",
+    "input": "type",
+    "fixed": "stable_diffusion"
+  },
+  "clip_device": {
+    "node_id": "45",
+    "input": "device",
+    "fixed": "default"
+  },
+  "vae": {
+    "node_id": "15",
+    "input": "vae_name",
+    "fixed": "qwen_image_vae.safetensors"
+  },
+  "seed": {
+    "node_id": "19",
+    "input": "seed"
+  },
+  "steps": {
+    "node_id": "19",
+    "input": "steps"
+  },
+  "cfg": {
+    "node_id": "19",
+    "input": "cfg"
+  },
+  "sampler_name": {
+    "node_id": "19",
+    "input": "sampler_name",
+    "fixed": "er_sde"
+  },
+  "scheduler": {
+    "node_id": "19",
+    "input": "scheduler",
+    "fixed": "simple"
+  },
+  "denoise": {
+    "node_id": "19",
+    "input": "denoise"
+  },
+  "save_prefix": {
+    "node_id": "1",
+    "input": "filename_prefix",
+    "fixed": "Anima"
+  },
+  "ratings": [
+    "safe",
+    "sensitive",
+    "nsfw",
+    "explicit"
+  ],
+  "defaults": {
+    "rating": "safe",
+    "positive_prefix": "masterpiece, best quality, score_7",
+    "negative_prefix": "score_1, score_2, score_3, watermark, signature, artist name, loli, child, teen, muscular woman, peeing, blood, worst quality, low quality, blurry, jpeg artifacts, sepia",
+    "steps": 32,
+    "cfg": 4.5,
+    "sampler_name": "er_sde",
+    "scheduler": "simple",
+    "denoise": 1.0,
+    "resolution": "1024x1536",
+    "model_name": "Anima\\anima-preview3-base.safetensors",
+    "text_encoder": "qwen_3_06b_base.safetensors",
+    "vae": "qwen_image_vae.safetensors"
+  }
+}

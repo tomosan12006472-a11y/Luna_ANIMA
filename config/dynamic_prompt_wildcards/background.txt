@@ -1,0 +1,6 @@
+city street
+bedroom
+rooftop
+train station
+cafe
+simple studio background

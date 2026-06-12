@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "scope": "fate",
+  "dry_run": true,
+  "max_characters": 100,
+  "max_queries_per_character": 3,
+  "max_candidates_per_query": 5,
+  "sleep_seconds": 0.3,
+  "include_terms": [
+    "fate",
+    "fate/stay night",
+    "fate stay night",
+    "fate/hollow ataraxia",
+    "fate/zero",
+    "fate grand order",
+    "fate/grand order",
+    "fgo",
+    "fate/apocrypha",
+    "fate/extra",
+    "fate/extella",
+    "fate/kaleid",
+    "prisma illya",
+    "lord el-melloi"
+  ],
+  "weak_terms": [
+    "type-moon"
+  ],
+  "exclude_terms": [
+    "tsukihime",
+    "melty blood",
+    "mahoutsukai no yoru"
+  ],
+  "manual_include": [],
+  "manual_exclude": []
+}

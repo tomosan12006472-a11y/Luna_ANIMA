@@ -1,0 +1,33 @@
+{
+  "character_metadata": [],
+  "characters": [],
+  "dynamic_prompt": {
+    "enabled": true,
+    "expanded_negative_prompt": "low quality, blurry, bad anatomy, text, logo",
+    "expanded_positive_prompt": "masterpiece, best quality, score_7, anime illustration, newest, safe, clean lineart, silver armor, smile, akanbe, simple background, medium shot, soft lighting, A composed character portrait., sharp eyes",
+    "raw_negative_prompt": "low quality, blurry, bad anatomy, text, logo",
+    "raw_positive_prompt": "masterpiece, best quality, score_7, anime illustration, newest, safe, clean lineart, silver armor, smile, __pose__, simple background, medium shot, soft lighting, A composed character portrait., sharp eyes",
+    "selections": [
+      {
+        "file": "pose.txt",
+        "location": "config",
+        "name": "pose",
+        "overrides_config": false,
+        "selected": "akanbe",
+        "source": "__pose__",
+        "type": "wildcard"
+      }
+    ],
+    "type": "text_file_wildcard",
+    "warnings": [],
+    "wildcard_seed": 24680
+  },
+  "natural_description": "A composed character portrait.",
+  "negative": "low quality, blurry, bad anatomy, text, logo",
+  "negative_guards": [],
+  "negative_mode": "append",
+  "negative_preset": "light",
+  "positive": "masterpiece, best quality, score_7, anime illustration, newest, safe, clean lineart, silver armor, smile, akanbe, simple background, medium shot, soft lighting, A composed character portrait., sharp eyes",
+  "rating": "safe",
+  "seed": 123456789
+}

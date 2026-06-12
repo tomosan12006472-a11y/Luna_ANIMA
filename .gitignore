@@ -1,0 +1,60 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node / frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.tmp
+.vscode/
+.idea/
+
+# logs
+logs/
+*.log
+
+# secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+
+# user data / generated data
+user_data/*
+!user_data/
+!user_data/.gitkeep
+!user_data/payloads/
+user_data/payloads/*
+!user_data/payloads/.gitkeep
+!user_data/diff_reports/
+user_data/diff_reports/*
+!user_data/diff_reports/.gitkeep
+generated/
+payloads/
+*_payloads/
+mobile_payloads/
+history/
+images/
+thumbnails/
+public/
+reference_inputs/
+operation_log/
+
+# backups / archives
+/backups/
+*.zip
+*.7z
+*.tar
+*.tar.gz

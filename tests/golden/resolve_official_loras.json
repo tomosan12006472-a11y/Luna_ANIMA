@@ -1,0 +1,16 @@
+{
+  "highres": {
+    "enabled": true,
+    "file": "anima-highres-aesthetic-boost.safetensors",
+    "path": "D:/golden/lora/highres.safetensors",
+    "strength": 0.55
+  },
+  "turbo": {
+    "enabled": true,
+    "file": "anima-turbo-lora-v0.2.safetensors",
+    "path": "D:/golden/lora/turbo_v02.safetensors",
+    "preset_applied": true,
+    "strength": 0.45,
+    "version": "v0.2"
+  }
+}

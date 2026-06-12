@@ -1,0 +1,11 @@
+{
+  "current_workflow_value": 4.0,
+  "default": 4.0,
+  "input_name": "shift",
+  "node_class": "ModelSamplingAuraFlow",
+  "node_id": "46",
+  "shift": 5.25,
+  "shift_source": "request",
+  "supported": true,
+  "warnings": []
+}
