@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>ANIMA 暗室</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.6">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.7">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
-  <div id="safelightStatus" aria-live="polite">
+  <div id="safelightStatus" aria-live="polite" data-action="open-queue" role="button" tabindex="0">
     <span>ANIMA DARKROOM</span>
     <strong id="safelightText">SAFELIGHT ON</strong>
   </div>
@@ -29,6 +29,11 @@
 
     <!-- 露光(作る) -->
     <section id="exposeView" class="view" data-view="expose">
+
+      <div class="row" style="margin:0 0 10px">
+        <button type="button" class="ghost" data-action="open-recipes">📋 レシピ</button>
+        <button type="button" class="ghost" data-action="save-recipe">現在の設定をレシピ保存</button>
+      </div>
 
       <div class="tray">
         <div class="tray-head">
@@ -325,6 +330,33 @@
     <button type="button" data-tab="settings">設定<small>SETUP</small></button>
   </nav>
 
+  <!-- 現像キューシート -->
+  <section id="queueSheet" class="sheet" aria-hidden="true">
+    <button class="backdrop" data-action="close-sheet" aria-label="閉じる"></button>
+    <article class="card" role="dialog" aria-modal="true" aria-label="現像キュー">
+      <div class="grab"></div>
+      <div class="tray-head"><h2>現像キュー</h2><span class="lbl" id="queueCountLbl">—</span></div>
+      <div id="queueList" class="resultlist" style="max-height:50dvh"></div>
+      <div class="row">
+        <button type="button" class="ghost" data-action="queue-refresh">更新</button>
+        <button type="button" class="ghost" data-action="queue-interrupt">実行中を中断</button>
+      </div>
+      <p id="queueStatus" class="hint" aria-live="polite"></p>
+    </article>
+  </section>
+
+  <!-- レシピシート -->
+  <section id="recipeSheet" class="sheet" aria-hidden="true">
+    <button class="backdrop" data-action="close-sheet" aria-label="閉じる"></button>
+    <article class="card" role="dialog" aria-modal="true" aria-label="レシピ">
+      <div class="grab"></div>
+      <div class="tray-head"><h2>レシピ</h2><span class="lbl" id="recipeCountLbl">—</span></div>
+      <p class="hint">キャラ・プロンプト・技術設定の丸ごと保存です。タップで適用します。</p>
+      <div id="recipeList" class="resultlist" style="max-height:55dvh"></div>
+      <p id="recipeStatus" class="hint" aria-live="polite"></p>
+    </article>
+  </section>
+
   <!-- プロンプトライブラリシート -->
   <section id="promptSheet" class="sheet" aria-hidden="true">
     <button class="backdrop" data-action="close-sheet" aria-label="閉じる"></button>
@@ -352,6 +384,10 @@
         <button type="button" class="ghost" data-action="frame-reuse">この設定を再利用</button>
         <button type="button" class="ghost" data-action="frame-to-i2i">下絵にする</button>
         <button type="button" class="ghost" data-action="frame-face-detail">顔を補正</button>
+        <span class="row" style="margin:0;gap:4px">
+          <select id="variationCount" style="width:56px"><option>2</option><option selected>4</option><option>8</option></select>
+          <button type="button" class="ghost" data-action="frame-variations">🎲 同設定でガチャ</button>
+        </span>
       </div>
       <p id="frameActionStatus" class="hint" aria-live="polite"></p>
       <table class="exif" id="frameMeta"></table>
@@ -397,7 +433,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.6"></script>
-  <script src="/static/app.js?v=v1.6"></script>
+  <script src="/static/ui.js?v=v1.7"></script>
+  <script src="/static/app.js?v=v1.7"></script>
 </body>
 </html>

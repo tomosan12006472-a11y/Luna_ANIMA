@@ -341,3 +341,10 @@ details.tray > summary h2 { white-space: nowrap; }
 .i2i-preview img { max-height: 96px; max-width: 40%; display: block; border: 1px solid var(--line); }
 .i2i-preview.is-empty { justify-content: center; min-height: 48px; }
 input[type="file"] { width: 100%; color: var(--ink-dim); font-size: 13px; margin-top: 10px; }
+
+/* v1.7: tappable safelight status + queue rows */
+#safelightStatus { pointer-events: auto; cursor: pointer; }
+#safelightStatus:active strong { opacity: 0.6; }
+.queue-row-meta { display: flex; gap: 8px; align-items: center; }
+.queue-dot { width: 8px; height: 8px; flex: none; background: var(--ink-faint); }
+.queue-dot.is-running { background: var(--safelight); animation: pulse 1.6s infinite; }
