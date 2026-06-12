@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>ANIMA 暗室</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.7">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.8">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -208,6 +208,27 @@
           <button type="button" class="ghost" data-action="save-defaults">既定値として保存</button>
         </div>
         <pre id="payloadPreview" class="printout hidden"></pre>
+      </details>
+
+      <details class="tray" data-fold="hires">
+        <summary><h2>Hires.fix</h2><span class="lbl" id="hiresSummary">OFF</span></summary>
+        <p class="hint">生成後に高解像度で描き直します(ANIMA暗室の新機能)。生成時間は伸びます。</p>
+        <div class="switchline">
+          <input id="hiresEnabled" type="checkbox">
+          <span class="grow">Hires.fix を使う</span>
+        </div>
+        <div class="grid2">
+          <label class="field"><span class="lbl">MODE</span>
+            <select id="hiresMode"><option value="latent">Latent</option><option value="model">Model</option></select>
+          </label>
+          <label class="field"><span class="lbl">FACTOR</span><input id="hiresFactor" type="number" min="1" max="4" step="0.05" value="1.5"></label>
+          <label class="field"><span class="lbl">DENOISE</span><input id="hiresDenoise" type="number" min="0" max="1" step="0.01" value="0.45"></label>
+          <label class="field"><span class="lbl">STEPS</span><input id="hiresSteps" type="number" min="1" max="100" value="15"></label>
+          <label class="field"><span class="lbl">METHOD(latent)</span><select id="hiresMethod"></select></label>
+          <label class="field"><span class="lbl">MODEL(model)</span><select id="hiresModel"></select></label>
+          <label class="field"><span class="lbl">TARGET W(任意)</span><input id="hiresTargetW" type="number" min="0" step="8" value="0"></label>
+          <label class="field"><span class="lbl">TARGET H(任意)</span><input id="hiresTargetH" type="number" min="0" step="8" value="0"></label>
+        </div>
       </details>
 
       <details class="tray" data-fold="i2i">
@@ -433,7 +454,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.7"></script>
-  <script src="/static/app.js?v=v1.7"></script>
+  <script src="/static/ui.js?v=v1.8"></script>
+  <script src="/static/app.js?v=v1.8"></script>
 </body>
 </html>
