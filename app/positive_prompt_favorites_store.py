@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import secrets
+from threading import Lock
+import time
 from typing import Any
 
 from ._shared_utils import write_json_atomic
@@ -11,6 +13,7 @@ from .config import ROOT_DIR
 
 APP_SCOPE = "anima"
 FAVORITES_PATH = ROOT_DIR / "user_data" / "positive_prompt_favorites_anima.json"
+_FAVORITES_LOCK = Lock()
 MAX_PROMPT_LENGTH = 12000
 MAX_TITLE_LENGTH = 120
 MAX_NOTE_LENGTH = 1000
@@ -90,13 +93,22 @@ def _make_id() -> str:
 
 
 def _load_payload() -> dict[str, Any]:
+    with _FAVORITES_LOCK:
+        return _load_payload_unlocked()
+
+
+def _load_payload_unlocked() -> dict[str, Any]:
     if not FAVORITES_PATH.exists():
         return _empty_payload()
     try:
         data = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
     except Exception:
-        _backup_broken_file()
-        return _empty_payload()
+        time.sleep(0.05)
+        try:
+            data = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            _backup_broken_file()
+            return _empty_payload()
     if not isinstance(data, dict):
         return _empty_payload()
     items = data.get("items")
@@ -112,7 +124,8 @@ def _save_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "app_scope": APP_SCOPE,
         "items": [_normalize_item(item) for item in payload.get("items", []) if isinstance(item, dict)],
     }
-    write_json_atomic(FAVORITES_PATH, normalized)
+    with _FAVORITES_LOCK:
+        write_json_atomic(FAVORITES_PATH, normalized)
     return normalized
 
 
