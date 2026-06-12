@@ -458,9 +458,19 @@
     }
   }
 
+  function clearCharacterSearch() {
+    setValue("#charSearch", "");
+    $("#charResults")?.replaceChildren();
+  }
+
   async function searchCharacters() {
     const query = value("#charSearch", "").trim();
+    if (!query) {
+      $("#charResults")?.replaceChildren();
+      return;
+    }
     const data = await api(`/api/catalog?q=${encodeURIComponent(query)}&kind=all&limit=60`);
+    if (value("#charSearch", "").trim() !== query) return;
     renderCharacterResults(Array.isArray(data.items) ? data.items : []);
   }
 
@@ -1312,6 +1322,7 @@
           method: "POST",
           body: "{}",
         }).then(setFavorites).catch(() => {});
+        clearCharacterSearch();
         UI.toast(`${favorite.dataset.favoriteName} を反映しました`);
         return;
       }
@@ -1325,6 +1336,7 @@
           kind: result.dataset.characterKind,
           prompt_tag: result.dataset.characterPromptTag,
         });
+        clearCharacterSearch();
         UI.toast(`${result.dataset.characterName} を反映しました`);
         return;
       }
@@ -1360,6 +1372,7 @@
 
   function init() {
     bindEvents();
+    clearCharacterSearch();
     renderSlots();
     updateSummaries();
     tryBootstrapSession();
