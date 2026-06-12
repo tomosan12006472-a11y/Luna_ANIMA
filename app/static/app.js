@@ -614,6 +614,24 @@
     updateSummaries();
   }
 
+  function joinPositivePromptParts(parts = []) {
+    return parts.map((part) => String(part || "").trim()).filter(Boolean).join(", ");
+  }
+
+  function applyPositivePromptInsert(prompt, mode) {
+    const nextPrompt = String(prompt || "").trim();
+    if (!nextPrompt) return;
+    const current = value("#positivePrompt", "").trim();
+    if (mode === "replace") {
+      setValue("#positivePrompt", nextPrompt);
+    } else if (mode === "prepend") {
+      setValue("#positivePrompt", joinPositivePromptParts([nextPrompt, current]));
+    } else {
+      setValue("#positivePrompt", joinPositivePromptParts([current, nextPrompt]));
+    }
+    updateSummaries();
+  }
+
   function promptItemPrompt(item = {}) {
     return String(item.prompt || item.positive_prompt || item.text || "").trim();
   }
@@ -626,6 +644,15 @@
   function promptExcerpt(prompt, limit = 60) {
     const compact = String(prompt || "").replace(/\s+/g, " ").trim();
     return compact.length > limit ? `${compact.slice(0, limit)}...` : compact;
+  }
+
+  async function confirmDanger({ title = "確認しますか?", message = "", label = "実行する" } = {}) {
+    const choice = await UI.ask({
+      title,
+      message,
+      choices: [{ label, value: "yes", kind: "danger" }],
+    });
+    return choice === "yes";
   }
 
   function renderPromptSheet(items = state.promptSheetItems) {
@@ -753,7 +780,17 @@
     const item = state.promptSheetItems.find((candidate) => String(candidate.id || "") === String(itemId || ""));
     const prompt = promptItemPrompt(item);
     if (!prompt) return;
-    appendPositivePrompt(prompt);
+    const mode = await UI.ask({
+      title: "どこに入れますか?",
+      message: `${promptItemTitle(item)}\n${promptExcerpt(prompt, 120)}`,
+      choices: [
+        { label: "先頭に挿入", value: "prepend" },
+        { label: "末尾に追記", value: "append", kind: "primary" },
+        { label: "置換", value: "replace", kind: "danger" },
+      ],
+    });
+    if (!mode) return;
+    applyPositivePromptInsert(prompt, mode);
     if (state.promptSheetMode === "favorites" && item?.id) {
       await api(`/api/prompts/positive-favorites/${escapePathSegment(item.id)}/used`, {
         method: "POST",
@@ -761,11 +798,18 @@
       });
     }
     UI.closeSheets();
-    UI.toast("Positiveに追加しました");
+    UI.toast("Positiveに反映しました");
   }
 
   async function deletePositiveFavorite(favoriteId) {
     if (!favoriteId) return;
+    const item = state.promptSheetItems.find((candidate) => String(candidate.id || "") === String(favoriteId || ""));
+    const ok = await confirmDanger({
+      title: "削除しますか?",
+      message: `${promptItemTitle(item)}\n${promptExcerpt(promptItemPrompt(item), 120)}`,
+      label: "削除する",
+    });
+    if (!ok) return;
     const data = await api(`/api/prompts/positive-favorites/${escapePathSegment(favoriteId)}`, {
       method: "DELETE",
     });
@@ -893,6 +937,13 @@
 
   async function deleteRecipeItem(recipeId) {
     if (!recipeId) return;
+    const item = state.recipes.find((recipe) => String(recipe.id || "") === String(recipeId || ""));
+    const ok = await confirmDanger({
+      title: "削除しますか?",
+      message: `${item?.name || "Untitled Recipe"}\n${item?.summary || ""}`,
+      label: "削除する",
+    });
+    if (!ok) return;
     const data = await api(`/api/recipes/${escapePathSegment(recipeId)}`, {
       method: "DELETE",
     });
@@ -1819,6 +1870,12 @@
 
   async function cancelQueuePrompt(promptId) {
     if (!promptId) return;
+    const ok = await confirmDanger({
+      title: "取消しますか?",
+      message: `キュー ${queuePromptShort(promptId)} を取り消します。`,
+      label: "取消する",
+    });
+    if (!ok) return;
     text("#queueStatus", "取消中...");
     await api("/api/queue/cancel", {
       method: "POST",
@@ -1830,6 +1887,12 @@
   }
 
   async function interruptQueue() {
+    const ok = await confirmDanger({
+      title: "中断しますか?",
+      message: "ComfyUIで実行中の生成を中断します。",
+      label: "中断する",
+    });
+    if (!ok) return;
     text("#queueStatus", "中断を送信中...");
     await api("/api/queue/interrupt", {
       method: "POST",
