@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>ANIMA 暗室</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.5">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.6">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -273,6 +273,22 @@
         <div id="posePreview" class="i2i-preview is-empty">Pose参照は未選択です。</div>
         <p id="refModStatus" class="hint" aria-live="polite"></p>
       </details>
+
+      <details class="tray" data-fold="facedetailer">
+        <summary><h2>Face Detailer</h2><span class="lbl" id="fdSummary">OFF</span></summary>
+        <p class="hint">生成後に顔を自動検出して描き直します。生成時間は少し伸びます。</p>
+        <div class="switchline">
+          <input id="fdEnabled" type="checkbox">
+          <span class="grow">生成時に顔を補正する</span>
+        </div>
+        <div class="grid2">
+          <label class="field"><span class="lbl">DENOISE</span><input id="fdDenoise" type="number" min="0" max="1" step="0.01" value="0.30"></label>
+          <label class="field"><span class="lbl">STEPS</span><input id="fdSteps" type="number" min="1" max="60" value="12"></label>
+          <label class="field"><span class="lbl">CFG</span><input id="fdCfg" type="number" min="0" max="30" step="0.1" value="4.0"></label>
+          <label class="field"><span class="lbl">BBOX THRESHOLD</span><input id="fdBbox" type="number" min="0" max="1" step="0.01" value="0.50"></label>
+        </div>
+        <p id="fdStatus" class="hint" aria-live="polite"></p>
+      </details>
     </section>
 
     <!-- 密着(見る) -->
@@ -335,6 +351,7 @@
         <button type="button" class="ghost" data-action="frame-share">共有</button>
         <button type="button" class="ghost" data-action="frame-reuse">この設定を再利用</button>
         <button type="button" class="ghost" data-action="frame-to-i2i">下絵にする</button>
+        <button type="button" class="ghost" data-action="frame-face-detail">顔を補正</button>
       </div>
       <p id="frameActionStatus" class="hint" aria-live="polite"></p>
       <table class="exif" id="frameMeta"></table>
@@ -380,7 +397,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.5"></script>
-  <script src="/static/app.js?v=v1.5"></script>
+  <script src="/static/ui.js?v=v1.6"></script>
+  <script src="/static/app.js?v=v1.6"></script>
 </body>
 </html>
