@@ -78,6 +78,15 @@
     return Number.isFinite(raw) ? raw : fallback;
   }
 
+  function numberFrom(raw, fallback = 0) {
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  function intFrom(raw, fallback = 0) {
+    return Math.trunc(numberFrom(raw, fallback));
+  }
+
   function setChecked(selector, checked) {
     const el = $(selector);
     if (el && "checked" in el) el.checked = Boolean(checked);
@@ -238,6 +247,11 @@
   function selectedQueueCount() {
     const count = Number(value("#queueCount", 1));
     return Number.isFinite(count) && count > 0 ? count : 1;
+  }
+
+  function selectedVariationCount() {
+    const count = Math.trunc(Number(value("#variationCount", 2)));
+    return Number.isFinite(count) && count > 0 ? count : 2;
   }
 
   function collectOfficialLoras() {
@@ -1523,6 +1537,31 @@
     return data;
   }
 
+  function assertGenerateQueued(data) {
+    if (data.status !== "queued" && data.status !== "partial") {
+      throw Object.assign(new Error(data.message || "露光できませんでした"), { data });
+    }
+  }
+
+  function generateQueuedCount(data, request) {
+    return Number(data.queued_count || data.items?.length || request.count || 1);
+  }
+
+  async function finishGenerateQueued(data, request, options = {}) {
+    const queued = generateQueuedCount(data, request);
+    const toastMessage = typeof options.toast === "function"
+      ? options.toast(queued)
+      : options.toast || `${queued}枚 露光しました`;
+    const safelightMessage = typeof options.safelight === "function"
+      ? options.safelight(queued)
+      : options.safelight || `${queued} FRAMES DEVELOPING`;
+    UI.toast(toastMessage);
+    UI.safelight("developing", safelightMessage);
+    state.pollHadActive = true;
+    await loadContact(true);
+    return queued;
+  }
+
   async function generate() {
     if (!canSubmitGenerateRequest()) return;
     const button = $("#exposeBtn");
@@ -1533,14 +1572,8 @@
         method: "POST",
         body: JSON.stringify(request),
       });
-      if (data.status !== "queued" && data.status !== "partial") {
-        throw Object.assign(new Error(data.message || "露光できませんでした"), { data });
-      }
-      const queued = Number(data.queued_count || data.items?.length || request.count || 1);
-      UI.toast(`${queued}枚 露光しました`);
-      UI.safelight("developing", `${queued} FRAMES DEVELOPING`);
-      state.pollHadActive = true;
-      await loadContact(true);
+      assertGenerateQueued(data);
+      await finishGenerateQueued(data, request);
     } catch (error) {
       UI.toast(errorMessage(error), "error");
       UI.safelight("error");
@@ -1732,8 +1765,98 @@
     return displayName;
   }
 
-  function applyHistoryToForm(item) {
-    state.slots = { character1: null, character2: null, character3: null, original: null };
+  function historyOfficialLoras(official = {}) {
+    return {
+      highres: {
+        enabled: Boolean(official.highres?.enabled),
+        strength: numberFrom(official.highres?.strength, 0.6),
+      },
+      turbo: {
+        enabled: Boolean(official.turbo?.enabled),
+        version: "auto",
+        strength: numberFrom(official.turbo?.strength, 0.6),
+      },
+    };
+  }
+
+  function historyLoras(loras = []) {
+    return (Array.isArray(loras) ? loras : []).filter((lora) => lora && typeof lora === "object").map((lora) => ({
+      enabled: true,
+      name: loraNameFromItem(lora),
+      application: normalizeLoraApplication(lora.application || lora.mode),
+      strength_model: numberFrom(lora.strength_model ?? lora.model_strength ?? lora.weight, 1),
+      strength_clip: numberFrom(lora.strength_clip ?? lora.clip_strength ?? lora.weight, 1),
+    })).filter((lora) => lora.name);
+  }
+
+  function historyImageToImageRequest(item = {}) {
+    const image = item.image_to_image && typeof item.image_to_image === "object" ? item.image_to_image : {};
+    return {
+      enabled: Boolean(image.enabled && image.image_id),
+      image_id: String(image.image_id || ""),
+      denoise: numberFrom(image.denoise, 0.45),
+      resize_mode: String(image.resize_mode || "fit"),
+      use_source_size: Boolean(image.use_source_size),
+      allow_with_hires_fix: false,
+      allow_with_reference_assist: false,
+    };
+  }
+
+  function historyReferenceModulesRequest(item = {}) {
+    const modules = item.reference_modules && typeof item.reference_modules === "object" ? item.reference_modules : {};
+    const outfit = modules.outfit && typeof modules.outfit === "object" ? modules.outfit : {};
+    const pose = modules.pose && typeof modules.pose === "object" ? modules.pose : {};
+    const outfitEnabled = Boolean(outfit.enabled && outfit.image_id);
+    const poseEnabled = Boolean(pose.enabled && pose.image_id);
+    return {
+      enabled: true,
+      preset: outfitEnabled && poseEnabled ? "outfit_pose" : outfitEnabled ? "outfit_only" : poseEnabled ? "pose_only" : "off",
+      outfit: {
+        enabled: outfitEnabled,
+        image_id: String(outfit.image_id || ""),
+        image_name: String(outfit.image_name || ""),
+        strength: numberFrom(outfit.strength, 0.45),
+        mode: String(outfit.mode || "image_prompt"),
+        strategy: String(outfit.strategy || "ip_adapter"),
+        crop_mode: String(outfit.crop_mode || "user_prepared"),
+        start_at: numberFrom(outfit.start_at, 0),
+        end_at: numberFrom(outfit.end_at, 0.75),
+      },
+      pose: {
+        enabled: poseEnabled,
+        image_id: String(pose.image_id || ""),
+        image_name: String(pose.image_name || ""),
+        mode: String(pose.mode || "pose_image"),
+        strength: numberFrom(pose.strength, 0.75),
+        strategy: String(pose.strategy || "controlnet_openpose"),
+        start_at: numberFrom(pose.start_at, 0),
+        end_at: numberFrom(pose.end_at, 0.85),
+      },
+    };
+  }
+
+  function historyFaceDetailerRequest(item = {}) {
+    const face = item.face_detailer && typeof item.face_detailer === "object" ? item.face_detailer : {};
+    return {
+      enabled: Boolean(face.enabled),
+      mode: String(face.mode || "generation"),
+      detector: String(face.detector || "bbox/face_yolov8m.pt"),
+      steps: intFrom(face.steps, 12),
+      cfg: numberFrom(face.cfg, 4.0),
+      denoise: numberFrom(face.denoise, 0.3),
+      guide_size: intFrom(face.guide_size, 512),
+      max_size: intFrom(face.max_size, 1024),
+      bbox_threshold: numberFrom(face.bbox_threshold, 0.5),
+      bbox_dilation: intFrom(face.bbox_dilation, 10),
+      bbox_crop_factor: numberFrom(face.bbox_crop_factor, 3.0),
+      sam_enabled: Boolean(face.sam_enabled),
+      seed_policy: String(face.seed_policy || "image_seed_plus_offset"),
+      seed_offset: intFrom(face.seed_offset, 100000),
+    };
+  }
+
+  function historyReuseData(item = {}) {
+    const slots = { character1: null, character2: null, character3: null, original: null };
     for (const char of item.characters || []) {
       const slotNumber = Number(char.slot || 0);
       const slotName = slotNumber === 1 ? "character1" : slotNumber === 2 ? "character2" : slotNumber === 3 ? "character3" : slotNumber === 4 ? "original" : "";
@@ -1743,37 +1866,164 @@
         source: sourceForCharacter(char),
         kind: sourceForCharacter(char) === "original_character" ? "original" : "wai",
       });
-      state.slots[slotName] = { ...normalized, value: historyCharacterValue(char, slotName) };
+      slots[slotName] = { ...normalized, value: historyCharacterValue(char, slotName) };
     }
+    return {
+      slots,
+      rating: item.rating || "safe",
+      quality_preset: item.quality_preset || "standard",
+      positive_prompt: historyPositiveText(item),
+      negative_prompt: historyNegativeText(item),
+      negative_prompt_mode: "custom",
+      negative_preset: item.negative_preset || "anima_recommended",
+      natural_description: item.natural_description || "",
+      model: item.model || state.defaults.model || "",
+      width: numberFrom(item.width, 1024),
+      height: numberFrom(item.height, 1536),
+      steps: intFrom(item.steps, 32),
+      cfg: numberFrom(item.cfg, 4.5),
+      shift: numberFrom(item.shift ?? item.model_sampling?.shift, numberFrom(state.defaults.shift, 4)),
+      sampler: item.sampler || state.defaults.sampler || "er_sde",
+      scheduler: item.scheduler || state.defaults.scheduler || "simple",
+      seed: intFrom(item.seed, -1),
+      seed_mode: "fixed",
+      official_loras: historyOfficialLoras(item.official_loras || {}),
+      loras: historyLoras(item.loras || []),
+      source_item: item,
+    };
+  }
+
+  function applyHistoryReuseData(data) {
+    state.slots = {
+      character1: data.slots.character1,
+      character2: data.slots.character2,
+      character3: data.slots.character3,
+      original: data.slots.original,
+    };
     renderSlots();
-    if (item.rating) UI.setSegValue("#ratingSeg", "rating", item.rating);
-    if (item.quality_preset) UI.setSegValue("#qualitySeg", "quality", item.quality_preset);
-    setValue("#positivePrompt", historyPositiveText(item));
-    setValue("#negativePrompt", historyNegativeText(item));
-    setValue("#negativeMode", "custom");
-    if (item.negative_preset) setValue("#negativePreset", item.negative_preset);
-    setValue("#naturalDescription", item.natural_description || "");
-    setValue("#modelSelect", item.model || state.defaults.model || "");
-    setValue("#widthInput", item.width || 1024);
-    setValue("#heightInput", item.height || 1536);
-    setValue("#stepsInput", item.steps || 32);
-    setValue("#cfgInput", item.cfg || 4.5);
-    setValue("#shiftInput", item.shift ?? item.model_sampling?.shift ?? state.defaults.shift ?? 4);
-    if (item.sampler) setValue("#samplerSelect", item.sampler);
-    if (item.scheduler) setValue("#schedulerSelect", item.scheduler);
-    setValue("#seedInput", item.seed ?? -1);
-    setValue("#seedModeSelect", "fixed");
-    const official = item.official_loras || {};
-    setChecked("#officialHighresEnabled", official.highres?.enabled);
-    setValue("#officialHighresStrength", official.highres?.strength ?? 0.6);
-    setChecked("#officialTurboEnabled", official.turbo?.enabled);
-    setValue("#officialTurboStrength", official.turbo?.strength ?? 0.6);
+    UI.setSegValue("#ratingSeg", "rating", data.rating);
+    UI.setSegValue("#qualitySeg", "quality", data.quality_preset);
+    setValue("#positivePrompt", data.positive_prompt);
+    setValue("#negativePrompt", data.negative_prompt);
+    setValue("#negativeMode", data.negative_prompt_mode);
+    setValue("#negativePreset", data.negative_preset);
+    setValue("#naturalDescription", data.natural_description);
+    setValue("#modelSelect", data.model);
+    setValue("#widthInput", data.width);
+    setValue("#heightInput", data.height);
+    setValue("#stepsInput", data.steps);
+    setValue("#cfgInput", data.cfg);
+    setValue("#shiftInput", data.shift);
+    setValue("#samplerSelect", data.sampler);
+    setValue("#schedulerSelect", data.scheduler);
+    setValue("#seedInput", data.seed);
+    setValue("#seedModeSelect", data.seed_mode);
+    setChecked("#officialHighresEnabled", data.official_loras.highres.enabled);
+    setValue("#officialHighresStrength", data.official_loras.highres.strength);
+    setChecked("#officialTurboEnabled", data.official_loras.turbo.enabled);
+    setValue("#officialTurboStrength", data.official_loras.turbo.strength);
     $("#loraSlots")?.replaceChildren();
-    for (const lora of item.loras || []) addLoraRow(lora);
+    for (const lora of data.loras || []) addLoraRow(lora);
     updateSummaries();
+  }
+
+  function slotRequestValueFromData(data, slotName) {
+    const item = data.slots[slotName];
+    if (item?.value) return item.value;
+    if (slotName === "character1") return "Random";
+    return "None";
+  }
+
+  function historyRequestFromItem(item = {}) {
+    const data = historyReuseData(item);
+    return {
+      workflow_mode: "anima",
+      character1: slotRequestValueFromData(data, "character1"),
+      character2: slotRequestValueFromData(data, "character2"),
+      character3: slotRequestValueFromData(data, "character3"),
+      original_character: slotRequestValueFromData(data, "original"),
+      character1_weight: 1.0,
+      character2_weight: 1.0,
+      character3_weight: 1.0,
+      original_weight: 1.0,
+      character1_role: "main",
+      character2_role: "left",
+      character3_role: "right",
+      rating: data.rating,
+      quality_preset: data.quality_preset,
+      meta_prompt: item.meta_prompt || "anime illustration",
+      year_prompt: item.year_prompt || "",
+      outfit_prompt: item.outfit_prompt || "",
+      expression_prompt: item.expression_prompt || "",
+      pose_prompt: item.pose_prompt || "",
+      background_prompt: item.background_prompt || "",
+      lighting_prompt: item.lighting_prompt || "",
+      camera_prompt: item.camera_prompt || "",
+      natural_description: data.natural_description,
+      positive_prompt: data.positive_prompt,
+      negative_prompt: data.negative_prompt,
+      negative_prompt_raw: data.negative_prompt,
+      negative_prompt_mode: data.negative_prompt_mode,
+      negative_preset: data.negative_preset,
+      prompt_ban: item.prompt_ban || "",
+      common_prompt: item.common || "",
+      model: data.model,
+      text_encoder: state.appSettings.text_encoder || state.defaults.text_encoder || "qwen_3_06b_base.safetensors",
+      vae: state.appSettings.vae || state.defaults.vae || "qwen_image_vae.safetensors",
+      width: data.width,
+      height: data.height,
+      steps: data.steps,
+      cfg: data.cfg,
+      shift: data.shift,
+      sampler: data.sampler,
+      scheduler: data.scheduler,
+      seed: data.seed,
+      seed_mode: data.seed_mode,
+      official_loras: data.official_loras,
+      loras: data.loras,
+      count: 1,
+      wait: false,
+      dynamic_prompt: { enabled: false },
+      hires_fix: { enabled: false },
+      reference_assist: { enabled: false },
+      image_to_image: historyImageToImageRequest(item),
+      face_detailer: historyFaceDetailerRequest(item),
+      reference_modules: historyReferenceModulesRequest(item),
+    };
+  }
+
+  function applyHistoryToForm(item) {
+    applyHistoryReuseData(historyReuseData(item));
     UI.closeSheets();
     UI.switchTab("expose");
     UI.toast("設定を再利用しました");
+  }
+
+  async function generateFrameVariations() {
+    if (!state.detailItem?.id) return;
+    const count = selectedVariationCount();
+    const request = {
+      ...historyRequestFromItem(state.detailItem),
+      seed_mode: "random",
+      seed: -1,
+      count,
+      wait: false,
+    };
+    try {
+      text("#frameActionStatus", "バリエーションをキュー投入中...");
+      const data = await api("/api/generate", {
+        method: "POST",
+        body: JSON.stringify(request),
+      });
+      assertGenerateQueued(data);
+      UI.closeSheets();
+      await finishGenerateQueued(data, request, {
+        toast: (queued) => `🎲 ${queued}枚キューに入れました`,
+      });
+    } catch (error) {
+      text("#frameActionStatus", errorMessage(error));
+      UI.toast(errorMessage(error), "error");
+    }
   }
 
   function settingsFromForm() {
@@ -1983,6 +2233,7 @@
     if (action === "frame-favorite") return toggleFrameFavorite();
     if (action === "frame-public-save") return savePublicImage();
     if (action === "frame-share") return shareFrame();
+    if (action === "frame-variations") return generateFrameVariations();
     if (action === "frame-reuse") {
       if (state.detailItem) applyHistoryToForm(state.detailItem);
       return;
