@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>ANIMA 暗室</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.1">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.2">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -78,6 +78,11 @@
         <label class="field"><span class="lbl">POSITIVE</span>
           <textarea id="positivePrompt" rows="3" placeholder="追加のタグや描写"></textarea>
         </label>
+        <div class="row">
+          <button type="button" class="ghost" data-action="save-positive-fav">★ 保存</button>
+          <button type="button" class="ghost" data-action="open-positive-favs">お気に入り</button>
+          <button type="button" class="ghost" data-action="open-templates">テンプレート</button>
+        </div>
 
         <details class="tray" data-fold="scene" style="margin-top:10px">
           <summary><h2>シーン指定</h2><span class="lbl" id="sceneSummary">—</span></summary>
@@ -94,6 +99,20 @@
           <label class="field"><span class="lbl">自然文description</span>
             <textarea id="naturalDescription" rows="3"></textarea>
           </label>
+        </details>
+
+        <details class="tray" data-fold="dynamic" style="margin-top:10px">
+          <summary><h2>Dynamic Prompt</h2><span class="lbl" id="dynamicSummary">OFF</span></summary>
+          <div class="switchline">
+            <input id="dynamicEnabled" type="checkbox">
+            <span class="grow">__ワイルドカード__ を展開する</span>
+          </div>
+          <div class="row">
+            <button type="button" class="ghost" data-action="dynamic-wildcards">ワイルドカード一覧</button>
+            <button type="button" class="ghost" data-action="dynamic-preview">展開プレビュー</button>
+          </div>
+          <div id="wildcardChips" class="chiprow"></div>
+          <pre id="dynamicPreview" class="printout hidden"></pre>
         </details>
 
         <details class="tray" data-fold="negative" style="margin-top:10px">
@@ -206,6 +225,20 @@
     <button type="button" data-tab="settings">設定<small>SETUP</small></button>
   </nav>
 
+  <!-- プロンプトライブラリシート -->
+  <section id="promptSheet" class="sheet" aria-hidden="true">
+    <button class="backdrop" data-action="close-sheet" aria-label="閉じる"></button>
+    <article class="card" role="dialog" aria-modal="true" aria-label="プロンプトライブラリ">
+      <div class="grab"></div>
+      <div class="tray-head"><h2 id="promptSheetTitle">Positiveお気に入り</h2><span class="lbl" id="promptSheetCount">—</span></div>
+      <label class="field"><span class="lbl">絞り込み</span>
+        <input id="promptSheetQuery" type="search" autocomplete="off">
+      </label>
+      <div id="promptSheetList" class="resultlist" style="max-height:50dvh"></div>
+      <p id="promptSheetStatus" class="hint" aria-live="polite"></p>
+    </article>
+  </section>
+
   <!-- フレーム詳細シート -->
   <section id="frameSheet" class="sheet" aria-hidden="true">
     <button class="backdrop" data-action="close-sheet" aria-label="閉じる"></button>
@@ -262,7 +295,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.1"></script>
-  <script src="/static/app.js?v=v1.1"></script>
+  <script src="/static/ui.js?v=v1.2"></script>
+  <script src="/static/app.js?v=v1.2"></script>
 </body>
 </html>
