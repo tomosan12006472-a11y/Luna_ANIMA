@@ -303,7 +303,7 @@
         allow_with_hires_fix: false,
         allow_with_reference_assist: false,
       },
-      face_detailer: { enabled: false },
+      face_detailer: collectFaceDetailerSettings(checked("#fdEnabled"), "generation"),
       reference_modules: {
         enabled: true,
         preset: outfitEnabled && poseEnabled ? "outfit_pose" : outfitEnabled ? "outfit_only" : poseEnabled ? "pose_only" : "off",
@@ -977,6 +977,46 @@
     UI.toast(`${label}参照を設定しました`);
   }
 
+  function collectFaceDetailerSettings(enabled = checked("#fdEnabled"), mode = "generation") {
+    return {
+      enabled: Boolean(enabled),
+      mode,
+      detector: "bbox/face_yolov8m.pt",
+      steps: Math.trunc(numberValue("#fdSteps", 12)),
+      cfg: numberValue("#fdCfg", 4.0),
+      denoise: numberValue("#fdDenoise", 0.3),
+      guide_size: 512,
+      max_size: 1024,
+      bbox_threshold: numberValue("#fdBbox", 0.5),
+      bbox_dilation: 10,
+      bbox_crop_factor: 3.0,
+      sam_enabled: false,
+      seed_policy: "image_seed_plus_offset",
+      seed_offset: 100000,
+    };
+  }
+
+  async function queueFrameFaceDetailer() {
+    if (!state.detailItem?.id) return;
+    text("#frameActionStatus", "顔補正をキュー投入中...");
+    const data = await api("/api/face-detailer/postprocess", {
+      method: "POST",
+      body: JSON.stringify({
+        history_id: state.detailItem.id,
+        settings: collectFaceDetailerSettings(true, "postprocess"),
+      }),
+    });
+    UI.closeSheets();
+    text("#fdStatus", "顔補正をキューに入れました");
+    UI.toast("顔補正をキューに入れました");
+    UI.safelight("developing", "FACE DETAILING");
+    state.pollHadActive = true;
+    await loadContact(true);
+    if (Array.isArray(data.warnings) && data.warnings.length) {
+      UI.toast(data.warnings.slice(0, 2).join(" / "));
+    }
+  }
+
   function canSubmitGenerateRequest() {
     if (checked("#i2iEnabled") && !state.i2i.imageId) {
       text("#i2iStatus", "下絵が未選択です");
@@ -1256,6 +1296,7 @@
     if (checked("#outfitEnabled")) refParts.push("OUTFIT");
     if (checked("#poseEnabled")) refParts.push("POSE");
     text("#refModSummary", refParts.length ? refParts.join("+") : "OFF");
+    text("#fdSummary", checked("#fdEnabled") ? `ON · ${Number(req.face_detailer.denoise).toFixed(2)}` : "OFF");
     updateSizeChips();
   }
 
@@ -1839,6 +1880,7 @@
       return;
     }
     if (action === "frame-to-i2i") return setFrameAsI2iSource();
+    if (action === "frame-face-detail") return queueFrameFaceDetailer();
     if (action === "i2i-upload") return uploadI2iImage();
     if (action === "i2i-clear") return clearI2iImage();
     if (action === "outfit-upload") return uploadRefmodImage("outfit");
