@@ -256,6 +256,53 @@
     return Number.isFinite(count) && count > 0 ? count : 2;
   }
 
+  function normalizeHiresMode(mode) {
+    return String(mode || "latent").toLowerCase() === "model" ? "model" : "latent";
+  }
+
+  function normalizeHiresFix(hires = {}) {
+    const source = hires && typeof hires === "object" ? hires : {};
+    const latentMethod = String(source.latent_upscale_method || source.upscale_method || "nearest-exact").trim() || "nearest-exact";
+    return {
+      enabled: Boolean(source.enabled),
+      mode: normalizeHiresMode(source.mode),
+      upscale_factor: numberFrom(source.upscale_factor ?? source.factor, 1.5),
+      denoise: numberFrom(source.denoise, 0.45),
+      steps: intFrom(source.steps, 15),
+      latent_upscale_method: latentMethod,
+      upscale_model: String(source.upscale_model || "").trim(),
+      target_width: intFrom(source.target_width, 0),
+      target_height: intFrom(source.target_height, 0),
+    };
+  }
+
+  function collectHiresFix() {
+    return normalizeHiresFix({
+      enabled: checked("#hiresEnabled"),
+      mode: value("#hiresMode", "latent"),
+      upscale_factor: numberValue("#hiresFactor", 1.5),
+      denoise: numberValue("#hiresDenoise", 0.45),
+      steps: intFrom(numberValue("#hiresSteps", 15), 15),
+      latent_upscale_method: value("#hiresMethod", "nearest-exact"),
+      upscale_model: value("#hiresModel", ""),
+      target_width: intFrom(numberValue("#hiresTargetW", 0), 0),
+      target_height: intFrom(numberValue("#hiresTargetH", 0), 0),
+    });
+  }
+
+  function applyHiresFixToForm(hires = {}) {
+    const next = normalizeHiresFix(hires);
+    setChecked("#hiresEnabled", next.enabled);
+    setValue("#hiresMode", next.mode);
+    setValue("#hiresFactor", next.upscale_factor);
+    setValue("#hiresDenoise", next.denoise);
+    setValue("#hiresSteps", next.steps);
+    fillSelect("#hiresMethod", state.models.upscale_methods || [], next.latent_upscale_method);
+    fillSelect("#hiresModel", state.models.upscale_models || [], next.upscale_model);
+    setValue("#hiresTargetW", next.target_width);
+    setValue("#hiresTargetH", next.target_height);
+  }
+
   function collectOfficialLoras() {
     return {
       highres: {
@@ -299,8 +346,9 @@
     const i2iEnabled = checked("#i2iEnabled") && Boolean(state.i2i.imageId);
     const outfitEnabled = checked("#outfitEnabled");
     const poseEnabled = checked("#poseEnabled");
+    const hiresFix = collectHiresFix();
     return {
-      workflow_mode: "anima",
+      workflow_mode: hiresFix.enabled ? "anima_mobile_extended" : "anima",
       character1: slotRequestValue("character1"),
       character2: slotRequestValue("character2"),
       character3: slotRequestValue("character3"),
@@ -347,7 +395,7 @@
       count: selectedQueueCount(),
       wait: false,
       dynamic_prompt: { enabled: checked("#dynamicEnabled") },
-      hires_fix: { enabled: false },
+      hires_fix: hiresFix,
       reference_assist: { enabled: false },
       image_to_image: {
         enabled: i2iEnabled,
@@ -1444,6 +1492,7 @@
     setChecked("#officialTurboEnabled", official.turbo?.enabled);
     setValue("#officialTurboStrength", official.turbo?.strength ?? 0.6);
     applyWatermark(settings.watermark || {});
+    applyHiresFixToForm(settings.hires_fix || {});
 
     fillSelect("#modelSelect", state.models.models || [], settings.model ?? defaults.model ?? "Anima\\anima-preview3-base.safetensors");
     fillSelect("#samplerSelect", state.models.samplers || [], settings.sampler ?? defaults.sampler ?? "er_sde");
@@ -1463,6 +1512,8 @@
     fillSelect("#modelSelect", data.models || [], value("#modelSelect", state.defaults.model || state.appSettings.model || ""));
     fillSelect("#samplerSelect", data.samplers || [], value("#samplerSelect", state.defaults.sampler || state.appSettings.sampler || ""));
     fillSelect("#schedulerSelect", data.schedulers || [], value("#schedulerSelect", state.defaults.scheduler || state.appSettings.scheduler || ""));
+    fillSelect("#hiresMethod", data.upscale_methods || [], value("#hiresMethod", state.appSettings.hires_fix?.latent_upscale_method || state.appSettings.hires_fix?.upscale_method || "nearest-exact"));
+    fillSelect("#hiresModel", data.upscale_models || [], value("#hiresModel", state.appSettings.hires_fix?.upscale_model || ""));
     return data;
   }
 
@@ -1489,6 +1540,7 @@
     const custom = req.negative_prompt ? "+custom" : "no custom";
     text("#negativeSummary", `${req.negative_preset} · ${negMode} · ${custom}`);
     text("#dynamicSummary", req.dynamic_prompt.enabled ? "ON" : "OFF");
+    text("#hiresSummary", req.hires_fix.enabled ? `ON · ×${Number(req.hires_fix.upscale_factor || 1.5)} · ${req.hires_fix.mode || "latent"}` : "OFF");
     text("#i2iSummary", checked("#i2iEnabled") ? `ON · ${req.image_to_image.denoise}` : "OFF");
     const refParts = [];
     if (checked("#outfitEnabled")) refParts.push("OUTFIT");
@@ -2047,6 +2099,10 @@
     })).filter((lora) => lora.name);
   }
 
+  function historyHiresFixRequest(item = {}) {
+    return normalizeHiresFix(item.hires_fix || {});
+  }
+
   function historyImageToImageRequest(item = {}) {
     const image = item.image_to_image && typeof item.image_to_image === "object" ? item.image_to_image : {};
     return {
@@ -2231,6 +2287,7 @@
       official_loras: historyOfficialLoras(item.official_loras || {}),
       loras: historyLoras(item.loras || []),
       dynamic_prompt: { enabled: false },
+      hires_fix: historyHiresFixRequest(item),
       image_to_image: historyImageToImageRequest(item),
       reference_modules: historyReferenceModulesRequest(item),
       face_detailer: historyFaceDetailerRequest(item),
@@ -2279,6 +2336,7 @@
     $("#loraSlots")?.replaceChildren();
     for (const lora of data.loras || []) addLoraRow(lora);
     setChecked("#dynamicEnabled", Boolean(data.dynamic_prompt?.enabled));
+    applyHiresFixToForm(data.hires_fix || {});
 
     const i2i = data.image_to_image || {};
     const i2iImageId = i2i.enabled ? String(i2i.image_id || "") : "";
@@ -2378,6 +2436,7 @@
       official_loras: historyOfficialLoras(req.official_loras || {}),
       loras: historyLoras(req.loras || []),
       dynamic_prompt: req.dynamic_prompt && typeof req.dynamic_prompt === "object" ? req.dynamic_prompt : { enabled: false },
+      hires_fix: historyHiresFixRequest({ hires_fix: req.hires_fix }),
       image_to_image: historyImageToImageRequest({ image_to_image: req.image_to_image }),
       reference_modules: historyReferenceModulesRequest({ reference_modules: req.reference_modules }),
       face_detailer: historyFaceDetailerRequest({ face_detailer: req.face_detailer }),
@@ -2388,7 +2447,7 @@
   function historyRequestFromItem(item = {}) {
     const data = historyReuseData(item);
     return {
-      workflow_mode: "anima",
+      workflow_mode: data.hires_fix.enabled ? "anima_mobile_extended" : "anima",
       character1: slotRequestValueFromData(data, "character1"),
       character2: slotRequestValueFromData(data, "character2"),
       character3: slotRequestValueFromData(data, "character3"),
@@ -2435,7 +2494,7 @@
       count: 1,
       wait: false,
       dynamic_prompt: { enabled: false },
-      hires_fix: { enabled: false },
+      hires_fix: data.hires_fix,
       reference_assist: { enabled: false },
       image_to_image: historyImageToImageRequest(item),
       face_detailer: historyFaceDetailerRequest(item),
@@ -2479,8 +2538,9 @@
 
   function settingsFromForm() {
     const next = clone(state.appSettings);
+    const hiresFix = collectHiresFix();
     Object.assign(next, {
-      workflow_mode: "anima",
+      workflow_mode: hiresFix.enabled ? "anima_mobile_extended" : "anima",
       model: value("#modelSelect", state.defaults.model || next.model || ""),
       text_encoder: state.defaults.text_encoder || next.text_encoder || "qwen_3_06b_base.safetensors",
       vae: state.defaults.vae || next.vae || "qwen_image_vae.safetensors",
@@ -2511,6 +2571,7 @@
       natural_description: value("#naturalDescription", ""),
       official_loras: collectOfficialLoras(),
       loras: collectLoras(),
+      hires_fix: hiresFix,
       watermark: collectWatermark(),
       public_save: {
         ...(next.public_save || {}),

@@ -228,6 +228,41 @@ class PayloadGoldenTests(unittest.TestCase):
         payload = payload_builder.build_prompt_payload(catalog_loras_request(), "golden-client")
         assert_matches_golden(self, "build_prompt_payload_catalog_loras", payload)
 
+    def test_build_prompt_payload_hires_latent(self) -> None:
+        request = deepcopy(base_request())
+        request.update(
+            {
+                "workflow_mode": "anima_mobile_extended",
+                "hires_fix": {
+                    "enabled": True,
+                    "mode": "latent",
+                    "upscale_factor": 1.5,
+                    "latent_upscale_method": "bicubic",
+                    "denoise": 0.45,
+                    "steps": 15,
+                },
+            }
+        )
+        payload = payload_builder.build_prompt_payload(request, "golden-client")
+        assert_matches_golden(self, "build_prompt_payload_hires_latent", payload)
+
+    def test_build_prompt_payload_hires_model(self) -> None:
+        request = deepcopy(base_request())
+        request.update(
+            {
+                "workflow_mode": "anima_mobile_extended",
+                "hires_fix": {
+                    "enabled": True,
+                    "mode": "model",
+                    "upscale_model": "RealESRGAN_x4.pth",
+                    "target_width": 1344,
+                    "target_height": 2016,
+                },
+            }
+        )
+        payload = payload_builder.build_prompt_payload(request, "golden-client")
+        assert_matches_golden(self, "build_prompt_payload_hires_model", payload)
+
     def test_build_face_detailer_postprocess_payload(self) -> None:
         request = {
             "model": "Anima\\anima-preview3-base.safetensors",
