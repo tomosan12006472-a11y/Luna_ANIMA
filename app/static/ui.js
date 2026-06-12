@@ -41,7 +41,7 @@
     if (event.target.closest('[data-action="close-sheet"]')) closeSheets();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeSheets();
+    if (event.key === "Escape" && !document.querySelector("#askSheet.is-open")) closeSheets();
   });
 
   /* ---------- toast ---------- */
@@ -129,8 +129,50 @@
     switchTab("expose");
   }
 
+  /* ---------- ask: darkroom choice/confirm dialog ---------- */
+  function ask({ title = "確認", message = "", choices = [] } = {}) {
+    return new Promise((resolve) => {
+      const sheet = $("#askSheet");
+      if (!sheet) { resolve(null); return; }
+      $("#askTitle").textContent = title;
+      $("#askMessage").textContent = message;
+      const wrap = $("#askChoices");
+      wrap.replaceChildren();
+      let settled = false;
+      const done = (value) => {
+        if (settled) return;
+        settled = true;
+        sheet.classList.remove("is-open");
+        sheet.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+        document.removeEventListener("keydown", onKey, true);
+        resolve(value);
+      };
+      const onKey = (event) => { if (event.key === "Escape") { event.stopPropagation(); done(null); } };
+      for (const choice of choices) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "ask-choice" + (choice.kind ? ` is-${choice.kind}` : "");
+        btn.textContent = choice.label;
+        btn.addEventListener("click", () => done(choice.value));
+        wrap.appendChild(btn);
+      }
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "ask-choice is-cancel";
+      cancel.textContent = "キャンセル";
+      cancel.addEventListener("click", () => done(null));
+      wrap.appendChild(cancel);
+      sheet.querySelector(".backdrop").onclick = () => done(null);
+      document.addEventListener("keydown", onKey, true);
+      sheet.classList.add("is-open");
+      sheet.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+    });
+  }
+
   window.UI = {
-    $, $$, switchTab, onTab, openSheet, closeSheets, toast, safelight,
+    $, $$, switchTab, onTab, openSheet, closeSheets, toast, safelight, ask,
     bindSeg, segValue, setSegValue, restoreFolds, markDeveloping, enterDarkroom,
   };
 })();

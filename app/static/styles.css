@@ -348,3 +348,15 @@ input[type="file"] { width: 100%; color: var(--ink-dim); font-size: 13px; margin
 .queue-row-meta { display: flex; gap: 8px; align-items: center; }
 .queue-dot { width: 8px; height: 8px; flex: none; background: var(--ink-faint); }
 .queue-dot.is-running { background: var(--safelight); animation: pulse 1.6s infinite; }
+
+/* ask dialog */
+.card-ask { max-width: 420px; }
+.ask-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.ask-choice {
+  width: 100%; min-height: 48px; border: 1px solid var(--line-strong); border-radius: 2px;
+  background: var(--tray); color: var(--ink); font-size: 16px; cursor: pointer; font-family: var(--sans);
+}
+.ask-choice:active { border-color: var(--safelight); color: var(--safelight); }
+.ask-choice.is-danger { border-color: var(--roomlight); color: var(--roomlight); }
+.ask-choice.is-primary { background: var(--safelight); color: #1A0D03; border-color: var(--safelight-deep); font-weight: 700; }
+.ask-choice.is-cancel { background: none; color: var(--ink-faint); }
