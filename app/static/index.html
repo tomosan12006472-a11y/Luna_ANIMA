@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>ANIMA 暗室</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.4">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.5">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -233,12 +233,52 @@
         <div id="i2iPreview" class="i2i-preview is-empty">下絵は未選択です。履歴の「下絵にする」からも選べます。</div>
         <p id="i2iStatus" class="hint" aria-live="polite"></p>
       </details>
+
+      <details class="tray" data-fold="refmod">
+        <summary><h2>参照固定</h2><span class="lbl" id="refModSummary">OFF</span></summary>
+        <p class="hint">服装やポーズを参照画像で固定します。ComfyUI側に対応ノードが無い場合、生成時にエラーで知らせます。</p>
+        <div class="switchline">
+          <input id="outfitEnabled" type="checkbox">
+          <span class="grow">Outfit固定(服の色・形を参照)</span>
+        </div>
+        <div class="grid2">
+          <label class="field"><span class="lbl">STRENGTH</span><input id="outfitStrength" type="number" min="0" max="1" step="0.05" value="0.45"></label>
+          <label class="field"><span class="lbl">START</span><input id="outfitStart" type="number" min="0" max="1" step="0.05" value="0"></label>
+          <label class="field"><span class="lbl">END</span><input id="outfitEnd" type="number" min="0" max="1" step="0.05" value="0.75"></label>
+        </div>
+        <input id="outfitFile" type="file" accept="image/png,image/jpeg,image/webp">
+        <div class="row">
+          <button type="button" class="ghost" data-action="outfit-upload">Outfit参照を設定</button>
+          <button type="button" class="ghost" data-action="outfit-clear">解除</button>
+        </div>
+        <div id="outfitPreview" class="i2i-preview is-empty">Outfit参照は未選択です。</div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+        <div class="switchline">
+          <input id="poseEnabled" type="checkbox">
+          <span class="grow">Pose固定(ポーズだけ参照)</span>
+        </div>
+        <div class="grid2">
+          <label class="field"><span class="lbl">MODE</span>
+            <select id="poseMode"><option value="pose_image">準備済みPose画像</option><option value="auto_dwpose">Auto DWPose</option></select>
+          </label>
+          <label class="field"><span class="lbl">STRENGTH</span><input id="poseStrength" type="number" min="0" max="1" step="0.05" value="0.75"></label>
+          <label class="field"><span class="lbl">START</span><input id="poseStart" type="number" min="0" max="1" step="0.05" value="0"></label>
+          <label class="field"><span class="lbl">END</span><input id="poseEnd" type="number" min="0" max="1" step="0.05" value="0.85"></label>
+        </div>
+        <input id="poseFile" type="file" accept="image/png,image/jpeg,image/webp">
+        <div class="row">
+          <button type="button" class="ghost" data-action="pose-upload">Pose参照を設定</button>
+          <button type="button" class="ghost" data-action="pose-clear">解除</button>
+        </div>
+        <div id="posePreview" class="i2i-preview is-empty">Pose参照は未選択です。</div>
+        <p id="refModStatus" class="hint" aria-live="polite"></p>
+      </details>
     </section>
 
     <!-- 密着(見る) -->
     <section id="contactView" class="view" data-view="contact">
       <div class="tray-head" style="margin:2px 2px 8px">
-        <h2>密着シート</h2>
+        <h2>生成履歴</h2>
         <span class="lbl" id="contactCount">—</span>
       </div>
       <div class="chiprow" style="margin-bottom:8px" id="contactFilters">
@@ -265,7 +305,7 @@
   <!-- タブ -->
   <nav id="tabs" class="hidden" aria-label="views">
     <button type="button" data-tab="expose" class="is-active">露光<small>EXPOSE</small></button>
-    <button type="button" data-tab="contact">密着<small>CONTACT</small></button>
+    <button type="button" data-tab="contact">履歴<small>HISTORY</small></button>
     <button type="button" data-tab="settings">設定<small>SETUP</small></button>
   </nav>
 
@@ -340,7 +380,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.4"></script>
-  <script src="/static/app.js?v=v1.4"></script>
+  <script src="/static/ui.js?v=v1.5"></script>
+  <script src="/static/app.js?v=v1.5"></script>
 </body>
 </html>
