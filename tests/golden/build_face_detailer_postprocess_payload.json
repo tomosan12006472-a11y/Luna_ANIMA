@@ -116,7 +116,7 @@
         ],
         "cycle": 1,
         "denoise": 0.28,
-        "drop_size": 10,
+        "drop_size": 64,
         "feather": 5,
         "force_inpaint": true,
         "guide_size": 512,

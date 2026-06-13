@@ -20,9 +20,10 @@ DEFAULT_FACE_DETAILER_SETTINGS: dict[str, Any] = {
     "denoise": 0.3,
     "guide_size": 512,
     "max_size": 1024,
-    "bbox_threshold": 0.5,
+    "bbox_threshold": 0.65,
     "bbox_dilation": 10,
     "bbox_crop_factor": 3.0,
+    "drop_size": 64,
     "sam_enabled": False,
     "seed_policy": "image_seed_plus_offset",
     "seed_offset": 100000,
@@ -59,9 +60,10 @@ def sanitize_face_detailer_settings(value: Any, *, mode: str = "generation") -> 
     settings["denoise"] = _float(settings.get("denoise"), 0.3, 0.0, 1.0)
     settings["guide_size"] = _int(settings.get("guide_size"), 512, 64, 2048)
     settings["max_size"] = _int(settings.get("max_size"), 1024, 128, 4096)
-    settings["bbox_threshold"] = _float(settings.get("bbox_threshold"), 0.5, 0.0, 1.0)
+    settings["bbox_threshold"] = _float(settings.get("bbox_threshold"), 0.65, 0.0, 1.0)
     settings["bbox_dilation"] = _int(settings.get("bbox_dilation"), 10, -512, 512)
     settings["bbox_crop_factor"] = _float(settings.get("bbox_crop_factor"), 3.0, 1.0, 10.0)
+    settings["drop_size"] = _int(settings.get("drop_size"), 64, 4, 512)
     settings["sam_enabled"] = bool(settings.get("sam_enabled"))
     settings["seed_offset"] = _int(settings.get("seed_offset"), 100000, 0, 2147483647)
     if "seed" in settings and settings.get("seed") not in (None, ""):
@@ -197,7 +199,7 @@ def add_face_detailer_to_workflow(
         "sam_bbox_expansion": 0,
         "sam_mask_hint_threshold": 0.7,
         "sam_mask_hint_use_negative": "False",
-        "drop_size": 10,
+        "drop_size": settings.get("drop_size", 64),
         "bbox_detector": [detector_id, 0],
         "wildcard": "",
         "cycle": 1,
