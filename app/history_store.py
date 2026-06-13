@@ -19,8 +19,9 @@ from .output_organizer import infer_anima_generation_method, organization_metada
 from .payload_builder import compute_hires_size, official_lora_summary
 
 ACTIVE_STATUSES = {"queued", "running", "stale", "missing"}
-PENDING_STATUSES = {"queued", "running"}
+PENDING_STATUSES = {"queued", "running", "stale", "missing"}
 VISIBLE_WITHOUT_IMAGE_STATUSES = ACTIVE_STATUSES | {"failed"}
+MISSING_AFTER = timedelta(minutes=2)
 STALE_AFTER = timedelta(hours=6)
 SMALL_THUMBNAIL_DIR = THUMBNAIL_DIR.parent / "thumbnails_small"
 SMALL_THUMBNAIL_SIZE = (320, 320)
@@ -291,12 +292,20 @@ def is_pending_item(item: dict[str, Any]) -> bool:
 
 
 def pending_age_is_stale(item: dict[str, Any]) -> bool:
+    return pending_age_exceeds(item, STALE_AFTER)
+
+
+def pending_age_is_missing(item: dict[str, Any]) -> bool:
+    return pending_age_exceeds(item, MISSING_AFTER)
+
+
+def pending_age_exceeds(item: dict[str, Any], age: timedelta) -> bool:
     created_at = str(item.get("created_at") or "")
     try:
         created = datetime.fromisoformat(created_at)
     except ValueError:
         return False
-    return datetime.now(created.tzinfo) - created > STALE_AFTER
+    return datetime.now(created.tzinfo) - created > age
 
 
 def _extension_from_data_url(data_url: str) -> str:

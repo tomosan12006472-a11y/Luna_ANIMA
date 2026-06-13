@@ -21,6 +21,7 @@ from .history_store import (
     create_history_item,
     is_pending_item,
     list_all_history_with_warnings,
+    pending_age_is_missing,
     pending_age_is_stale,
     summarize_history,
     update_pending_history_status,
@@ -163,17 +164,25 @@ def save_completed_generation_history(
     history_id: str | None = None,
 ) -> None:
     try:
-        history = comfy_client.wait_history(addr, prompt_id)
+        history = comfy_client.wait_history(addr, prompt_id, timeout=3600)
         if not history:
             print(f"[anima-mobile] prompt {prompt_id} did not finish before background history timeout")
             if history_id:
-                update_pending_history_status(history_id, "stale", "Timed out waiting for ComfyUI history")
+                queue_status = None
+                try:
+                    queue_status = comfy_client.queued_prompt_status(comfy_client.queue_info(addr), prompt_id)
+                except Exception:
+                    queue_status = None
+                if queue_status:
+                    update_pending_history_status(history_id, queue_status)
+                else:
+                    update_pending_history_status(history_id, "stale", "Timed out waiting for ComfyUI history")
             return
         image = comfy_client.first_output_image(history)
         if not image:
             print(f"[anima-mobile] prompt {prompt_id} finished without output image")
             if history_id:
-                update_pending_history_status(history_id, "failed", "No output image in ComfyUI history")
+                update_pending_history_status(history_id, "failed", comfy_client.history_status_message(history))
             return
         image_url, image_data_url = comfy_client.fetch_image_data_url(addr, image)
         result = comfy_client.ComfyResult(
@@ -206,8 +215,10 @@ def refresh_pending_history_items(addr: str, items: list[dict[str, Any]]) -> boo
         return False
     changed = False
     queue: dict[str, Any] = {}
+    queue_available = False
     try:
         queue = comfy_client.queue_info(addr)
+        queue_available = True
     except Exception:
         queue = {}
     for item in pending_items:
@@ -237,7 +248,7 @@ def refresh_pending_history_items(addr: str, items: list[dict[str, Any]]) -> boo
                     continue
                 except Exception:
                     traceback.print_exc()
-            update_pending_history_status(history_id, "failed", "ComfyUI history had no output image")
+            update_pending_history_status(history_id, "failed", comfy_client.history_status_message(comfy_history))
             changed = True
             continue
         queue_status = comfy_client.queued_prompt_status(queue, prompt_id) if queue else None
@@ -245,6 +256,10 @@ def refresh_pending_history_items(addr: str, items: list[dict[str, Any]]) -> boo
             if item.get("status") != queue_status:
                 update_pending_history_status(history_id, queue_status)
                 changed = True
+            continue
+        if queue_available and pending_age_is_missing(item) and item.get("status") != "missing":
+            update_pending_history_status(history_id, "missing", "Not found in ComfyUI queue or history")
+            changed = True
             continue
         if pending_age_is_stale(item) and item.get("status") != "stale":
             update_pending_history_status(history_id, "stale", "Not found in ComfyUI queue or history")

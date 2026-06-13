@@ -208,6 +208,33 @@ def first_output_image(history: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def history_status_message(history: dict[str, Any], fallback: str = "ComfyUI history had no output image") -> str:
+    status = history.get("status") if isinstance(history, dict) else {}
+    if not isinstance(status, dict):
+        return fallback
+    status_str = str(status.get("status_str") or "").strip()
+    messages = status.get("messages")
+    detail = ""
+    if isinstance(messages, list) and messages:
+        last = messages[-1]
+        if isinstance(last, (list, tuple)) and last:
+            event = str(last[0] or "").strip()
+            payload = last[1] if len(last) > 1 and isinstance(last[1], dict) else {}
+            node_type = str(payload.get("node_type") or "").strip()
+            node_id = str(payload.get("node_id") or "").strip()
+            if event:
+                detail = event
+                if node_type or node_id:
+                    detail += f" at {node_type or 'node'} {node_id}".rstrip()
+    if status_str and detail:
+        return f"ComfyUI {status_str}: {detail}"
+    if status_str:
+        return f"ComfyUI {status_str}: {fallback}"
+    if detail:
+        return f"ComfyUI {detail}"
+    return fallback
+
+
 def fetch_image_data_url(addr: str, image: dict[str, Any]) -> tuple[str, str]:
     params = urllib.parse.urlencode(
         {
@@ -244,7 +271,7 @@ def run_generation(addr: str, payload: dict[str, Any], wait: bool = True) -> Com
             return ComfyResult(ok=False, prompt_id=prompt_id, error="Timed out waiting for ComfyUI history", stage="queue_wait")
         image = first_output_image(history)
         if not image:
-            return ComfyResult(ok=False, prompt_id=prompt_id, history=history, error="No output image in ComfyUI history", stage="result_fetch")
+            return ComfyResult(ok=False, prompt_id=prompt_id, history=history, error=history_status_message(history), stage="result_fetch")
         image_url, image_data_url = fetch_image_data_url(addr, image)
         return ComfyResult(ok=True, prompt_id=prompt_id, image_url=image_url, image_data_url=image_data_url, history=history, stage="result_fetch")
     except Exception as exc:
