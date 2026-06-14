@@ -254,6 +254,34 @@ class OriginalCharacterRequest(BaseModel):
     favorite: bool = False
 
 
+def _has_fixed_character_selection(data: Any) -> bool:
+    def selected(value: Any) -> bool:
+        normalized = str(value or "").strip().lower()
+        return normalized not in {"", "none", "random"}
+
+    return any(
+        selected(getattr(data, field, ""))
+        for field in ("character1", "character2", "character3", "original_character")
+    )
+
+
+def reset_comfy_cache_for_character_prompt(addr: str, data: GenerateRequest) -> JSONResponse | None:
+    if not _has_fixed_character_selection(data):
+        return None
+    result = comfy_client.reset_execution_cache(addr)
+    if result.get("ok"):
+        return None
+    return error_response(
+        status_code=502,
+        message="Failed to reset ComfyUI execution cache before character generation.",
+        stage="comfy_cache_reset",
+        data=data,
+        comfy_status=result.get("status"),
+        comfy_response_text=str(result.get("text") or ""),
+        retryable=True,
+    )
+
+
 def require_auth(session: str | None) -> None:
     if session not in SESSIONS:
         raise HTTPException(status_code=401, detail="login required")
@@ -1086,6 +1114,9 @@ def generate(
     invalid_ref_modules = validate_reference_modules(data, addr)
     if invalid_ref_modules:
         return invalid_ref_modules
+    cache_reset_error = reset_comfy_cache_for_character_prompt(addr, data)
+    if cache_reset_error:
+        return cache_reset_error
     if not data.wait:
         items: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []

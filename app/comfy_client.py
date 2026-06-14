@@ -108,6 +108,28 @@ def queue_delete(addr: str, prompt_ids: list[str], timeout: float = 10) -> dict[
         return {"ok": False, "status": 0, "text": str(exc)}
 
 
+def reset_execution_cache(addr: str, timeout: float = 10, settle_delay: float = 0.5) -> dict[str, Any]:
+    body = json.dumps({"unload_models": True, "free_memory": True}).encode("utf-8")
+    request = urllib.request.Request(
+        f"http://{addr}/free",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            status = response.status
+            text = response.read().decode("utf-8", errors="replace")
+        if settle_delay > 0:
+            time.sleep(settle_delay)
+        return {"ok": True, "status": status, "text": text}
+    except urllib.error.HTTPError as exc:
+        text = exc.read().decode("utf-8", errors="replace")
+        return {"ok": False, "status": exc.code, "text": text}
+    except Exception as exc:
+        return {"ok": False, "status": 0, "text": str(exc)}
+
+
 def interrupt(addr: str, timeout: float = 10) -> dict[str, Any]:
     request = urllib.request.Request(
         f"http://{addr}/interrupt",
