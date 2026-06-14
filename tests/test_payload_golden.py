@@ -184,6 +184,20 @@ class PayloadGoldenTests(unittest.TestCase):
     def test_build_prompts_dynamic_prompt(self) -> None:
         assert_matches_golden(self, "build_prompts_dynamic_prompt", payload_builder.build_prompts(deepcopy(base_request())))
 
+    def test_stale_generated_natural_description_is_rebuilt(self) -> None:
+        result = payload_builder.build_natural_description(
+            ["埃列什基伽勒（Fate）"],
+            {"natural_description": "An anime illustration of 摩根·勒·菲（Fate） in a clean, expressive composition."},
+        )
+        self.assertEqual(result, "An anime illustration of 埃列什基伽勒（Fate） in a clean, expressive composition.")
+
+    def test_manual_natural_description_is_preserved(self) -> None:
+        result = payload_builder.build_natural_description(
+            ["埃列什基伽勒（Fate）"],
+            {"natural_description": "Morgan stands behind her in the background."},
+        )
+        self.assertEqual(result, "Morgan stands behind her in the background.")
+
     def test_build_lora_sample_prompts(self) -> None:
         request = {
             **base_request(),

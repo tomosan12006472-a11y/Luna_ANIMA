@@ -158,6 +158,7 @@ class GenerateRequest(BaseModel):
     image_to_image: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
     dynamic_prompt: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
     face_detailer: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
+    reset_comfy_cache: bool = False
     wait: bool = False
     count: int = 1
 
@@ -266,8 +267,29 @@ def _has_fixed_character_selection(data: Any) -> bool:
 
 
 def reset_comfy_cache_for_character_prompt(addr: str, data: GenerateRequest) -> JSONResponse | None:
+    if not data.reset_comfy_cache:
+        return None
     if not _has_fixed_character_selection(data):
         return None
+    try:
+        queue = comfy_client.queue_info(addr)
+    except Exception as exc:
+        return error_response(
+            status_code=502,
+            message="Failed to inspect ComfyUI queue before cache reset.",
+            stage="comfy_cache_reset_queue_check",
+            data=data,
+            comfy_response_text=str(exc),
+            retryable=True,
+        )
+    if queue.get("queue_running") or queue.get("queue_pending"):
+        return error_response(
+            status_code=409,
+            message="ComfyUI cache reset was skipped because the queue is not empty.",
+            stage="comfy_cache_reset_queue_check",
+            data=data,
+            retryable=True,
+        )
     result = comfy_client.reset_execution_cache(addr)
     if result.get("ok"):
         return None

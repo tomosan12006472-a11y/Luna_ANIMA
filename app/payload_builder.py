@@ -541,13 +541,7 @@ def build_character_parts(request: dict[str, Any], seed: int) -> tuple[list[str]
     return tags, names, metadata, natural_parts
 
 
-def build_natural_description(character_names: list[str], request: dict[str, Any], natural_parts: list[str] | None = None) -> str:
-    manual = str(request.get("natural_description") or "").strip()
-    parts = [item for item in natural_parts or [] if item]
-    if manual:
-        return " ".join([*parts, manual])
-    if parts:
-        return " ".join(parts)
+def generated_natural_description(character_names: list[str]) -> str:
     if not character_names:
         return ""
     if len(character_names) == 1:
@@ -556,6 +550,33 @@ def build_natural_description(character_names: list[str], request: dict[str, Any
     for name in character_names:
         lines.append(f"{name} is clearly separated by position and silhouette.")
     return " ".join(lines)
+
+
+def normalize_natural_description(value: str) -> str:
+    return re.sub(r"\s+", " ", value or "").strip()
+
+
+def is_generated_natural_description(value: str) -> bool:
+    text = normalize_natural_description(value)
+    if re.fullmatch(r"An anime illustration of .+ in a clean, expressive composition\.", text):
+        return True
+    return text.startswith("An anime illustration with multiple characters.") and (
+        " is clearly separated by position and silhouette." in text
+    )
+
+
+def build_natural_description(character_names: list[str], request: dict[str, Any], natural_parts: list[str] | None = None) -> str:
+    manual = str(request.get("natural_description") or "").strip()
+    parts = [item for item in natural_parts or [] if item]
+    generated = generated_natural_description(character_names)
+    if manual and character_names and is_generated_natural_description(manual):
+        if normalize_natural_description(manual) != normalize_natural_description(generated):
+            manual = ""
+    if manual:
+        return " ".join([*parts, manual])
+    if parts:
+        return " ".join(parts)
+    return generated
 
 
 def build_prompts(request: dict[str, Any]) -> dict[str, Any]:

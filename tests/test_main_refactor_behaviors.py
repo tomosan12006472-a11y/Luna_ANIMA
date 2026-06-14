@@ -43,6 +43,28 @@ class MainRefactorBehaviorTests(unittest.TestCase):
             main.diagnostics_full(None)
         self.assertEqual(cm.exception.status_code, 401)
 
+    def test_comfy_cache_reset_is_opt_in(self) -> None:
+        data = main.GenerateRequest(character1="Scathach")
+        with (
+            mock.patch.object(main.comfy_client, "queue_info") as queue_info,
+            mock.patch.object(main.comfy_client, "reset_execution_cache") as reset_execution_cache,
+        ):
+            response = main.reset_comfy_cache_for_character_prompt("127.0.0.1:8188", data)
+        self.assertIsNone(response)
+        queue_info.assert_not_called()
+        reset_execution_cache.assert_not_called()
+
+    def test_comfy_cache_reset_requires_empty_queue(self) -> None:
+        data = main.GenerateRequest(character1="Scathach", reset_comfy_cache=True)
+        with (
+            mock.patch.object(main.comfy_client, "queue_info", return_value={"queue_running": [["running"]], "queue_pending": []}),
+            mock.patch.object(main.comfy_client, "reset_execution_cache") as reset_execution_cache,
+        ):
+            response = main.reset_comfy_cache_for_character_prompt("127.0.0.1:8188", data)
+        self.assertIsNotNone(response)
+        self.assertEqual(response.status_code, 409)
+        reset_execution_cache.assert_not_called()
+
     def test_history_known_revision_returns_unchanged_short_circuit(self) -> None:
         main.SESSIONS.add("test-session")
         try:
