@@ -910,11 +910,11 @@
     const choices = [
       { label: "先頭に挿入", value: "prepend" },
       { label: "末尾に追記", value: "append", kind: "primary" },
-      { label: "置換", value: "replace", kind: "danger" },
     ];
     if (state.promptSheetMode === "favorites" && item?.id) {
       choices.push({ label: "編集", value: "edit" });
     }
+    choices.push({ label: "置換", value: "replace", kind: "danger" });
     const mode = await UI.ask({
       title: "どこに入れますか?",
       message: `${promptItemTitle(item)}\n${promptExcerpt(prompt, 120)}`,

@@ -351,9 +351,14 @@ input[type="file"] { width: 100%; color: var(--ink-dim); font-size: 13px; margin
 
 /* ask dialog */
 .card-ask { max-width: 420px; }
+#askMessage {
+  max-height: 5.5em;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
 .ask-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .ask-choice {
-  width: 100%; min-height: 48px; border: 1px solid var(--line-strong); border-radius: 2px;
+  width: 100%; min-height: 44px; border: 1px solid var(--line-strong); border-radius: 2px;
   background: var(--tray); color: var(--ink); font-size: 16px; cursor: pointer; font-family: var(--sans);
 }
 .ask-choice:active { border-color: var(--safelight); color: var(--safelight); }
