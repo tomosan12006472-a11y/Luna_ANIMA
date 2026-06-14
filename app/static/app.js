@@ -47,6 +47,7 @@
     characterSearchTimer: 0,
     promptSheetMode: "favorites",
     promptSheetItems: [],
+    promptSheetEditingId: "",
     recipes: [],
     promptSheetQueryTimer: 0,
     dictQueryTimer: 0,
@@ -646,6 +647,109 @@
     return compact.length > limit ? `${compact.slice(0, limit)}...` : compact;
   }
 
+  function promptItemTagsText(item = {}) {
+    if (Array.isArray(item.tags)) return item.tags.join(", ");
+    return String(item.tags || "");
+  }
+
+  function parsePromptTags(valueText) {
+    return String(valueText || "")
+      .replace(/;/g, ",")
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  }
+
+  function promptSheetQueryField() {
+    return $("#promptSheetQuery")?.closest(".field") || null;
+  }
+
+  function showPromptSheetList() {
+    state.promptSheetEditingId = "";
+    $("#promptSheetEditor")?.classList.add("hidden");
+    $("#promptSheetEditor")?.replaceChildren();
+    $("#promptSheetList")?.classList.remove("hidden");
+    promptSheetQueryField()?.classList.remove("hidden");
+  }
+
+  function showPromptSheetEditor() {
+    $("#promptSheetEditor")?.classList.remove("hidden");
+    $("#promptSheetList")?.classList.add("hidden");
+    promptSheetQueryField()?.classList.add("hidden");
+  }
+
+  function promptEditorField(labelText, control) {
+    const label = document.createElement("label");
+    label.className = "field";
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "lbl";
+    labelSpan.textContent = labelText;
+    label.append(labelSpan, control);
+    return label;
+  }
+
+  function renderPositiveFavoriteEditor(item) {
+    if (state.promptSheetMode !== "favorites" || !item?.id) return;
+    const root = $("#promptSheetEditor");
+    if (!root) return;
+    state.promptSheetEditingId = String(item.id || "");
+    root.replaceChildren();
+
+    const title = document.createElement("input");
+    title.name = "title";
+    title.type = "text";
+    title.value = promptItemTitle(item);
+
+    const prompt = document.createElement("textarea");
+    prompt.name = "prompt";
+    prompt.rows = 7;
+    prompt.value = promptItemPrompt(item);
+
+    const tags = document.createElement("input");
+    tags.name = "tags";
+    tags.type = "text";
+    tags.value = promptItemTagsText(item);
+
+    const note = document.createElement("textarea");
+    note.name = "note";
+    note.rows = 3;
+    note.value = String(item.note || "");
+
+    const actions = document.createElement("div");
+    actions.className = "row";
+    const save = document.createElement("button");
+    save.type = "submit";
+    save.className = "ghost";
+    save.textContent = "保存";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "ghost";
+    cancel.textContent = "キャンセル";
+    cancel.addEventListener("click", () => {
+      showPromptSheetList();
+      renderPromptSheet();
+    });
+    actions.append(save, cancel);
+
+    const form = document.createElement("form");
+    form.append(
+      promptEditorField("TITLE", title),
+      promptEditorField("POSITIVE", prompt),
+      promptEditorField("TAGS", tags),
+      promptEditorField("NOTE", note),
+      actions,
+    );
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      savePositiveFavoriteEdit(item.id, form).catch((error) => UI.toast(errorMessage(error), "error"));
+    });
+    root.appendChild(form);
+    showPromptSheetEditor();
+    text("#promptSheetCount", "編集中");
+    text("#promptSheetStatus", "");
+    prompt.focus();
+  }
+
   async function confirmDanger({ title = "確認しますか?", message = "", label = "実行する" } = {}) {
     const choice = await UI.ask({
       title,
@@ -712,6 +816,7 @@
   }
 
   function setPromptSheetLoading(message) {
+    showPromptSheetList();
     $("#promptSheetList")?.replaceChildren();
     text("#promptSheetCount", "-");
     text("#promptSheetStatus", message);
@@ -756,6 +861,28 @@
     }
   }
 
+  async function savePositiveFavoriteEdit(favoriteId, form) {
+    const fields = form.elements;
+    const prompt = String(fields.prompt?.value || "").trim();
+    if (!prompt) {
+      UI.toast("Positiveが空です", "error");
+      return;
+    }
+    const data = await api(`/api/prompts/positive-favorites/${escapePathSegment(favoriteId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: String(fields.title?.value || "").trim(),
+        prompt,
+        tags: parsePromptTags(fields.tags?.value),
+        note: String(fields.note?.value || "").trim(),
+      }),
+    });
+    state.promptSheetItems = Array.isArray(data.items) ? data.items : [];
+    showPromptSheetList();
+    renderPromptSheet();
+    UI.toast("更新しました");
+  }
+
   async function openPositiveFavorites() {
     state.promptSheetMode = "favorites";
     state.promptSheetItems = [];
@@ -780,16 +907,24 @@
     const item = state.promptSheetItems.find((candidate) => String(candidate.id || "") === String(itemId || ""));
     const prompt = promptItemPrompt(item);
     if (!prompt) return;
+    const choices = [
+      { label: "先頭に挿入", value: "prepend" },
+      { label: "末尾に追記", value: "append", kind: "primary" },
+      { label: "置換", value: "replace", kind: "danger" },
+    ];
+    if (state.promptSheetMode === "favorites" && item?.id) {
+      choices.push({ label: "編集", value: "edit" });
+    }
     const mode = await UI.ask({
       title: "どこに入れますか?",
       message: `${promptItemTitle(item)}\n${promptExcerpt(prompt, 120)}`,
-      choices: [
-        { label: "先頭に挿入", value: "prepend" },
-        { label: "末尾に追記", value: "append", kind: "primary" },
-        { label: "置換", value: "replace", kind: "danger" },
-      ],
+      choices,
     });
     if (!mode) return;
+    if (mode === "edit") {
+      renderPositiveFavoriteEditor(item);
+      return;
+    }
     applyPositivePromptInsert(prompt, mode);
     if (state.promptSheetMode === "favorites" && item?.id) {
       await api(`/api/prompts/positive-favorites/${escapePathSegment(item.id)}/used`, {
