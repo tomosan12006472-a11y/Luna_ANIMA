@@ -2417,8 +2417,9 @@
 
   function historyRawPositiveText(item = {}) {
     return firstHistoryText(item, [
+      "request.positive_prompt",
+      "request_data.positive_prompt",
       "positive_prompt",
-      "dynamic_prompt.raw_positive_prompt",
     ]);
   }
 
