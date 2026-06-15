@@ -328,6 +328,35 @@
         <button type="button" class="chip" data-filter="favorite">★のみ</button>
         <button type="button" class="chip" data-filter="active">現像中</button>
       </div>
+      <details class="contact-search-panel" id="contactSearchPanel">
+        <summary>履歴検索 <span id="contactSearchBadge" class="search-badge"></span></summary>
+        <div class="contact-search-content">
+          <label class="search-wide">検索
+            <input id="contactSearchQ" type="search" placeholder="プロンプト・モデル・LoRAなど" autocomplete="off" data-native-control>
+          </label>
+          <label>from<input id="contactDateFrom" type="date" data-native-control></label>
+          <label>to<input id="contactDateTo" type="date" data-native-control></label>
+          <details class="contact-search-details">
+            <summary>詳細条件</summary>
+            <div class="contact-search-grid">
+              <label>model<input id="contactSearchModel" type="search" autocomplete="off" data-native-control></label>
+              <label>LoRA<input id="contactSearchLora" type="search" autocomplete="off" data-native-control></label>
+              <label>seed<input id="contactSearchSeed" type="search" inputmode="numeric" autocomplete="off" data-native-control></label>
+              <label>rating<select id="contactSearchRating" data-native-control><option value="">any</option><option value="general">general</option><option value="sensitive">sensitive</option><option value="questionable">questionable</option><option value="explicit">explicit</option></select></label>
+              <label>Hires.fix<select id="contactSearchHires" data-native-control><option value="">any</option><option value="off">off</option><option value="latent">latent</option><option value="model">model</option></select></label>
+              <label>Reference<select id="contactSearchReference" data-native-control><option value="">any</option><option value="used">used</option><option value="not_used">not used</option></select></label>
+              <label>sampler<input id="contactSearchSampler" type="search" autocomplete="off" data-native-control></label>
+              <label>scheduler<input id="contactSearchScheduler" type="search" autocomplete="off" data-native-control></label>
+              <label>character<input id="contactSearchCharacter" type="search" autocomplete="off" data-native-control></label>
+            </div>
+          </details>
+          <div class="contact-search-actions">
+            <button type="button" class="chip is-active" data-action="contact-search">検索</button>
+            <button type="button" class="chip" data-action="contact-search-clear">クリア</button>
+          </div>
+          <p id="contactSearchStatus" class="hint" aria-live="polite"></p>
+        </div>
+      </details>
       <div id="contactGrid"></div>
       <div class="row" style="justify-content:center">
         <button type="button" class="ghost hidden" id="loadMoreBtn" data-action="load-more">さらに読み込む</button>
@@ -467,6 +496,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.10"></script>
-  <script src="/static/app.js?v=v1.10"></script>
+  <script src="/static/app.js?v=v1.10-history-search-20260614"></script>
 </body>
 </html>

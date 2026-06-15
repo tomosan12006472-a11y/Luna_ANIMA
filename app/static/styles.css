@@ -233,6 +233,78 @@ button.ghost:active { border-color: var(--safelight); color: var(--safelight); }
 }
 .chip.is-active { border-color: var(--safelight); color: var(--safelight); }
 
+.contact-search-panel {
+  border: 1px solid var(--line);
+  background: var(--tray);
+  margin: 0 0 8px;
+  padding: 0;
+}
+.contact-search-panel summary {
+  min-height: 36px;
+  padding: 8px 10px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+}
+.contact-search-panel[open] summary {
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.search-badge {
+  color: var(--safelight);
+  font-size: 12px;
+  margin-left: 6px;
+}
+.contact-search-content {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(124px, 0.35fr) minmax(124px, 0.35fr);
+  gap: 8px;
+  padding: 10px;
+  align-items: end;
+}
+.contact-search-content label {
+  margin: 0;
+  color: var(--ink-faint);
+}
+.contact-search-content input,
+.contact-search-content select {
+  min-height: 38px;
+  font-size: 16px;
+}
+.contact-search-details,
+.contact-search-actions,
+#contactSearchStatus {
+  grid-column: 1 / -1;
+}
+.contact-search-details summary {
+  min-height: 32px;
+  padding: 4px 0;
+  border: 0;
+  font-family: var(--sans);
+  letter-spacing: 0;
+}
+.contact-search-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(118px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.contact-search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#contactSearchStatus {
+  margin: 0;
+}
+@media (max-width: 520px) {
+  .contact-search-content,
+  .contact-search-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- contact sheet (history) ---------- */
 #contactGrid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;

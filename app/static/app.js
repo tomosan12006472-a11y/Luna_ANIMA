@@ -33,6 +33,21 @@
     armedSlot: "character1",
     favorites: { characters: [], original_characters: [] },
     contactFilter: "all",
+    contactSearch: {
+      q: "",
+      dateFrom: "",
+      dateTo: "",
+      model: "",
+      lora: "",
+      seed: "",
+      rating: "",
+      hiresMode: "",
+      reference: "",
+      sampler: "",
+      scheduler: "",
+      character: "",
+      requestSeq: 0,
+    },
     contactItems: [],
     contactOffset: 0,
     contactTotal: 0,
@@ -1761,6 +1776,94 @@
     return state.contactFilter === "favorite" ? "favorite" : "all";
   }
 
+  function contactSearchFieldValue(selector) {
+    return String($(selector)?.value || "").trim();
+  }
+
+  function collectContactSearchFromUi() {
+    return {
+      q: contactSearchFieldValue("#contactSearchQ"),
+      dateFrom: contactSearchFieldValue("#contactDateFrom"),
+      dateTo: contactSearchFieldValue("#contactDateTo"),
+      model: contactSearchFieldValue("#contactSearchModel"),
+      lora: contactSearchFieldValue("#contactSearchLora"),
+      seed: contactSearchFieldValue("#contactSearchSeed"),
+      rating: contactSearchFieldValue("#contactSearchRating"),
+      hiresMode: contactSearchFieldValue("#contactSearchHires"),
+      reference: contactSearchFieldValue("#contactSearchReference"),
+      sampler: contactSearchFieldValue("#contactSearchSampler"),
+      scheduler: contactSearchFieldValue("#contactSearchScheduler"),
+      character: contactSearchFieldValue("#contactSearchCharacter"),
+      requestSeq: state.contactSearch?.requestSeq || 0,
+    };
+  }
+
+  function contactSearchParams() {
+    const params = {
+      q: state.contactSearch.q,
+      date_from: state.contactSearch.dateFrom,
+      date_to: state.contactSearch.dateTo,
+      model: state.contactSearch.model,
+      lora: state.contactSearch.lora,
+      seed: state.contactSearch.seed,
+      rating: state.contactSearch.rating,
+      hires_mode: state.contactSearch.hiresMode,
+      reference: state.contactSearch.reference,
+      sampler: state.contactSearch.sampler,
+      scheduler: state.contactSearch.scheduler,
+      character: state.contactSearch.character,
+    };
+    return Object.fromEntries(Object.entries(params).filter(([, value]) => String(value || "").trim()));
+  }
+
+  function hasActiveContactSearch() {
+    return Object.keys(contactSearchParams()).length > 0;
+  }
+
+  function updateContactSearchStatus(total = state.contactTotal) {
+    const badge = $("#contactSearchBadge");
+    const status = $("#contactSearchStatus");
+    const active = hasActiveContactSearch();
+    if (badge) badge.textContent = active ? "適用中" : "";
+    if (!status) return;
+    status.textContent = active ? `検索結果: ${Number(total || 0)}件` : "";
+  }
+
+  function clearContactSearchForm() {
+    for (const selector of [
+      "#contactSearchQ",
+      "#contactDateFrom",
+      "#contactDateTo",
+      "#contactSearchModel",
+      "#contactSearchLora",
+      "#contactSearchSeed",
+      "#contactSearchRating",
+      "#contactSearchHires",
+      "#contactSearchReference",
+      "#contactSearchSampler",
+      "#contactSearchScheduler",
+      "#contactSearchCharacter",
+    ]) {
+      const el = $(selector);
+      if (el) el.value = "";
+    }
+  }
+
+  async function applyContactSearch() {
+    state.contactSearch = collectContactSearchFromUi();
+    state.contactSearch.requestSeq += 1;
+    state.contactLoaded = true;
+    state.contactRevision = "";
+    return loadContact(true);
+  }
+
+  async function clearContactSearch() {
+    clearContactSearchForm();
+    state.contactSearch = { ...state.contactSearch, ...collectContactSearchFromUi(), requestSeq: (state.contactSearch?.requestSeq || 0) + 1 };
+    state.contactRevision = "";
+    return loadContact(true);
+  }
+
   function visibleContactItems(items) {
     if (state.contactFilter !== "active") return items;
     return items.filter(isActiveItem);
@@ -1819,6 +1922,7 @@
       if (item.id) state.contactStatusById.set(item.id, status);
     });
     text("#contactCount", `${state.contactItems.length} / ${state.contactTotal || 0}`);
+    updateContactSearchStatus();
   }
 
   function stopContactPolling(message = "") {
@@ -1876,8 +1980,13 @@
       offset: String(offset),
       filter: contactServerFilter(),
     });
+    const seq = state.contactSearch.requestSeq || 0;
+    for (const [key, value] of Object.entries(contactSearchParams())) {
+      params.set(key, value);
+    }
     if (options.knownRevision && state.contactRevision) params.set("known_revision", state.contactRevision);
     const data = await api(`/api/history?${params.toString()}`);
+    if (seq !== (state.contactSearch.requestSeq || 0)) return data;
     state.contactPollFailures = 0;
     if (data.unchanged) {
       updateContactPolling((state.contactItems || []).filter(isActiveItem).length);
@@ -1898,6 +2007,7 @@
       : Number(data.filtered_total ?? data.total ?? visibleItems.length);
 
     $("#loadMoreBtn")?.classList.toggle("hidden", !data.has_more || state.contactFilter === "active");
+    updateContactSearchStatus(state.contactTotal);
     renderContact();
     const activeCount = Number(data.summary?.active ?? state.contactItems.filter(isActiveItem).length);
     updateContactPolling(activeCount);
@@ -2945,6 +3055,8 @@
     if (action === "queue-refresh") return loadQueue(true);
     if (action === "queue-interrupt") return interruptQueue();
     if (action === "load-more") return loadContact(false);
+    if (action === "contact-search") return applyContactSearch();
+    if (action === "contact-search-clear") return clearContactSearch();
     if (action === "frame-favorite") return toggleFrameFavorite();
     if (action === "frame-public-save") return savePublicImage();
     if (action === "frame-share") return shareFrame();
@@ -3078,6 +3190,14 @@
       $$("#contactFilters .chip").forEach((item) => item.classList.toggle("is-active", item === chip));
       state.contactRevision = "";
       loadContact(true).catch((error) => UI.toast(errorMessage(error), "error"));
+    });
+
+    $("#contactSearchPanel")?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      const target = event.target;
+      if (!target?.matches?.("input, select")) return;
+      event.preventDefault();
+      applyContactSearch().catch((error) => UI.toast(errorMessage(error), "error"));
     });
 
     $("#contactGrid")?.addEventListener("click", (event) => {
