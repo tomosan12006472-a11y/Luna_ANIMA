@@ -89,6 +89,26 @@
           <button type="button" class="ghost" data-action="open-templates">テンプレート</button>
         </div>
 
+        <details class="tray" data-fold="prompt-converter" style="margin-top:10px">
+          <summary><h2>日英プロンプト変換</h2><span class="lbl" id="promptConverterSummary">LOCAL</span></summary>
+          <label class="field"><span class="lbl">日本語自然文</span>
+            <textarea id="promptConvertSource" rows="3" placeholder="例: 白いワンピースで微笑む少女、夕方の海辺"></textarea>
+          </label>
+          <label class="field"><span class="lbl">出力形式</span>
+            <select id="promptConvertMode">
+              <option value="tags">英語タグ</option>
+              <option value="natural">英語自然文</option>
+              <option value="both">両方</option>
+            </select>
+          </label>
+          <div class="row">
+            <button type="button" class="ghost" data-action="prompt-convert">変換してPositiveへ</button>
+            <button type="button" class="ghost" data-action="prompt-converter-status">API状態</button>
+          </div>
+          <pre id="promptConvertResult" class="printout hidden"></pre>
+          <p id="promptConverterStatus" class="hint" aria-live="polite"></p>
+        </details>
+
         <details class="tray" data-fold="scene" style="margin-top:10px">
           <summary><h2>シーン指定</h2><span class="lbl" id="sceneSummary">—</span></summary>
           <div class="grid2">
@@ -496,6 +516,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.10"></script>
-  <script src="/static/app.js?v=v1.10-history-search-20260614"></script>
+  <script src="/static/app.js?v=v1.11-prompt-converter-20260615"></script>
 </body>
 </html>

@@ -8,6 +8,7 @@ from typing import Any
 
 from ._shared_utils import compact_join, next_node_id, normalize_lora_strengths, sanitize_prompt_text
 from .anima_adapter import catalog, generate_seed
+from .character_names import contains_cjk, display_name_ja, prompt_safe_character_name
 from .config import (
     ANIMA_HIGHRES_LORA_NAME,
     ANIMA_TURBO_LORA_V01_NAME,
@@ -469,14 +470,18 @@ def split_prompt_terms(text: str) -> list[str]:
 
 
 def character_metadata(entry: Any, slot: int, role: str = "") -> dict[str, Any]:
-    source = "original_character" if getattr(entry, "kind", "") == "original" else "saa_csv"
+    source = "original_character" if getattr(entry, "kind", "") == "original" else str(getattr(entry, "source", "") or "saa_csv")
+    display_name = getattr(entry, "display_name", "")
+    prompt_tag = getattr(entry, "prompt_tag", "")
     return {
         "slot": slot,
         "source": source,
         "id": getattr(entry, "id", "") or getattr(entry, "display_name", ""),
-        "display_name": getattr(entry, "display_name", ""),
+        "display_name": display_name_ja(display_name, prompt_tag),
+        "display_name_original": display_name,
         "role": role,
-        "prompt_tag": getattr(entry, "prompt_tag", ""),
+        "prompt_tag": prompt_tag,
+        "prompt_safe_name": prompt_safe_character_name(display_name, prompt_tag),
         "trigger_words": list(getattr(entry, "trigger_words", None) or []),
         "identity_prompt": getattr(entry, "identity_prompt", ""),
         "negative_guard": getattr(entry, "negative_guard", ""),
@@ -496,7 +501,7 @@ def original_identity_sentence(entry: Any, role: str) -> str:
     return identity
 
 
-def build_character_parts(request: dict[str, Any], seed: int) -> tuple[list[str], list[str], list[dict[str, Any]], list[str]]:
+def build_character_parts(request: dict[str, Any], seed: int) -> tuple[list[str], list[str], list[dict[str, Any]], list[str], list[str]]:
     character_values = [
         request.get("character1", "Random"),
         request.get("character2", "None"),
@@ -516,15 +521,22 @@ def build_character_parts(request: dict[str, Any], seed: int) -> tuple[list[str]
     names: list[str] = []
     metadata: list[dict[str, Any]] = []
     natural_parts: list[str] = []
+    natural_names: list[str] = []
     for index, value in enumerate(character_values):
         tag, name, entry = catalog.resolve_character_entry(str(value), index, seed, original=False)
         if not tag:
             continue
+        if not entry and contains_cjk(tag):
+            continue
         role = roles[index]
         prompt_tag = tag if getattr(entry, "kind", "") == "original" else escape_standard_character_tag(tag)
         weighted = format_weighted(prompt_tag, weights[index])
+        safe_name = prompt_safe_character_name(name, tag)
+        display_name = display_name_ja(name, tag)
         tags.append(weighted)
-        names.append(f"{name} ({role})" if role and role != "main" else name)
+        names.append(f"{display_name} ({role})" if role and role != "main" else display_name)
+        if safe_name:
+            natural_names.append(f"{safe_name} ({role})" if role and role != "main" else safe_name)
         if entry:
             metadata.append(character_metadata(entry, index + 1, role))
             if getattr(entry, "kind", "") == "original":
@@ -534,11 +546,14 @@ def build_character_parts(request: dict[str, Any], seed: int) -> tuple[list[str]
     if original_tag:
         original_weight = float(request.get("original_weight", 1.0))
         tags.append(format_weighted(original_tag, original_weight))
-        names.append(original_name)
+        names.append(display_name_ja(original_name, original_tag))
+        safe_name = prompt_safe_character_name(original_name, original_tag)
+        if safe_name:
+            natural_names.append(safe_name)
         if original_entry:
             metadata.append(character_metadata(original_entry, 4, "original"))
             natural_parts.append(original_identity_sentence(original_entry, "main"))
-    return tags, names, metadata, natural_parts
+    return tags, names, metadata, natural_parts, natural_names
 
 
 def generated_natural_description(character_names: list[str]) -> str:
@@ -584,7 +599,7 @@ def build_prompts(request: dict[str, Any]) -> dict[str, Any]:
         return build_lora_sample_prompts(request)
 
     seed = generate_seed(request.get("seed"))
-    character_tags, character_names, character_meta, natural_parts = build_character_parts(request, seed)
+    character_tags, character_names, character_meta, natural_parts, natural_names = build_character_parts(request, seed)
     rating = str(request.get("rating") or "safe").lower()
     rating_tag = RATING_TAGS.get(rating, "safe")
     quality = QUALITY_PRESETS.get(str(request.get("quality_preset") or "standard"), str(request.get("quality_preset") or ""))
@@ -598,7 +613,7 @@ def build_prompts(request: dict[str, Any]) -> dict[str, Any]:
     lighting = str(request.get("lighting_prompt") or "").strip()
     positive = str(request.get("positive_prompt") or "").strip()
     common = str(request.get("common_prompt") or "").strip()
-    natural = build_natural_description(character_names, request, natural_parts)
+    natural = build_natural_description(natural_names, request, natural_parts)
     prompt_ban = str(request.get("prompt_ban") or "").strip()
 
     people_tag = ""
@@ -665,7 +680,7 @@ def build_prompts(request: dict[str, Any]) -> dict[str, Any]:
 
 def build_lora_sample_prompts(request: dict[str, Any]) -> dict[str, Any]:
     seed = generate_seed(request.get("seed"))
-    character_tags, character_names, character_meta, _natural_parts = build_character_parts(request, seed)
+    character_tags, character_names, character_meta, _natural_parts, _natural_names = build_character_parts(request, seed)
     positive = str(request.get("positive_prompt") or "").strip()
     if not positive:
         positive = compact_join([*character_tags, str(request.get("common_prompt") or "").strip()])

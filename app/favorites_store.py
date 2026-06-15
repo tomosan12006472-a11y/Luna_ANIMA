@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from ._shared_utils import write_json_atomic
+from .character_names import localize_favorites_payload
 from .config import FAVORITES_PATH
 from .anima_adapter import catalog
 
@@ -187,3 +188,7 @@ def mark_favorite_used(source: str, favorite_id: str) -> dict[str, Any] | None:
                 _save_favorites_unlocked(data)
                 return item
         return None
+
+
+def localized_favorites(data: dict[str, list[dict[str, Any]]]) -> dict[str, list[dict[str, Any]]]:
+    return localize_favorites_payload(data)

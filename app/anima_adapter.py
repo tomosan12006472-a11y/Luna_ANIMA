@@ -7,7 +7,8 @@ import random
 from pathlib import Path
 from typing import Any
 
-from .config import SAA_ROOT
+from .character_names import character_entry_payload, localized_search_text
+from .config import ROOT_DIR, SAA_ROOT
 from .original_characters import load_original_characters as load_original_character_presets
 
 
@@ -38,6 +39,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lora_slot": [],
 }
 
+CUSTOM_CHARACTER_TAGS_PATH = ROOT_DIR / "config" / "custom_character_tags.json"
+
 
 @dataclass(frozen=True)
 class CharacterEntry:
@@ -52,6 +55,9 @@ class CharacterEntry:
     negative_guard: str = ""
     default_lora: str | None = None
     favorite: bool = False
+    post_count: int = 0
+    verified: bool = True
+    notes: str = ""
 
     @property
     def search_text(self) -> str:
@@ -92,6 +98,45 @@ def load_wai_characters() -> list[CharacterEntry]:
             prompt_tag = row[1].strip()
             if display_name and prompt_tag:
                 entries.append(CharacterEntry(display_name, prompt_tag, "wai", source="saa_csv"))
+    return entries
+
+
+def load_custom_characters(existing_prompt_tags: set[str]) -> list[CharacterEntry]:
+    if not CUSTOM_CHARACTER_TAGS_PATH.exists():
+        return []
+    try:
+        raw = json.loads(CUSTOM_CHARACTER_TAGS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    if not isinstance(raw, list):
+        return []
+    entries: list[CharacterEntry] = []
+    seen = set(existing_prompt_tags)
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        display_name = str(item.get("display_name") or item.get("display_name_ja") or item.get("name") or "").strip()
+        prompt_tag = str(item.get("prompt_tag") or "").strip()
+        key = prompt_tag.lower()
+        if not display_name or not prompt_tag or key in seen:
+            continue
+        seen.add(key)
+        try:
+            post_count = int(item.get("post_count") or 0)
+        except Exception:
+            post_count = 0
+        entries.append(
+            CharacterEntry(
+                display_name=display_name,
+                prompt_tag=prompt_tag,
+                kind="custom",
+                id=str(item.get("id") or prompt_tag),
+                source=str(item.get("source") or "custom_character_tags"),
+                post_count=post_count,
+                verified=bool(item.get("verified", False)),
+                notes=str(item.get("notes") or ""),
+            )
+        )
     return entries
 
 
@@ -147,25 +192,30 @@ class AnimaCatalog:
 
     def reload(self) -> None:
         self.wai = load_wai_characters()
+        self.custom = load_custom_characters({entry.prompt_tag.lower() for entry in self.wai})
         self.original = load_original_characters()
         self.by_display = {entry.display_name: entry for entry in self.wai}
+        self.by_display.update({entry.display_name: entry for entry in self.custom if entry.display_name not in self.by_display})
         self.by_prompt = {entry.prompt_tag: entry for entry in self.wai}
+        self.by_prompt.update({entry.prompt_tag: entry for entry in self.custom if entry.prompt_tag not in self.by_prompt})
         self.original_by_display = {entry.display_name: entry for entry in self.original}
         self.original_by_id = {entry.id: entry for entry in self.original if entry.id}
 
-    def search(self, query: str = "", kind: str = "all", limit: int = 80) -> list[dict[str, str]]:
+    def search(self, query: str = "", kind: str = "all", limit: int = 80) -> list[dict[str, Any]]:
         query = (query or "").strip().lower()
         pools: list[CharacterEntry] = []
         if kind in ("all", "original"):
             pools.extend(self.original)
         if kind in ("all", "wai"):
             pools.extend(self.wai)
+        if kind in ("all", "custom"):
+            pools.extend(self.custom)
         if not query:
             matched = pools[:limit]
         else:
             tokens = [token for token in query.split() if token]
-            matched = [entry for entry in pools if all(token in entry.search_text for token in tokens)][:limit]
-        return [entry.__dict__ for entry in matched]
+            matched = [entry for entry in pools if all(token in localized_search_text(entry) for token in tokens)][:limit]
+        return [character_entry_payload(entry) for entry in matched]
 
     def resolve_character_entry(self, value: str, slot: int, seed: int, original: bool = False) -> tuple[str, str, CharacterEntry | None]:
         value = (value or "None").strip()

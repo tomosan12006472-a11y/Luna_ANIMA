@@ -41,7 +41,7 @@ from .generation_prepare import (
     save_mobile_payload,
     save_mobile_payload_data,
 )
-from .favorites_store import add_favorite, load_favorites, mark_favorite_used, remove_favorite
+from .favorites_store import add_favorite, load_favorites, localized_favorites, mark_favorite_used, remove_favorite
 from .history_flags_store import (
     attach_flags_to_item,
     update_history_flags,
@@ -69,6 +69,7 @@ from .positive_prompt_favorites_store import (
     update_positive_prompt_favorite,
 )
 from .positive_prompt_templates_store import list_positive_prompt_templates
+from .prompt_converter import convert_prompt_text, prompt_converter_status
 from .prompt_dictionary_store import prompt_dictionary_status, search_prompt_dictionary
 from .recipes_store import add_recipe, delete_recipe, list_recipes, mark_recipe_used
 from .anima_adapter import catalog, load_settings
@@ -173,6 +174,12 @@ class DynamicPromptPreviewRequest(BaseModel):
     negative_prompt: str = ""
     seed: int = 0
     enabled: bool = True
+
+
+class PromptConverterRequest(BaseModel):
+    source_text: str = Field("", max_length=4000)
+    mode: str = "tags"
+    existing_positive: str = Field("", max_length=8000)
 
 
 class SettingsRequest(BaseModel):
@@ -440,6 +447,7 @@ def bootstrap(anima_claude_session: str | None = Cookie(default=None)) -> dict[s
         "anima_workflow": str(ANIMA_WORKFLOW_PATH),
         "anima_mapping": str(ANIMA_MAPPING_PATH),
         "catalog_count": len(catalog.wai),
+        "custom_count": len(catalog.custom),
         "original_count": len(catalog.original),
         "settings": app_settings,
         "anima_shift": anima_shift_capability(),
@@ -544,8 +552,21 @@ def put_original_character(character_id: str, data: OriginalCharacterRequest, an
 @app.get("/api/favorites")
 def favorites(anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
     require_auth(anima_claude_session)
-    data = load_favorites()
+    data = localized_favorites(load_favorites())
     return {"ok": True, **data}
+
+
+def localized_favorite_item(favorite: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not favorite:
+        return None
+    key = "original_characters" if favorite.get("source") == "original_character" else "characters"
+    payload = localized_favorites(
+        {
+            "characters": [favorite] if key == "characters" else [],
+            "original_characters": [favorite] if key == "original_characters" else [],
+        }
+    )
+    return payload[key][0] if payload[key] else None
 
 
 @app.post("/api/favorites")
@@ -558,7 +579,7 @@ def post_favorite(data: FavoriteRequest, anima_claude_session: str | None = Cook
             status_code=400,
             content={"ok": False, "status": 400, "stage": "validate_favorite", "message": str(exc), "source": data.source},
         )
-    return JSONResponse(status_code=200, content={"ok": True, "status": "ok", "action": action, "favorite": favorite, **favorites_data})
+    return JSONResponse(status_code=200, content={"ok": True, "status": "ok", "action": action, "favorite": localized_favorite_item(favorite), **localized_favorites(favorites_data)})
 
 
 @app.delete("/api/favorites/{source}/{favorite_id}")
@@ -571,14 +592,14 @@ def delete_favorite(source: str, favorite_id: str, anima_claude_session: str | N
             status_code=400,
             content={"ok": False, "status": 400, "stage": "validate_favorite", "message": str(exc), "source": source},
         )
-    return JSONResponse(status_code=200, content={"ok": True, "status": "ok", "removed": removed, **favorites_data})
+    return JSONResponse(status_code=200, content={"ok": True, "status": "ok", "removed": removed, **localized_favorites(favorites_data)})
 
 
 @app.post("/api/favorites/{source}/{favorite_id}/use")
 def use_favorite(source: str, favorite_id: str, anima_claude_session: str | None = Cookie(default=None)) -> JSONResponse:
     require_auth(anima_claude_session)
     favorite = mark_favorite_used(source, favorite_id)
-    return JSONResponse(status_code=200, content={"ok": True, "favorite": favorite, **load_favorites()})
+    return JSONResponse(status_code=200, content={"ok": True, "favorite": localized_favorite_item(favorite), **localized_favorites(load_favorites())})
 
 
 @app.get("/api/prompts/positive-favorites")
@@ -691,6 +712,28 @@ def prompt_dictionary_search_route(
 ) -> dict[str, Any]:
     require_auth(anima_claude_session)
     return search_prompt_dictionary(q, limit=limit)
+
+
+@app.get("/api/prompt-converter/status")
+def prompt_converter_status_route(anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+    require_auth(anima_claude_session)
+    return {"ok": True, **prompt_converter_status(load_app_settings().get("prompt_converter"))}
+
+
+@app.post("/api/prompt-converter/convert")
+def prompt_converter_convert_route(data: PromptConverterRequest, anima_claude_session: str | None = Cookie(default=None)) -> JSONResponse:
+    require_auth(anima_claude_session)
+    result = convert_prompt_text(
+        load_app_settings().get("prompt_converter"),
+        source_text=data.source_text,
+        mode=data.mode,
+        existing_positive=data.existing_positive,
+        app_scope="anima",
+        catalog_entries=[*catalog.wai, *catalog.original],
+    )
+    if not result.get("ok"):
+        return JSONResponse(status_code=int(result.get("status") or 502), content=result)
+    return JSONResponse(status_code=200, content=result)
 
 
 @app.get("/api/dynamic-prompts/wildcards")
@@ -1664,7 +1707,13 @@ def public_save(history_id: str, data: PublicSaveRequest, anima_claude_session: 
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "app": "ANIMA Claude", "saa_root_exists": SAA_ROOT.exists(), "catalog_count": len(catalog.wai)}
+    return {
+        "ok": True,
+        "app": "ANIMA Claude",
+        "saa_root_exists": SAA_ROOT.exists(),
+        "catalog_count": len(catalog.wai),
+        "custom_count": len(catalog.custom),
+    }
 
 
 def _file_sha256(path: Path) -> str:
@@ -1771,6 +1820,7 @@ def diagnostics(anima_claude_session: str | None = Cookie(default=None)) -> dict
         "saa_root": str(SAA_ROOT),
         "saa_root_exists": SAA_ROOT.exists(),
         "catalog_count": len(catalog.wai),
+        "custom_count": len(catalog.custom),
         "original_count": len(catalog.original),
         "api_addr": addr,
         "mobile_payload_dir": str(MOBILE_PAYLOAD_DIR),
@@ -1810,6 +1860,7 @@ def diagnostics_full(anima_claude_session: str | None = Cookie(default=None)) ->
         "saa_root": str(SAA_ROOT),
         "saa_root_exists": SAA_ROOT.exists(),
         "catalog_count": len(catalog.wai),
+        "custom_count": len(catalog.custom),
         "original_count": len(catalog.original),
         "api_addr": addr,
         "mobile_payload_dir": str(MOBILE_PAYLOAD_DIR),

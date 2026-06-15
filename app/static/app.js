@@ -17,6 +17,7 @@
     outfit: "Outfit参照は未選択です。",
     pose: "Pose参照は未選択です。",
   };
+  const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 
   const state = {
     bootstrap: null,
@@ -67,6 +68,8 @@
     promptSheetQueryTimer: 0,
     dictQueryTimer: 0,
     dictStatusLoaded: false,
+    promptConverterStatusLoaded: false,
+    promptConverterLast: null,
     i2i: { imageId: "", thumb: "", name: "" },
     refmod: {
       outfit: { imageId: "", thumb: "", name: "" },
@@ -459,11 +462,15 @@
 
   function normalizeCharacterItem(raw = {}) {
     const source = sourceForCharacter(raw);
-    const displayName = String(raw.display_name || raw.displayName || raw.name || raw.id || "").trim();
-    const id = String(raw.id || displayName).trim();
+    const originalDisplayName = String(raw.display_name_original || raw.display_name || raw.name || raw.id || "").trim();
+    const localizedDisplayName = String(raw.display_name_ja || raw.localized_display_name || raw.displayNameJa || "").trim();
+    const fallbackDisplayName = String(raw.displayName || originalDisplayName).trim();
+    const displayName = localizedDisplayName || fallbackDisplayName;
+    const id = String(raw.id || originalDisplayName || displayName).trim();
     const promptTag = String(raw.prompt_tag || raw.promptTag || "").trim();
+    const promptSafeName = String(raw.prompt_safe_name || raw.promptSafeName || "").trim();
     const kind = raw.kind || (source === "original_character" ? "original" : "wai");
-    return { source, id, displayName, promptTag, kind };
+    return { source, id, displayName, originalDisplayName, promptTag, promptSafeName, kind };
   }
 
   function valueForSlot(slotName, item) {
@@ -471,7 +478,7 @@
     if (item.source === "original_character" || item.kind === "original") {
       return `original:${item.id || item.displayName}`;
     }
-    return item.displayName || "None";
+    return item.promptTag || item.originalDisplayName || item.id || item.displayName || "None";
   }
 
   function applyCharacterToSlot(raw, slotName = state.armedSlot) {
@@ -511,13 +518,15 @@
 
   function favoriteMatchesSlot(favorite, slotItem) {
     if (!favorite || !slotItem) return false;
-    if (favorite.source !== slotItem.source) return false;
-    if (favorite.source === "original_character") {
-      return favorite.id === slotItem.id || favorite.display_name === slotItem.displayName;
+    const fav = normalizeCharacterItem(favorite);
+    if (fav.source !== slotItem.source) return false;
+    if (fav.source === "original_character") {
+      return fav.id === slotItem.id || fav.originalDisplayName === slotItem.originalDisplayName || fav.displayName === slotItem.displayName;
     }
     return (
-      favorite.display_name === slotItem.displayName ||
-      (favorite.prompt_tag && favorite.prompt_tag === slotItem.promptTag)
+      (fav.promptTag && fav.promptTag === slotItem.promptTag) ||
+      fav.originalDisplayName === slotItem.originalDisplayName ||
+      fav.displayName === slotItem.displayName
     );
   }
 
@@ -539,14 +548,17 @@
       return;
     }
     for (const favorite of favorites) {
+      const item = normalizeCharacterItem(favorite);
       const button = document.createElement("button");
       button.type = "button";
       button.className = "chip";
       button.dataset.favoriteId = favorite.id || "";
-      button.dataset.favoriteSource = favorite.source || "";
-      button.dataset.favoriteName = favorite.display_name || favorite.name || "";
-      button.dataset.favoritePromptTag = favorite.prompt_tag || "";
-      button.textContent = `★ ${favorite.display_name || favorite.name || favorite.id}`;
+      button.dataset.favoriteSource = item.source || "";
+      button.dataset.favoriteName = item.originalDisplayName || item.displayName || "";
+      button.dataset.favoriteDisplayName = item.displayName || "";
+      button.dataset.favoritePromptTag = item.promptTag || "";
+      button.dataset.favoritePromptSafeName = item.promptSafeName || "";
+      button.textContent = `★ ${item.displayName || item.originalDisplayName || item.id}`;
       root.appendChild(button);
     }
   }
@@ -1258,6 +1270,164 @@
     UI.toast(`追加: ${tag}`);
   }
 
+  function splitPromptConverterTags(textValue) {
+    return String(textValue || "")
+      .replace(/[\n;]/g, ",")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+
+  function normalizePromptConverterTag(tag) {
+    let textValue = String(tag || "")
+      .replace(/<\s*lora:[^>]+>/ig, "")
+      .replace(/__[^_\n]+__/g, "")
+      .trim();
+    if (!textValue) return "";
+    if (!SCORE_TAG_RE.test(textValue)) textValue = textValue.replaceAll("_", " ");
+    return textValue.replace(/\s+/g, " ").replace(/^[\s,;.]+|[\s,;.]+$/g, "");
+  }
+
+  function promptConverterDedupeKey(tag) {
+    return normalizePromptConverterTag(tag)
+      .toLowerCase()
+      .replace(/^[([{]+/, "")
+      .replace(/[\])}]+$/, "")
+      .replace(/:[0-9.]+$/, "")
+      .replace(/\s+/g, " ")
+      .replace(/^[\s,;.]+|[\s,;.]+$/g, "");
+  }
+
+  function dedupePromptConverterTags(insertText, existingText) {
+    const seen = new Set(splitPromptConverterTags(existingText).map(promptConverterDedupeKey).filter(Boolean));
+    const out = [];
+    for (const raw of splitPromptConverterTags(insertText)) {
+      const tag = normalizePromptConverterTag(raw);
+      const key = promptConverterDedupeKey(tag);
+      if (!tag || !key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(tag);
+    }
+    return out.join(", ");
+  }
+
+  function setPromptConverterStatus(data = {}) {
+    if (data.enabled === false) {
+      text("#promptConverterSummary", "DISABLED");
+      text("#promptConverterStatus", "Prompt変換は設定で無効です。");
+      return;
+    }
+    if (data.reachable) {
+      const model = data.active_model || data.model || "auto";
+      text("#promptConverterSummary", "READY");
+      text("#promptConverterStatus", `${data.provider || "provider"} / ${model}`);
+      return;
+    }
+    text("#promptConverterSummary", "OFFLINE");
+    text("#promptConverterStatus", data.message || "ローカル変換APIに接続できません。LM StudioなどのLocal Serverを起動してください。");
+  }
+
+  async function loadPromptConverterStatus(force = false) {
+    if (state.promptConverterStatusLoaded && !force) return null;
+    state.promptConverterStatusLoaded = true;
+    try {
+      const data = await api("/api/prompt-converter/status");
+      setPromptConverterStatus(data);
+      return data;
+    } catch (error) {
+      state.promptConverterStatusLoaded = false;
+      text("#promptConverterStatus", errorMessage(error));
+      throw error;
+    }
+  }
+
+  function renderPromptConverterResult(data = {}) {
+    const root = $("#promptConvertResult");
+    if (!root) return;
+    const lines = [];
+    if (data.natural_en) lines.push(`Natural\n${data.natural_en}`);
+    if (data.tags_en) lines.push(`Tags\n${data.tags_en}`);
+    const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+    if (warnings.length) lines.push(`Warnings\n${warnings.map((warning) => warning.message || String(warning)).join("\n")}`);
+    root.textContent = lines.join("\n\n") || "変換結果が空でした。";
+    root.classList.remove("hidden");
+  }
+
+  async function choosePromptConverterInsert(data = {}) {
+    const mode = String(data.mode || value("#promptConvertMode", "tags"));
+    if (mode === "both" && data.tags_en && data.natural_en) {
+      const choice = await UI.ask({
+        title: "どちらを入れますか?",
+        message: "変換結果をPositiveに入れます。",
+        choices: [
+          { label: "タグ", value: "tags", kind: "primary" },
+          { label: "自然文", value: "natural" },
+          { label: "キャンセル", value: "cancel" },
+        ],
+      });
+      if (!choice || choice === "cancel") return null;
+      return { kind: choice, text: choice === "natural" ? data.natural_en : data.tags_en };
+    }
+    const kind = mode === "natural" ? "natural" : "tags";
+    return { kind, text: kind === "natural" ? data.natural_en : data.tags_en || data.insert_text };
+  }
+
+  async function insertPromptConverterText(result) {
+    const rawText = String(result?.text || "").trim();
+    if (!rawText) {
+      UI.toast("挿入できる変換結果がありません", "error");
+      return false;
+    }
+    const mode = await UI.ask({
+      title: "どこに入れますか?",
+      message: promptExcerpt(rawText, 140),
+      choices: [
+        { label: "先頭に挿入", value: "prepend" },
+        { label: "末尾に追記", value: "append", kind: "primary" },
+        { label: "置換", value: "replace", kind: "danger" },
+        { label: "キャンセル", value: "cancel" },
+      ],
+    });
+    if (!mode || mode === "cancel") return false;
+    const insertText = result.kind === "tags" ? dedupePromptConverterTags(rawText, value("#positivePrompt", "")) : rawText;
+    if (!insertText) {
+      UI.toast("既存Positiveと重複しているため追加するタグがありません");
+      return false;
+    }
+    applyPositivePromptInsert(insertText, mode);
+    return true;
+  }
+
+  async function convertPromptFromJapanese() {
+    const sourceText = value("#promptConvertSource", "").trim();
+    if (!sourceText) {
+      UI.toast("変換する日本語自然文が空です", "error");
+      return;
+    }
+    text("#promptConverterStatus", "変換中...");
+    const data = await api("/api/prompt-converter/convert", {
+      method: "POST",
+      body: JSON.stringify({
+        source_text: sourceText,
+        mode: value("#promptConvertMode", "tags"),
+        existing_positive: value("#positivePrompt", ""),
+      }),
+    });
+    state.promptConverterLast = data;
+    renderPromptConverterResult(data);
+    if (data.provider) setPromptConverterStatus({ enabled: true, reachable: true, ...data.provider });
+    const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+    if (warnings.length) UI.toast(warnings.map((warning) => warning.message || String(warning)).join(" / "));
+    const chosen = await choosePromptConverterInsert(data);
+    if (!chosen) {
+      text("#promptConverterStatus", "変換しました");
+      return;
+    }
+    const inserted = await insertPromptConverterText(chosen);
+    text("#promptConverterStatus", inserted ? "Positiveに反映しました" : "変換しました");
+    if (inserted) UI.toast("Positiveに反映しました");
+  }
+
   function i2iItemState(item = {}) {
     const imageId = String(item.image_id || "").trim();
     return {
@@ -1500,9 +1670,11 @@
       button.type = "button";
       button.dataset.characterId = item.id || "";
       button.dataset.characterName = item.displayName || "";
+      button.dataset.characterOriginalName = item.originalDisplayName || "";
       button.dataset.characterKind = item.kind || "";
       button.dataset.characterSource = item.source || "";
       button.dataset.characterPromptTag = item.promptTag || "";
+      button.dataset.characterPromptSafeName = item.promptSafeName || "";
       const name = document.createElement("span");
       name.textContent = item.displayName || item.id || "-";
       const tag = document.createElement("span");
@@ -2380,7 +2552,7 @@
     const displayName = char.display_name || char.name || char.id || "";
     if (targetSlot === "original") return char.id || displayName;
     if (source === "original_character") return `original:${char.id || displayName}`;
-    return displayName;
+    return char.prompt_tag || displayName;
   }
 
   function historyOfficialLoras(official = {}) {
@@ -2532,7 +2704,9 @@
       parts.push(char.prompt_tag || "");
       parts.push(escapeHistoryCharacterTag(char.prompt_tag || ""));
       parts.push(char.identity_prompt || "");
+      parts.push(char.prompt_safe_name || "");
     }
+    parts.push(item.natural_description || "");
     return parts;
   }
 
@@ -2576,7 +2750,7 @@
       background_prompt: item.background_prompt || "",
       lighting_prompt: item.lighting_prompt || "",
       camera_prompt: item.camera_prompt || "",
-      positive_prompt: historyPositiveText(item),
+      positive_prompt: stripGeneratedHistoryPositive(item, qualityPreset),
       negative_prompt: historyNegativeText(item),
       negative_prompt_mode: "custom",
       negative_preset: item.negative_preset || "anima_recommended",
@@ -2698,6 +2872,7 @@
       source: original ? "original_character" : "wai_characters",
       id: display,
       displayName: display,
+      originalDisplayName: display,
       promptTag: "",
       kind: original ? "original" : "wai",
       value: raw,
@@ -2923,7 +3098,7 @@
       addMetaRow(table, "WORKFLOW", data.anima_workflow_found ? "found" : "missing");
       addMetaRow(table, "MAPPING", data.anima_mapping_found ? "found" : "missing");
       addMetaRow(table, "MODELS_CACHE", data.models_cache || {});
-      addMetaRow(table, "CATALOG", `${data.catalog_count ?? "-"} / original ${data.original_count ?? "-"}`);
+      addMetaRow(table, "CATALOG", `${data.catalog_count ?? "-"} + custom ${data.custom_count ?? 0} / original ${data.original_count ?? "-"}`);
       addMetaRow(table, "HISTORY", data.history_count ?? "-");
       addMetaRow(table, "SHIFT", data.anima_shift || {});
     }
@@ -2988,7 +3163,7 @@
     state.bootstrap = data;
     state.appSettings = data.settings || {};
     state.defaults = data.defaults || {};
-    text("#catalogCount", `${data.catalog_count || 0} chars / original ${data.original_count || 0}`);
+    text("#catalogCount", `${data.catalog_count || 0} chars + ${data.custom_count || 0} custom / original ${data.original_count || 0}`);
     applySettingsToForm(state.appSettings, state.defaults);
 
     const modelResult = await Promise.allSettled([loadModels(false), loadLoraCatalog()]);
@@ -3046,6 +3221,8 @@
     if (action === "generate") return generate();
     if (action === "dynamic-wildcards") return loadDynamicWildcards();
     if (action === "dynamic-preview") return previewDynamicPrompt();
+    if (action === "prompt-convert") return convertPromptFromJapanese();
+    if (action === "prompt-converter-status") return loadPromptConverterStatus(true);
     if (action === "save-positive-fav") return savePositiveFavorite();
     if (action === "open-positive-favs") return openPositiveFavorites();
     if (action === "open-templates") return openPositiveTemplates();
@@ -3099,7 +3276,22 @@
       }
     });
 
+    $("details[data-fold='prompt-converter']")?.addEventListener("toggle", (event) => {
+      if (event.target.open) {
+        loadPromptConverterStatus().catch((error) => UI.toast(errorMessage(error), "error"));
+      }
+    });
+
     $("#dictQuery")?.addEventListener("input", schedulePromptDictionarySearch);
+
+    $("#promptConvertSource")?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || (!event.ctrlKey && !event.metaKey)) return;
+      event.preventDefault();
+      convertPromptFromJapanese().catch((error) => {
+        text("#promptConverterStatus", errorMessage(error));
+        UI.toast(errorMessage(error), "error");
+      });
+    });
 
     $("#dictResults")?.addEventListener("click", (event) => {
       const row = event.target.closest("[data-dict-insert]");
@@ -3213,11 +3405,13 @@
           source: favorite.dataset.favoriteSource,
           id: favorite.dataset.favoriteId,
           display_name: favorite.dataset.favoriteName,
+          display_name_ja: favorite.dataset.favoriteDisplayName,
           prompt_tag: favorite.dataset.favoritePromptTag,
+          prompt_safe_name: favorite.dataset.favoritePromptSafeName,
         });
         markFavoriteUsedWithRetry(favorite.dataset.favoriteSource, favorite.dataset.favoriteId);
         clearCharacterSearch();
-        UI.toast(`${favorite.dataset.favoriteName} を反映しました`);
+        UI.toast(`${favorite.dataset.favoriteDisplayName || favorite.dataset.favoriteName} を反映しました`);
         return;
       }
 
@@ -3226,9 +3420,11 @@
         applyCharacterToSlot({
           source: result.dataset.characterSource,
           id: result.dataset.characterId,
-          display_name: result.dataset.characterName,
+          display_name: result.dataset.characterOriginalName || result.dataset.characterName,
+          display_name_ja: result.dataset.characterName,
           kind: result.dataset.characterKind,
           prompt_tag: result.dataset.characterPromptTag,
+          prompt_safe_name: result.dataset.characterPromptSafeName,
         });
         clearCharacterSearch();
         UI.toast(`${result.dataset.characterName} を反映しました`);
@@ -3250,6 +3446,7 @@
         if (action?.startsWith("frame-")) text("#frameActionStatus", errorMessage(error));
         if (action?.startsWith("i2i-")) text("#i2iStatus", errorMessage(error));
         if (action?.startsWith("outfit-") || action?.startsWith("pose-")) text("#refModStatus", errorMessage(error));
+        if (action?.startsWith("prompt-convert")) text("#promptConverterStatus", errorMessage(error));
         if (["save-defaults", "reset-defaults", "reload-models"].includes(action)) text("#settingsStatus", errorMessage(error));
         if (["save-recipe", "open-recipes"].includes(action)) text("#recipeStatus", errorMessage(error));
         if (["open-queue", "queue-refresh", "queue-interrupt"].includes(action)) text("#queueStatus", errorMessage(error));
