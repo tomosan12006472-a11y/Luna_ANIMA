@@ -2419,7 +2419,6 @@
     return firstHistoryText(item, [
       "request.positive_prompt",
       "request_data.positive_prompt",
-      "positive_prompt",
     ]);
   }
 
@@ -2679,6 +2678,85 @@
     return String(term || "").replace(/\s+/g, " ").trim().toLowerCase();
   }
 
+  const HISTORY_GENERIC_AUTO_TERMS = new Set(
+    [
+      ...Object.values(HISTORY_QUALITY_PROMPTS).flatMap(promptTerms),
+      ...Object.values(HISTORY_RATING_TAGS),
+      "anime illustration",
+    ].map(normalizePromptTerm).filter(Boolean),
+  );
+  const HISTORY_AUTO_BLOCK_START_TERMS = new Set([
+    "masterpiece",
+    "best quality",
+    "anime illustration",
+    "score_7",
+    "score_8",
+    "score_9",
+  ]);
+
+  function isHistoryPeopleTag(term) {
+    return /^\d+\s*(?:girl|girls|boy|boys)$/i.test(normalizePromptTerm(term));
+  }
+
+  function isGeneratedNaturalDescriptionTerm(term) {
+    return /^an anime illustration of .+ in a clean, expressive composition\.?$/i.test(normalizePromptTerm(term));
+  }
+
+  function isGeneratedNaturalDescriptionStart(term) {
+    return /^an anime illustration of .+ in a clean$/i.test(normalizePromptTerm(term));
+  }
+
+  function isGeneratedNaturalDescriptionEnd(term) {
+    return /^expressive composition\.?$/i.test(normalizePromptTerm(term));
+  }
+
+  function generatedNaturalEndIndex(terms, index) {
+    if (isGeneratedNaturalDescriptionTerm(terms[index])) return index;
+    if (isGeneratedNaturalDescriptionStart(terms[index]) && isGeneratedNaturalDescriptionEnd(terms[index + 1])) return index + 1;
+    return -1;
+  }
+
+  function stripHistoryGeneratedBlocks(terms = []) {
+    const kept = [];
+    for (let index = 0; index < terms.length; index += 1) {
+      const term = terms[index];
+      const normalized = normalizePromptTerm(term);
+      if (HISTORY_AUTO_BLOCK_START_TERMS.has(normalized)) {
+        const limit = Math.min(terms.length, index + 64);
+        let endIndex = -1;
+        for (let cursor = index; cursor < limit; cursor += 1) {
+          const naturalEnd = generatedNaturalEndIndex(terms, cursor);
+          if (naturalEnd >= 0) {
+            endIndex = naturalEnd;
+            break;
+          }
+        }
+        if (endIndex >= 0) {
+          index = endIndex;
+          continue;
+        }
+      }
+      kept.push(term);
+    }
+    return kept;
+  }
+
+  function stripGeneratedNaturalFragments(terms = []) {
+    const kept = [];
+    for (let index = 0; index < terms.length; index += 1) {
+      const term = terms[index];
+      const naturalEnd = generatedNaturalEndIndex(terms, index);
+      if (naturalEnd >= 0) {
+        if (kept.length) kept.pop();
+        index = naturalEnd;
+        continue;
+      }
+      if (isGeneratedNaturalDescriptionEnd(term)) continue;
+      kept.push(term);
+    }
+    return kept;
+  }
+
   function escapeHistoryCharacterTag(tag) {
     return String(tag || "").replaceAll("\\", "\\\\").replaceAll("(", "\\(").replaceAll(")", "\\)");
   }
@@ -2732,7 +2810,14 @@
         .map(normalizePromptTerm)
         .filter(Boolean),
     );
-    return promptTerms(positive).filter((term) => !generated.has(normalizePromptTerm(term))).join(", ");
+    const terms = stripGeneratedNaturalFragments(
+      stripHistoryGeneratedBlocks(promptTerms(positive))
+        .filter((term) => {
+          const normalized = normalizePromptTerm(term);
+          return !generated.has(normalized) && !HISTORY_GENERIC_AUTO_TERMS.has(normalized) && !isHistoryPeopleTag(term);
+        }),
+    );
+    return terms.join(", ");
   }
 
   function historyReuseData(item = {}) {
