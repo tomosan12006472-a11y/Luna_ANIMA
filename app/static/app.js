@@ -2576,7 +2576,7 @@
       background_prompt: item.background_prompt || "",
       lighting_prompt: item.lighting_prompt || "",
       camera_prompt: item.camera_prompt || "",
-      positive_prompt: stripGeneratedHistoryPositive(item, qualityPreset),
+      positive_prompt: historyPositiveText(item),
       negative_prompt: historyNegativeText(item),
       negative_prompt_mode: "custom",
       negative_preset: item.negative_preset || "anima_recommended",
