@@ -7,7 +7,7 @@
   const CONTACT_LIMIT = 24;
   const ACTIVE_STATUSES = new Set(["queued", "running"]);
   const EMPTY_SLOT_LABELS = {
-    character1: "Random",
+    character1: "未選択",
     character2: "未選択",
     character3: "未選択",
     original: "未選択",
@@ -355,7 +355,6 @@
   function slotRequestValue(slotName) {
     const item = state.slots[slotName];
     if (item?.value) return item.value;
-    if (slotName === "character1") return "Random";
     return "None";
   }
 
@@ -498,14 +497,25 @@
     updateSummaries();
   }
 
+  function compactSlotName(textValue) {
+    const text = String(textValue || "").replace(/\s+/g, " ").trim();
+    const limit = 18;
+    if (text.length <= limit) return text;
+    return `${text.slice(0, limit)}...`;
+  }
+
   function renderSlots() {
     $$(".slot", $("#charSlots")).forEach((slot) => {
       const slotName = slot.dataset.slot;
       const item = state.slots[slotName];
+      const fullName = item?.displayName || EMPTY_SLOT_LABELS[slotName] || "未選択";
       slot.classList.toggle("is-armed", slotName === state.armedSlot);
       slot.classList.toggle("is-empty", !item);
       const name = slot.querySelector(".name");
-      if (name) name.textContent = item?.displayName || EMPTY_SLOT_LABELS[slotName] || "未選択";
+      if (name) {
+        name.textContent = compactSlotName(fullName);
+        name.title = fullName;
+      }
     });
   }
 
@@ -2859,7 +2869,6 @@
   function slotRequestValueFromData(data, slotName) {
     const item = data.slots[slotName];
     if (item?.value) return item.value;
-    if (slotName === "character1") return "Random";
     return "None";
   }
 

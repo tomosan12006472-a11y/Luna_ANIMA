@@ -229,6 +229,7 @@ def _system_prompt(app_scope: str) -> str:
         "natural_en is one concise English natural-language prompt. "
         "tags_en is comma-separated English tags. Use spaces instead of underscores in tags, except score tags like score_9 and score_8_up. "
         "Translate literally and avoid adding generic filler tags that were not requested, such as hair, face, body, high quality, or anime style. "
+        "Only use the source_text content. Do not infer or add characters, poses, clothing, camera, location, quality tags, or style terms that are absent from source_text. "
         "In Japanese prompts, ワンピース usually means a dress; translate it as dress or one-piece dress unless swimsuit, swimwear, bikini, or 水着 is explicitly present. "
         "Do not include Markdown or surrounding commentary."
     )
@@ -238,7 +239,6 @@ def _user_prompt(source_text: str, mode: str, existing_positive: str) -> str:
     return json.dumps(
         {
             "requested_output_mode": mode,
-            "existing_positive_prompt_for_deduplication": existing_positive,
             "source_text": source_text,
         },
         ensure_ascii=False,

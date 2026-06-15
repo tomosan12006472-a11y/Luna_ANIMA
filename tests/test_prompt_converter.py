@@ -47,6 +47,12 @@ class PromptConverterTests(unittest.TestCase):
         self.assertEqual(result["natural_en"], "final")
         self.assertEqual(result["tags_en"], "white dress")
 
+    def test_user_prompt_excludes_existing_positive_text(self) -> None:
+        payload = prompt_converter._user_prompt("白いワンピース", "tags", "Sesshoin Kiara, Fate/Grand Order")
+        self.assertIn("白いワンピース", payload)
+        self.assertNotIn("Sesshoin Kiara", payload)
+        self.assertNotIn("existing_positive", payload)
+
     def test_character_warning_reports_catalog_match(self) -> None:
         entry = SimpleNamespace(display_name="Scathach", id="", prompt_tag="scathach (fate), purple hair", trigger_words=[])
         warnings = prompt_converter.character_warnings("Scathachを夕焼けの海辺で", "", "purple hair", [entry])
