@@ -49,6 +49,7 @@ from .history_store import (
     copy_public_image,
     create_history_item,
     create_pending_history_item,
+    enrich_history_item_from_payload,
     ensure_small_thumbnail,
     history_collection_revision,
     list_all_history_with_warnings,
@@ -1545,6 +1546,7 @@ def history_detail(history_id: str, anima_claude_session: str | None = Cookie(de
     item = load_history_item(history_id)
     if not item:
         raise HTTPException(status_code=404, detail="history item not found")
+    enrich_history_item_from_payload(item)
     attach_flags_to_item(item)
     return {"ok": True, "item": item}
 

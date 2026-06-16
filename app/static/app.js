@@ -2546,6 +2546,7 @@
     return firstHistoryText(item, [
       "request.positive_prompt",
       "request_data.positive_prompt",
+      "positive_prompt",
     ]);
   }
 
@@ -2805,6 +2806,22 @@
     return String(term || "").replace(/\s+/g, " ").trim().toLowerCase();
   }
 
+  function historyPromptRandomGeneratedParts(item = {}) {
+    const candidates = [
+      item.prompt_random_collect,
+      item.request_data?.prompt_random_collect,
+      item.request?.prompt_random_collect,
+    ];
+    const parts = [];
+    for (const candidate of candidates) {
+      const data = candidate && typeof candidate === "object" ? candidate : {};
+      const generatedItem = data.generated_item && typeof data.generated_item === "object" ? data.generated_item : {};
+      if (typeof data.generated_tags === "string" && data.generated_tags.trim()) parts.push(data.generated_tags);
+      if (typeof generatedItem.tags === "string" && generatedItem.tags.trim()) parts.push(generatedItem.tags);
+    }
+    return parts;
+  }
+
   const HISTORY_GENERIC_AUTO_TERMS = new Set(
     [
       ...Object.values(HISTORY_QUALITY_PROMPTS).flatMap(promptTerms),
@@ -2922,6 +2939,7 @@
       parts.push(char.identity_prompt || "");
       parts.push(char.prompt_safe_name || "");
     }
+    parts.push(...historyPromptRandomGeneratedParts(item));
     parts.push(item.natural_description || "");
     return parts;
   }

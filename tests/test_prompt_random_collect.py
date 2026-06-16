@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
-from app import prompt_random_collect
+from app import history_store, prompt_random_collect
 
 
 class PromptRandomCollectTests(unittest.TestCase):
@@ -53,6 +56,47 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertEqual(prompt_random_collect.prompt_random_collect_tags(requests[0]), "red dress")
         self.assertEqual(prompt_random_collect.prompt_random_collect_tags(requests[1]), "blue dress")
         self.assertFalse(requests[0]["prompt_random_collect"]["include_characters"])
+
+    def test_history_summary_preserves_generated_tags_for_reuse_strip(self) -> None:
+        summary = history_store._prompt_random_collect_summary(
+            {
+                "prompt_random_collect": {
+                    "enabled": True,
+                    "instruction": "test",
+                    "strength": "subtle",
+                    "include_characters": False,
+                    "generated_item": {"index": 0, "tags": "red dress"},
+                    "provider": {"model": "qwen"},
+                }
+            }
+        )
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary["generated_tags"], "red dress")
+        self.assertFalse(summary["include_characters"])
+
+    def test_history_detail_enriches_raw_prompt_from_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            payload_path = Path(directory) / "payload.json"
+            payload_path.write_text(
+                json.dumps(
+                    {
+                        "request": {
+                            "positive_prompt": "raw positive",
+                            "negative_prompt_raw": "raw negative",
+                            "prompt_random_collect": {
+                                "enabled": True,
+                                "generated_tags": "blue dress",
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            item = {"id": "test", "payload_path": str(payload_path), "positive": "masterpiece, raw positive, blue dress"}
+            enriched = history_store.enrich_history_item_from_payload(item)
+        self.assertEqual(enriched["positive_prompt"], "raw positive")
+        self.assertEqual(enriched["negative_prompt_raw"], "raw negative")
+        self.assertEqual(enriched["prompt_random_collect"]["generated_tags"], "blue dress")
 
 
 if __name__ == "__main__":

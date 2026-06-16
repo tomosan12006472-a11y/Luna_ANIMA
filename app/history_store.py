@@ -360,6 +360,57 @@ def ensure_small_thumbnail(item: dict[str, Any]) -> Path | None:
     return path if path.exists() else None
 
 
+def _prompt_random_collect_summary(request_data: dict[str, Any]) -> dict[str, Any] | None:
+    data = request_data.get("prompt_random_collect")
+    if not isinstance(data, dict) or not data.get("enabled"):
+        return None
+    generated_item = data.get("generated_item") if isinstance(data.get("generated_item"), dict) else {}
+    generated_tags = str(data.get("generated_tags") or generated_item.get("tags") or "").strip()
+    if not generated_tags and not generated_item:
+        return None
+    summary: dict[str, Any] = {
+        "enabled": True,
+        "instruction": str(data.get("instruction") or ""),
+        "strength": str(data.get("strength") or ""),
+        "include_characters": data.get("include_characters", True) is not False,
+        "generated_tags": generated_tags,
+    }
+    if generated_item:
+        summary["generated_item"] = generated_item
+    if isinstance(data.get("provider"), dict):
+        summary["provider"] = data.get("provider")
+    return summary
+
+
+def enrich_history_item_from_payload(item: dict[str, Any]) -> dict[str, Any]:
+    payload_path = Path(str(item.get("payload_path") or ""))
+    if not payload_path.exists():
+        return item
+    try:
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    except Exception:
+        return item
+    if not isinstance(payload, dict):
+        return item
+    request_data = payload.get("request") if isinstance(payload.get("request"), dict) else payload
+    raw_positive = str(request_data.get("positive_prompt") or payload.get("positive_prompt") or "").strip()
+    if raw_positive and not str(item.get("positive_prompt") or "").strip():
+        item["positive_prompt"] = raw_positive
+    raw_negative = str(
+        request_data.get("negative_prompt_raw")
+        or request_data.get("negative_prompt")
+        or payload.get("negative_prompt_raw")
+        or payload.get("negative_prompt")
+        or ""
+    ).strip()
+    if raw_negative and not str(item.get("negative_prompt_raw") or "").strip():
+        item["negative_prompt_raw"] = raw_negative
+    prompt_random_collect = _prompt_random_collect_summary(request_data)
+    if prompt_random_collect and not isinstance(item.get("prompt_random_collect"), dict):
+        item["prompt_random_collect"] = prompt_random_collect
+    return item
+
+
 def create_history_item(
     *,
     request_data: dict[str, Any],
@@ -383,6 +434,7 @@ def create_history_item(
             }
         )
     output_method = infer_anima_generation_method(request_data)
+    prompt_random_collect = _prompt_random_collect_summary(request_data)
     item = {
         "id": history_id,
         "created_at": now_iso(),
@@ -408,7 +460,9 @@ def create_history_item(
         "character_names": prompts.get("characters", []),
         "original_character": request_data.get("original_character") if request_data.get("original_character") != "None" else None,
         "positive": prompts.get("positive", ""),
+        "positive_prompt": request_data.get("positive_prompt", ""),
         "negative": prompts.get("negative", request_data.get("negative_prompt", "")),
+        "negative_prompt_raw": request_data.get("negative_prompt_raw", request_data.get("negative_prompt", "")),
         **({"dynamic_prompt": prompts.get("dynamic_prompt")} if prompts.get("dynamic_prompt") else {}),
         "negative_mode": prompts.get("negative_mode", request_data.get("negative_prompt_mode", "append")),
         "negative_preset": prompts.get("negative_preset", request_data.get("negative_preset", "")),
@@ -421,6 +475,7 @@ def create_history_item(
         "prompt_id": getattr(result, "prompt_id", None),
         "hires_fix": hires_fix,
         "official_loras": official_lora_summary(request_data),
+        **({"prompt_random_collect": prompt_random_collect} if prompt_random_collect else {}),
         "reference_assist": request_data.get("reference_assist", {"enabled": False}),
         **({"reference_modules": request_data.get("reference_modules")} if isinstance(request_data.get("reference_modules"), dict) and any(isinstance(value, dict) and value.get("enabled") for value in (request_data.get("reference_modules") or {}).values()) else {}),
         **({"image_to_image": request_data.get("image_to_image")} if isinstance(request_data.get("image_to_image"), dict) and (request_data.get("image_to_image") or {}).get("enabled") else {}),
@@ -467,6 +522,7 @@ def create_pending_history_item(
     now = now_iso()
     size = compute_hires_size(request_data)
     output_method = infer_anima_generation_method(request_data)
+    prompt_random_collect = _prompt_random_collect_summary(request_data)
     item = {
         "id": history_id,
         "status": "queued",
@@ -495,7 +551,9 @@ def create_pending_history_item(
         "character_names": prompts.get("characters", []),
         "original_character": request_data.get("original_character") if request_data.get("original_character") != "None" else None,
         "positive": prompts.get("positive", ""),
+        "positive_prompt": request_data.get("positive_prompt", ""),
         "negative": prompts.get("negative", request_data.get("negative_prompt", "")),
+        "negative_prompt_raw": request_data.get("negative_prompt_raw", request_data.get("negative_prompt", "")),
         **({"dynamic_prompt": prompts.get("dynamic_prompt")} if prompts.get("dynamic_prompt") else {}),
         "negative_mode": prompts.get("negative_mode", request_data.get("negative_prompt_mode", "append")),
         "negative_preset": prompts.get("negative_preset", request_data.get("negative_preset", "")),
@@ -508,6 +566,7 @@ def create_pending_history_item(
         "prompt_id": prompt_id,
         "hires_fix": _hires_fix_summary(request_data),
         "official_loras": official_lora_summary(request_data),
+        **({"prompt_random_collect": prompt_random_collect} if prompt_random_collect else {}),
         "reference_assist": request_data.get("reference_assist", {"enabled": False}),
         **({"reference_modules": request_data.get("reference_modules")} if isinstance(request_data.get("reference_modules"), dict) and any(isinstance(value, dict) and value.get("enabled") for value in (request_data.get("reference_modules") or {}).values()) else {}),
         **({"image_to_image": request_data.get("image_to_image")} if isinstance(request_data.get("image_to_image"), dict) and (request_data.get("image_to_image") or {}).get("enabled") else {}),
