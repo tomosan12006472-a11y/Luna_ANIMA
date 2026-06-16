@@ -75,6 +75,7 @@ from .prompt_random_collect import (
     collect_prompt_random_tags,
     prompt_random_collect_enabled,
     prompt_random_collect_status,
+    sanitize_prompt_random_collect_request,
 )
 from .recipes_store import add_recipe, delete_recipe, list_recipes, mark_recipe_used
 from .anima_adapter import catalog, load_settings
@@ -1125,8 +1126,10 @@ def apply_prompt_random_collect_or_error(request_data_items: list[dict[str, Any]
     if not request_data_items:
         return None
     feature = request_data_items[0].get("prompt_random_collect")
-    if not prompt_random_collect_enabled(feature):
+    feature_config = sanitize_prompt_random_collect_request(feature)
+    if not prompt_random_collect_enabled(feature_config):
         return None
+    include_characters = bool(feature_config.get("include_characters", True))
     contexts: list[dict[str, Any]] = []
     for position, request_data in enumerate(request_data_items):
         prompts = build_prompts(request_data)
@@ -1134,11 +1137,11 @@ def apply_prompt_random_collect_or_error(request_data_items: list[dict[str, Any]
             {
                 "index": int(request_data.get("queue_index") or position),
                 "seed": prompts.get("seed", request_data.get("seed")),
-                "characters": prompts.get("characters", []),
+                "characters": prompts.get("characters", []) if include_characters else [],
                 "existing_positive": prompts.get("positive", ""),
             }
         )
-    result = collect_prompt_random_tags(load_app_settings(), feature=feature, contexts=contexts, app_scope="anima")
+    result = collect_prompt_random_tags(load_app_settings(), feature=feature_config, contexts=contexts, app_scope="anima")
     if not result.get("ok"):
         return prompt_random_collect_error_response(result)
     attach_prompt_random_collect_items(request_data_items, result)

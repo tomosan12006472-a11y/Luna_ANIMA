@@ -120,6 +120,10 @@
             <input id="promptRandomEnabled" type="checkbox">
             <span class="grow">露光直前にQwenでランダムタグを追加する</span>
           </div>
+          <div class="switchline">
+            <input id="promptRandomIncludeCharacters" type="checkbox" checked>
+            <span class="grow">選択キャラ名もQwenに渡す</span>
+          </div>
           <label class="field"><span class="lbl">ランダム指示</span>
             <textarea id="promptRandomInstruction" rows="2">衣装、表情、背景、小物をランダムに足す</textarea>
           </label>
@@ -543,6 +547,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.10"></script>
-  <script src="/static/app.js?v=v1.14-random-collect-20260616"></script>
+  <script src="/static/app.js?v=v1.15-random-collect-context-20260616"></script>
 </body>
 </html>

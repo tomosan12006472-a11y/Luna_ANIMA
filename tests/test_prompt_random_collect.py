@@ -11,6 +11,11 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertTrue(result["enabled"])
         self.assertEqual(result["instruction"], prompt_random_collect.DEFAULT_INSTRUCTION)
         self.assertEqual(result["strength"], "standard")
+        self.assertTrue(result["include_characters"])
+
+    def test_sanitize_request_can_disable_character_context(self) -> None:
+        result = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "include_characters": False})
+        self.assertFalse(result["include_characters"])
 
     def test_normalize_items_removes_disallowed_syntax_and_existing_tags(self) -> None:
         contexts = [{"index": 0, "seed": 11, "existing_positive": "white hair, blue eyes"}]
@@ -40,12 +45,14 @@ class PromptRandomCollectTests(unittest.TestCase):
             {
                 "instruction": "test",
                 "strength": "subtle",
+                "include_characters": False,
                 "generated_items": [{"index": 0, "tags": "red dress"}, {"index": 1, "tags": "blue dress"}],
                 "provider": {"model": "qwen"},
             },
         )
         self.assertEqual(prompt_random_collect.prompt_random_collect_tags(requests[0]), "red dress")
         self.assertEqual(prompt_random_collect.prompt_random_collect_tags(requests[1]), "blue dress")
+        self.assertFalse(requests[0]["prompt_random_collect"]["include_characters"])
 
 
 if __name__ == "__main__":

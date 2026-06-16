@@ -365,6 +365,7 @@
       enabled: false,
       instruction: "衣装、表情、背景、小物をランダムに足す",
       strength: "standard",
+      include_characters: true,
     };
   }
 
@@ -373,7 +374,12 @@
       enabled: checked("#promptRandomEnabled"),
       instruction: value("#promptRandomInstruction", defaultPromptRandomCollect().instruction),
       strength: value("#promptRandomStrength", "standard"),
+      include_characters: checked("#promptRandomIncludeCharacters"),
     };
+  }
+
+  function promptRandomOnSummary() {
+    return checked("#promptRandomIncludeCharacters") ? "ON / CHAR" : "ON / NO CHAR";
   }
 
   function applyPromptRandomCollectToForm(config = {}) {
@@ -381,6 +387,7 @@
     setChecked("#promptRandomEnabled", Boolean(config.enabled));
     setValue("#promptRandomInstruction", config.instruction || defaults.instruction);
     setValue("#promptRandomStrength", config.strength || defaults.strength);
+    setChecked("#promptRandomIncludeCharacters", config.include_characters !== false);
   }
 
   function collectRequest() {
@@ -1436,7 +1443,7 @@
     }
     if (data.reachable) {
       const model = data.active_model || data.model || "auto";
-      text("#promptRandomSummary", checked("#promptRandomEnabled") ? "ON" : "READY");
+      text("#promptRandomSummary", checked("#promptRandomEnabled") ? promptRandomOnSummary() : "READY");
       text("#promptRandomStatus", `${data.provider || "provider"} / ${model}`);
       return;
     }
@@ -2031,7 +2038,10 @@
     const custom = req.negative_prompt ? "+custom" : "no custom";
     text("#negativeSummary", `${req.negative_preset} · ${negMode} · ${custom}`);
     text("#dynamicSummary", req.dynamic_prompt.enabled ? "ON" : "OFF");
-    text("#promptRandomSummary", req.prompt_random_collect.enabled ? "ON" : "OFF");
+    text(
+      "#promptRandomSummary",
+      req.prompt_random_collect.enabled ? promptRandomOnSummary() : "OFF",
+    );
     text("#hiresSummary", req.hires_fix.enabled ? `ON · ×${Number(req.hires_fix.upscale_factor || 1.5)} · ${req.hires_fix.mode || "latent"}` : "OFF");
     text("#i2iSummary", checked("#i2iEnabled") ? `ON · ${req.image_to_image.denoise}` : "OFF");
     const refParts = [];
@@ -3100,6 +3110,7 @@
       enabled: Boolean(data.enabled),
       instruction: data.instruction || defaults.instruction,
       strength: data.strength || defaults.strength,
+      include_characters: data.include_characters !== false,
     };
   }
 
@@ -3519,6 +3530,7 @@
     });
 
     $("#promptRandomEnabled")?.addEventListener("change", updateSummaries);
+    $("#promptRandomIncludeCharacters")?.addEventListener("change", updateSummaries);
     $("#promptRandomInstruction")?.addEventListener("input", updateSummaries);
     $("#promptRandomStrength")?.addEventListener("change", updateSummaries);
 

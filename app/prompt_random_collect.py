@@ -38,10 +38,16 @@ def sanitize_prompt_random_collect_request(value: Any) -> dict[str, Any]:
     strength = str(raw.get("strength") or "standard").strip().lower()
     if strength not in VALID_STRENGTHS:
         strength = "standard"
+    include_characters = raw.get("include_characters", True)
+    if isinstance(include_characters, str):
+        include_characters = include_characters.strip().lower() not in {"0", "false", "off", "no"}
+    else:
+        include_characters = bool(include_characters)
     return {
         "enabled": bool(raw.get("enabled")),
         "instruction": _clamp_text(raw.get("instruction"), DEFAULT_INSTRUCTION, 1000),
         "strength": strength,
+        "include_characters": include_characters,
     }
 
 
@@ -204,6 +210,7 @@ def collect_prompt_random_tags(
         "enabled": True,
         "instruction": request_config["instruction"],
         "strength": request_config["strength"],
+        "include_characters": request_config["include_characters"],
         "generated_items": generated_items,
         "provider": {
             "provider": config["provider"],
@@ -224,6 +231,7 @@ def attach_prompt_random_collect_items(request_data_items: list[dict[str, Any]],
             "enabled": True,
             "instruction": result.get("instruction") or current.get("instruction") or DEFAULT_INSTRUCTION,
             "strength": result.get("strength") or current.get("strength") or "standard",
+            "include_characters": result.get("include_characters", current.get("include_characters", True)) is not False,
             "generated_item": generated_item,
             "generated_tags": generated_item.get("tags", "") if isinstance(generated_item, dict) else "",
             "provider": result.get("provider") or {},
