@@ -2822,6 +2822,20 @@
     return parts;
   }
 
+  function appendUniquePromptTerms(baseText, extraParts = []) {
+    const terms = promptTerms(baseText);
+    const seen = new Set(terms.map(normalizePromptTerm).filter(Boolean));
+    for (const part of extraParts || []) {
+      for (const term of promptTerms(part)) {
+        const normalized = normalizePromptTerm(term);
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        terms.push(term);
+      }
+    }
+    return terms.join(", ");
+  }
+
   const HISTORY_GENERIC_AUTO_TERMS = new Set(
     [
       ...Object.values(HISTORY_QUALITY_PROMPTS).flatMap(promptTerms),
@@ -2939,7 +2953,6 @@
       parts.push(char.identity_prompt || "");
       parts.push(char.prompt_safe_name || "");
     }
-    parts.push(...historyPromptRandomGeneratedParts(item));
     parts.push(item.natural_description || "");
     return parts;
   }
@@ -2948,7 +2961,7 @@
     const positive = historyPositiveText(item);
     if (!positive) return "";
     const rawPositive = historyRawPositiveText(item);
-    if (rawPositive) return rawPositive;
+    if (rawPositive) return appendUniquePromptTerms(rawPositive, historyPromptRandomGeneratedParts(item));
     const generated = new Set(
       historyGeneratedPositiveParts(item, qualityPreset)
         .flatMap(promptTerms)
@@ -3010,7 +3023,7 @@
       official_loras: historyOfficialLoras(item.official_loras || {}),
       loras: historyLoras(item.loras || []),
       dynamic_prompt: { enabled: false },
-      prompt_random_collect: historyPromptRandomCollect(item.prompt_random_collect),
+      prompt_random_collect: { ...historyPromptRandomCollect(item.prompt_random_collect), enabled: false },
       hires_fix: historyHiresFixRequest(item),
       image_to_image: historyImageToImageRequest(item),
       reference_modules: historyReferenceModulesRequest(item),
