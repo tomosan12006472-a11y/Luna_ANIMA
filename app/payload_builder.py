@@ -21,6 +21,7 @@ from .config import (
 from .dynamic_prompt import expand_dynamic_prompt
 from .face_detailer import add_face_detailer_to_workflow, face_detailer_seed, sanitize_face_detailer_settings
 from .output_organizer import build_output_prefix, infer_anima_generation_method
+from .prompt_random_collect import prompt_random_collect_tags
 from .reference_modules import apply_outfit_reference_to_workflow, apply_pose_reference_to_workflow
 
 
@@ -615,6 +616,7 @@ def build_prompts(request: dict[str, Any]) -> dict[str, Any]:
     common = str(request.get("common_prompt") or "").strip()
     natural = build_natural_description(natural_names, request, natural_parts)
     prompt_ban = str(request.get("prompt_ban") or "").strip()
+    random_collect = prompt_random_collect_tags(request)
 
     people_tag = ""
     count = len(character_tags)
@@ -639,6 +641,7 @@ def build_prompts(request: dict[str, Any]) -> dict[str, Any]:
         lighting,
         natural,
         positive,
+        random_collect,
     ]
     full_positive = sanitize_prompt_text(compact_join(positive_terms))
     if prompt_ban:

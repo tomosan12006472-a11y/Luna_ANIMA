@@ -71,6 +71,7 @@
     dictStatusLoaded: false,
     promptConverterStatusLoaded: false,
     promptConverterLast: null,
+    promptRandomStatusLoaded: false,
     i2i: { imageId: "", thumb: "", name: "" },
     refmod: {
       outfit: { imageId: "", thumb: "", name: "" },
@@ -359,6 +360,29 @@
     return "None";
   }
 
+  function defaultPromptRandomCollect() {
+    return {
+      enabled: false,
+      instruction: "衣装、表情、背景、小物をランダムに足す",
+      strength: "standard",
+    };
+  }
+
+  function collectPromptRandomCollect() {
+    return {
+      enabled: checked("#promptRandomEnabled"),
+      instruction: value("#promptRandomInstruction", defaultPromptRandomCollect().instruction),
+      strength: value("#promptRandomStrength", "standard"),
+    };
+  }
+
+  function applyPromptRandomCollectToForm(config = {}) {
+    const defaults = defaultPromptRandomCollect();
+    setChecked("#promptRandomEnabled", Boolean(config.enabled));
+    setValue("#promptRandomInstruction", config.instruction || defaults.instruction);
+    setValue("#promptRandomStrength", config.strength || defaults.strength);
+  }
+
   function collectRequest() {
     const negative = value("#negativePrompt", "");
     const seedMode = value("#seedModeSelect", "fixed");
@@ -414,6 +438,7 @@
       count: selectedQueueCount(),
       wait: false,
       dynamic_prompt: { enabled: checked("#dynamicEnabled") },
+      prompt_random_collect: collectPromptRandomCollect(),
       hires_fix: hiresFix,
       reference_assist: { enabled: false },
       image_to_image: {
@@ -1403,6 +1428,36 @@
     }
   }
 
+  function setPromptRandomStatus(data = {}) {
+    if (data.enabled === false) {
+      text("#promptRandomSummary", "DISABLED");
+      text("#promptRandomStatus", "Random Collect APIは設定で無効です。");
+      return;
+    }
+    if (data.reachable) {
+      const model = data.active_model || data.model || "auto";
+      text("#promptRandomSummary", checked("#promptRandomEnabled") ? "ON" : "READY");
+      text("#promptRandomStatus", `${data.provider || "provider"} / ${model}`);
+      return;
+    }
+    text("#promptRandomSummary", checked("#promptRandomEnabled") ? "OFFLINE" : "OFF");
+    text("#promptRandomStatus", data.message || "ローカルRandom Collect APIに接続できません。LM StudioなどのLocal Serverを起動してください。");
+  }
+
+  async function loadPromptRandomStatus(force = false) {
+    if (state.promptRandomStatusLoaded && !force) return null;
+    state.promptRandomStatusLoaded = true;
+    try {
+      const data = await api("/api/prompt-random-collect/status");
+      setPromptRandomStatus(data);
+      return data;
+    } catch (error) {
+      state.promptRandomStatusLoaded = false;
+      text("#promptRandomStatus", errorMessage(error));
+      throw error;
+    }
+  }
+
   function renderPromptConverterResult(data = {}) {
     const root = $("#promptConvertResult");
     if (!root) return;
@@ -1926,6 +1981,7 @@
     setValue("#officialHighresStrength", official.highres?.strength ?? 0.6);
     setChecked("#officialTurboEnabled", official.turbo?.enabled);
     setValue("#officialTurboStrength", official.turbo?.strength ?? 0.6);
+    applyPromptRandomCollectToForm(settings.prompt_random_collect || {});
     applyWatermark(settings.watermark || {});
     applyHiresFixToForm(settings.hires_fix || {});
 
@@ -1975,6 +2031,7 @@
     const custom = req.negative_prompt ? "+custom" : "no custom";
     text("#negativeSummary", `${req.negative_preset} · ${negMode} · ${custom}`);
     text("#dynamicSummary", req.dynamic_prompt.enabled ? "ON" : "OFF");
+    text("#promptRandomSummary", req.prompt_random_collect.enabled ? "ON" : "OFF");
     text("#hiresSummary", req.hires_fix.enabled ? `ON · ×${Number(req.hires_fix.upscale_factor || 1.5)} · ${req.hires_fix.mode || "latent"}` : "OFF");
     text("#i2iSummary", checked("#i2iEnabled") ? `ON · ${req.image_to_image.denoise}` : "OFF");
     const refParts = [];
@@ -1986,10 +2043,13 @@
   }
 
   async function previewPayload() {
+    const request = collectRequest();
+    if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "Random Collect中...");
     const data = await api("/api/payload/preview", {
       method: "POST",
-      body: JSON.stringify(collectRequest()),
+      body: JSON.stringify(request),
     });
+    if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "Previewに反映しました");
     const preview = $("#payloadPreview");
     if (preview) {
       preview.textContent = JSON.stringify(data, null, 2);
@@ -2413,10 +2473,15 @@
     button?.setAttribute("disabled", "disabled");
     try {
       const request = collectRequest();
+      if (request.prompt_random_collect?.enabled) {
+        text("#promptRandomStatus", "Random Collect中...");
+        UI.safelight("developing", "RANDOM COLLECT");
+      }
       const data = await api("/api/generate", {
         method: "POST",
         body: JSON.stringify(request),
       });
+      if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "Random Collectを反映して投入しました");
       assertGenerateQueued(data);
       await finishGenerateQueued(data, request);
     } catch (error) {
@@ -2966,6 +3031,7 @@
     $("#loraSlots")?.replaceChildren();
     for (const lora of data.loras || []) addLoraRow(lora);
     setChecked("#dynamicEnabled", Boolean(data.dynamic_prompt?.enabled));
+    applyPromptRandomCollectToForm(data.prompt_random_collect || {});
     applyHiresFixToForm(data.hires_fix || {});
 
     const i2i = data.image_to_image || {};
@@ -3027,6 +3093,16 @@
     };
   }
 
+  function historyPromptRandomCollect(raw = {}) {
+    const data = raw && typeof raw === "object" ? raw : {};
+    const defaults = defaultPromptRandomCollect();
+    return {
+      enabled: Boolean(data.enabled),
+      instruction: data.instruction || defaults.instruction,
+      strength: data.strength || defaults.strength,
+    };
+  }
+
   function reuseDataFromRequest(request = {}) {
     const req = request && typeof request === "object" ? request : {};
     const defaultPositive = state.appSettings.default_positive_prompt ?? state.defaults.positive_prompt ?? "";
@@ -3067,6 +3143,7 @@
       official_loras: historyOfficialLoras(req.official_loras || {}),
       loras: historyLoras(req.loras || []),
       dynamic_prompt: req.dynamic_prompt && typeof req.dynamic_prompt === "object" ? req.dynamic_prompt : { enabled: false },
+      prompt_random_collect: historyPromptRandomCollect(req.prompt_random_collect),
       hires_fix: historyHiresFixRequest({ hires_fix: req.hires_fix }),
       image_to_image: historyImageToImageRequest({ image_to_image: req.image_to_image }),
       reference_modules: historyReferenceModulesRequest({ reference_modules: req.reference_modules }),
@@ -3125,6 +3202,7 @@
       count: 1,
       wait: false,
       dynamic_prompt: { enabled: false },
+      prompt_random_collect: historyPromptRandomCollect(data.prompt_random_collect),
       hires_fix: data.hires_fix,
       reference_assist: { enabled: false },
       image_to_image: historyImageToImageRequest(item),
@@ -3202,6 +3280,7 @@
       natural_description: value("#naturalDescription", ""),
       official_loras: collectOfficialLoras(),
       loras: collectLoras(),
+      prompt_random_collect: collectPromptRandomCollect(),
       hires_fix: hiresFix,
       watermark: collectWatermark(),
       public_save: {
@@ -3373,6 +3452,7 @@
     if (action === "dynamic-preview") return previewDynamicPrompt();
     if (action === "prompt-convert") return convertPromptFromJapanese();
     if (action === "prompt-converter-status") return loadPromptConverterStatus(true);
+    if (action === "prompt-random-status") return loadPromptRandomStatus(true);
     if (action === "save-positive-fav") return savePositiveFavorite();
     if (action === "open-positive-favs") return openPositiveFavorites();
     if (action === "open-templates") return openPositiveTemplates();
@@ -3431,6 +3511,16 @@
         loadPromptConverterStatus().catch((error) => UI.toast(errorMessage(error), "error"));
       }
     });
+
+    $("details[data-fold='prompt-random']")?.addEventListener("toggle", (event) => {
+      if (event.target.open) {
+        loadPromptRandomStatus().catch((error) => UI.toast(errorMessage(error), "error"));
+      }
+    });
+
+    $("#promptRandomEnabled")?.addEventListener("change", updateSummaries);
+    $("#promptRandomInstruction")?.addEventListener("input", updateSummaries);
+    $("#promptRandomStrength")?.addEventListener("change", updateSummaries);
 
     $("#dictQuery")?.addEventListener("input", schedulePromptDictionarySearch);
 
@@ -3597,6 +3687,7 @@
         if (action?.startsWith("i2i-")) text("#i2iStatus", errorMessage(error));
         if (action?.startsWith("outfit-") || action?.startsWith("pose-")) text("#refModStatus", errorMessage(error));
         if (action?.startsWith("prompt-convert")) text("#promptConverterStatus", errorMessage(error));
+        if (action?.startsWith("prompt-random")) text("#promptRandomStatus", errorMessage(error));
         if (["save-defaults", "reset-defaults", "reload-models"].includes(action)) text("#settingsStatus", errorMessage(error));
         if (["save-recipe", "open-recipes"].includes(action)) text("#recipeStatus", errorMessage(error));
         if (["open-queue", "queue-refresh", "queue-interrupt"].includes(action)) text("#queueStatus", errorMessage(error));

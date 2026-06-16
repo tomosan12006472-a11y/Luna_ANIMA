@@ -38,7 +38,6 @@ from .generation_prepare import (
     reference_modules_model_status_payload,
     request_for_queue_item,
     save_completed_generation_history,
-    save_mobile_payload,
     save_mobile_payload_data,
 )
 from .favorites_store import add_favorite, load_favorites, localized_favorites, mark_favorite_used, remove_favorite
@@ -71,6 +70,12 @@ from .positive_prompt_favorites_store import (
 from .positive_prompt_templates_store import list_positive_prompt_templates
 from .prompt_converter import convert_prompt_text, prompt_converter_status
 from .prompt_dictionary_store import prompt_dictionary_status, search_prompt_dictionary
+from .prompt_random_collect import (
+    attach_prompt_random_collect_items,
+    collect_prompt_random_tags,
+    prompt_random_collect_enabled,
+    prompt_random_collect_status,
+)
 from .recipes_store import add_recipe, delete_recipe, list_recipes, mark_recipe_used
 from .anima_adapter import catalog, load_settings
 from .settings_store import load_app_settings, reset_app_settings, save_app_settings
@@ -158,6 +163,7 @@ class GenerateRequest(BaseModel):
     reference_modules: dict[str, Any] = Field(default_factory=lambda: {"enabled": True})
     image_to_image: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
     dynamic_prompt: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
+    prompt_random_collect: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
     face_detailer: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
     reset_comfy_cache: bool = False
     wait: bool = False
@@ -736,6 +742,12 @@ def prompt_converter_convert_route(data: PromptConverterRequest, anima_claude_se
     return JSONResponse(status_code=200, content=result)
 
 
+@app.get("/api/prompt-random-collect/status")
+def prompt_random_collect_status_route(anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+    require_auth(anima_claude_session)
+    return {"ok": True, **prompt_random_collect_status(load_app_settings())}
+
+
 @app.get("/api/dynamic-prompts/wildcards")
 def dynamic_prompt_wildcards(anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
     require_auth(anima_claude_session)
@@ -1101,6 +1113,35 @@ def lora_download_approved(anima_claude_session: str | None = Cookie(default=Non
     }
 
 
+def prompt_random_collect_error_response(result: dict[str, Any]) -> JSONResponse:
+    status_code = int(result.get("status") or 502)
+    return JSONResponse(status_code=status_code, content=result)
+
+
+def apply_prompt_random_collect_or_error(request_data_items: list[dict[str, Any]]) -> JSONResponse | None:
+    if not request_data_items:
+        return None
+    feature = request_data_items[0].get("prompt_random_collect")
+    if not prompt_random_collect_enabled(feature):
+        return None
+    contexts: list[dict[str, Any]] = []
+    for position, request_data in enumerate(request_data_items):
+        prompts = build_prompts(request_data)
+        contexts.append(
+            {
+                "index": int(request_data.get("queue_index") or position),
+                "seed": prompts.get("seed", request_data.get("seed")),
+                "characters": prompts.get("characters", []),
+                "existing_positive": prompts.get("positive", ""),
+            }
+        )
+    result = collect_prompt_random_tags(load_app_settings(), feature=feature, contexts=contexts, app_scope="anima")
+    if not result.get("ok"):
+        return prompt_random_collect_error_response(result)
+    attach_prompt_random_collect_items(request_data_items, result)
+    return None
+
+
 @app.post("/api/payload/preview")
 def payload_preview(data: GenerateRequest, anima_claude_session: str | None = Cookie(default=None)) -> Any:
     require_auth(anima_claude_session)
@@ -1122,8 +1163,12 @@ def payload_preview(data: GenerateRequest, anima_claude_session: str | None = Co
     if invalid_ref_modules:
         return invalid_ref_modules
     client_id = f"anima-claude-preview-{uuid.uuid4()}"
-    request_data = prepare_reference_request(generation_request_dict(data), addr, upload=False)
+    request_data = generation_request_dict(data)
     request_data["queue_index"] = 0
+    random_error = apply_prompt_random_collect_or_error([request_data])
+    if random_error:
+        return random_error
+    request_data = prepare_reference_request(request_data, addr, upload=False)
     request_data = prepare_reference_modules_request(request_data, addr, upload=False)
     request_data = prepare_i2i_request(request_data, addr, upload=True)
     payload = build_prompt_payload(request_data, client_id)
@@ -1149,6 +1194,7 @@ def payload_preview(data: GenerateRequest, anima_claude_session: str | None = Co
         "reference_modules": request_data.get("reference_modules", {}),
         "image_to_image": request_data.get("image_to_image", {"enabled": False}),
         "face_detailer": request_data.get("face_detailer", {"enabled": False}),
+        "prompt_random_collect": request_data.get("prompt_random_collect", {"enabled": False}),
         "anima_shift": shift_info,
         "shift": shift_info.get("shift"),
         "shift_supported": bool(shift_info.get("supported")),
@@ -1185,16 +1231,25 @@ def generate(
     if not data.wait:
         items: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []
+        item_requests = []
+        request_data_items: list[dict[str, Any]] = []
         for index in range(data.count):
             item_request = request_for_queue_item(data, index, wait=False)
-            request_data = prepare_reference_request(generation_request_dict(item_request), addr, upload=True)
+            request_data = generation_request_dict(item_request)
             request_data["queue_index"] = index
+            item_requests.append(item_request)
+            request_data_items.append(request_data)
+        random_error = apply_prompt_random_collect_or_error(request_data_items)
+        if random_error:
+            return random_error
+        for index, (item_request, request_data) in enumerate(zip(item_requests, request_data_items)):
+            request_data = prepare_reference_request(request_data, addr, upload=True)
             request_data = prepare_reference_modules_request(request_data, addr, upload=True)
             request_data = prepare_i2i_request(request_data, addr, upload=True)
             client_id = f"anima-claude-{uuid.uuid4()}"
             try:
                 payload = build_prompt_payload(request_data, client_id)
-                dump_path = save_mobile_payload(payload, item_request)
+                dump_path = save_mobile_payload_data(payload, request_data, item_request.workflow_mode)
                 prompts = build_prompts(request_data)
             except Exception as exc:
                 errors.append(
@@ -1236,6 +1291,7 @@ def generate(
                         "status": "queued",
                         "history_id": pending_item["id"] if pending_item else None,
                         "payload_dump": str(dump_path),
+                        "prompt_random_collect": request_data.get("prompt_random_collect", {"enabled": False}),
                     }
                 )
             else:
@@ -1261,6 +1317,7 @@ def generate(
                 "errors": errors,
                 "size": compute_hires_size(generation_request_dict(data)),
                 "official_loras": official_lora_summary(generation_request_dict(data)),
+                "prompt_random_collect": request_data_items[0].get("prompt_random_collect", {"enabled": False}) if request_data_items else {"enabled": False},
                 "reference_assist": generation_request_dict(data).get("reference_assist", {"enabled": False}),
                 "reference_modules": generation_request_dict(data).get("reference_modules", {}),
                 "image_to_image": generation_request_dict(data).get("image_to_image", {"enabled": False}),
@@ -1269,13 +1326,17 @@ def generate(
             },
         )
     client_id = f"anima-claude-{uuid.uuid4()}"
-    request_data = prepare_reference_request(generation_request_dict(data), addr, upload=True)
+    request_data = generation_request_dict(data)
     request_data["queue_index"] = 0
+    random_error = apply_prompt_random_collect_or_error([request_data])
+    if random_error:
+        return random_error
+    request_data = prepare_reference_request(request_data, addr, upload=True)
     request_data = prepare_reference_modules_request(request_data, addr, upload=True)
     request_data = prepare_i2i_request(request_data, addr, upload=True)
     try:
         payload = build_prompt_payload(request_data, client_id)
-        dump_path = save_mobile_payload(payload, data)
+        dump_path = save_mobile_payload_data(payload, request_data, data.workflow_mode)
         prompts = build_prompts(request_data)
     except Exception as exc:
         traceback.print_exc()
@@ -1336,6 +1397,7 @@ def generate(
             "official_loras": official_lora_summary(request_data),
             "reference_assist": request_data.get("reference_assist", {"enabled": False}),
             "image_to_image": request_data.get("image_to_image", {"enabled": False}),
+            "prompt_random_collect": request_data.get("prompt_random_collect", {"enabled": False}),
             "anima_shift": request_data.get("model_sampling", {}),
             "shift": request_data.get("shift"),
         },

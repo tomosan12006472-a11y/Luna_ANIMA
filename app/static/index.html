@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>ANIMA 暗室</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.13-character-tools-20260616">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.14-random-collect-20260616">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -112,6 +112,28 @@
           </div>
           <pre id="promptConvertResult" class="printout hidden"></pre>
           <p id="promptConverterStatus" class="hint" aria-live="polite"></p>
+        </details>
+
+        <details class="tray" data-fold="prompt-random" style="margin-top:10px">
+          <summary><h2>Prompt Random Collect</h2><span class="lbl" id="promptRandomSummary">OFF</span></summary>
+          <div class="switchline">
+            <input id="promptRandomEnabled" type="checkbox">
+            <span class="grow">露光直前にQwenでランダムタグを追加する</span>
+          </div>
+          <label class="field"><span class="lbl">ランダム指示</span>
+            <textarea id="promptRandomInstruction" rows="2">衣装、表情、背景、小物をランダムに足す</textarea>
+          </label>
+          <label class="field"><span class="lbl">強さ</span>
+            <select id="promptRandomStrength">
+              <option value="subtle">控えめ</option>
+              <option value="standard" selected>標準</option>
+              <option value="rich">盛る</option>
+            </select>
+          </label>
+          <div class="row">
+            <button type="button" class="ghost" data-action="prompt-random-status">API状態</button>
+          </div>
+          <p id="promptRandomStatus" class="hint" aria-live="polite"></p>
         </details>
 
         <details class="tray" data-fold="scene" style="margin-top:10px">
@@ -521,6 +543,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.10"></script>
-  <script src="/static/app.js?v=v1.13-character-tools-20260616"></script>
+  <script src="/static/app.js?v=v1.14-random-collect-20260616"></script>
 </body>
 </html>
