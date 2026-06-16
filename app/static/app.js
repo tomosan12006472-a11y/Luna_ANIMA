@@ -33,6 +33,7 @@
     },
     armedSlot: "character1",
     favorites: { characters: [], original_characters: [] },
+    characterFavoritesCollapsed: false,
     contactFilter: "all",
     contactSearch: {
       q: "",
@@ -459,6 +460,25 @@
     return "wai_characters";
   }
 
+  function isRandomSlotItem(item) {
+    return String(item?.kind || "").toLowerCase() === "random" || String(item?.value || "").toLowerCase() === "random";
+  }
+
+  function randomSlotItem(slotName = state.armedSlot) {
+    const original = slotName === "original";
+    const displayName = original ? "Original Random" : "Random";
+    return {
+      source: original ? "original_character" : "wai_characters",
+      id: "Random",
+      displayName,
+      originalDisplayName: displayName,
+      promptTag: "",
+      promptSafeName: "",
+      kind: "random",
+      value: "Random",
+    };
+  }
+
   function normalizeCharacterItem(raw = {}) {
     const source = sourceForCharacter(raw);
     const originalDisplayName = String(raw.display_name_original || raw.display_name || raw.name || raw.id || "").trim();
@@ -473,6 +493,7 @@
   }
 
   function valueForSlot(slotName, item) {
+    if (isRandomSlotItem(item)) return "Random";
     if (slotName === "original") return item.id || item.displayName || "None";
     if (item.source === "original_character" || item.kind === "original") {
       return `original:${item.id || item.displayName}`;
@@ -497,6 +518,17 @@
     updateSummaries();
   }
 
+  function slotShortLabel(slotName) {
+    return { character1: "C1", character2: "C2", character3: "C3", original: "ORIGINAL" }[slotName] || slotName;
+  }
+
+  function setRandomSlot(slotName = state.armedSlot) {
+    state.slots[slotName] = randomSlotItem(slotName);
+    renderSlots();
+    updateSummaries();
+    UI.toast(`${slotShortLabel(slotName)} をRandomにしました`);
+  }
+
   function compactSlotName(textValue) {
     const text = String(textValue || "").replace(/\s+/g, " ").trim();
     const limit = 18;
@@ -511,6 +543,7 @@
       const fullName = item?.displayName || EMPTY_SLOT_LABELS[slotName] || "未選択";
       slot.classList.toggle("is-armed", slotName === state.armedSlot);
       slot.classList.toggle("is-empty", !item);
+      slot.classList.toggle("is-random", isRandomSlotItem(item));
       const name = slot.querySelector(".name");
       if (name) {
         name.textContent = compactSlotName(fullName);
@@ -528,6 +561,7 @@
 
   function favoriteMatchesSlot(favorite, slotItem) {
     if (!favorite || !slotItem) return false;
+    if (isRandomSlotItem(slotItem)) return false;
     const fav = normalizeCharacterItem(favorite);
     if (fav.source !== slotItem.source) return false;
     if (fav.source === "original_character") {
@@ -550,6 +584,14 @@
     if (!root) return;
     root.replaceChildren();
     const favorites = allFavorites();
+    text("#favCount", `${favorites.length}件`);
+    const toggle = $("#favToggle");
+    if (toggle) {
+      toggle.textContent = `★ お気に入り ${state.characterFavoritesCollapsed ? "▸" : "▾"}`;
+      toggle.setAttribute("aria-expanded", String(!state.characterFavoritesCollapsed));
+    }
+    root.hidden = Boolean(state.characterFavoritesCollapsed);
+    if (state.characterFavoritesCollapsed) return;
     if (!favorites.length) {
       const empty = document.createElement("span");
       empty.className = "lbl";
@@ -608,6 +650,10 @@
       UI.toast("選択中スロットが空です", "error");
       return;
     }
+    if (isRandomSlotItem(slotItem)) {
+      UI.toast("Randomはお気に入り登録できません", "error");
+      return;
+    }
     const existing = favoriteForSlot();
     if (existing) {
       const data = await api(`/api/favorites/${escapePathSegment(existing.source)}/${escapePathSegment(existing.id)}`, {
@@ -629,6 +675,11 @@
     });
     setFavorites(data);
     UI.toast(data.action === "already_exists" ? "追加済みです" : "お気に入りに追加しました");
+  }
+
+  function toggleCharacterFavorites() {
+    state.characterFavoritesCollapsed = !state.characterFavoritesCollapsed;
+    renderFavorites();
   }
 
   function insertPositivePromptText(insertText) {
@@ -991,7 +1042,8 @@
   }
 
   function recipeAutoName(request) {
-    const character = state.slots.character1?.displayName || request.character1 || "Random";
+    const selectedCharacter = state.slots.character1;
+    const character = selectedCharacter?.displayName || (request.character1 === "None" ? "未選択" : request.character1) || "未選択";
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, "0");
     const mm = String(now.getMinutes()).padStart(2, "0");
@@ -2960,7 +3012,8 @@
 
   function slotItemFromRequest(slotName, rawValue) {
     const raw = String(rawValue || "").trim();
-    if (!raw || raw === "None" || (slotName === "character1" && raw === "Random")) return null;
+    if (!raw || raw === "None") return null;
+    if (raw.toLowerCase() === "random") return randomSlotItem(slotName);
     const original = slotName === "original";
     const display = raw.startsWith("original:") ? raw.slice("original:".length) : raw;
     return {
@@ -2980,7 +3033,7 @@
     const defaultNegative = state.appSettings.default_negative_prompt ?? state.defaults.negative_prompt ?? "";
     return {
       slots: {
-        character1: slotItemFromRequest("character1", req.character1 ?? "Random"),
+        character1: slotItemFromRequest("character1", req.character1 ?? "None"),
         character2: slotItemFromRequest("character2", req.character2 ?? "None"),
         character3: slotItemFromRequest("character3", req.character3 ?? "None"),
         original: slotItemFromRequest("original", req.original_character ?? "None"),
@@ -3300,7 +3353,9 @@
 
   async function handleAction(action, target) {
     if (action === "login") return login();
+    if (action === "random-slot") return setRandomSlot();
     if (action === "clear-slot") return clearSlot();
+    if (action === "toggle-character-favorites") return toggleCharacterFavorites();
     if (action === "toggle-favorite-slot") return toggleFavoriteForArmedSlot();
     if (action === "add-lora") {
       if (!state.loraSelectable.length) await loadLoraCatalog().catch(() => {});
