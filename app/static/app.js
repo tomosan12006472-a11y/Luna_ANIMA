@@ -3010,6 +3010,7 @@
       official_loras: historyOfficialLoras(item.official_loras || {}),
       loras: historyLoras(item.loras || []),
       dynamic_prompt: { enabled: false },
+      prompt_random_collect: historyPromptRandomCollect(item.prompt_random_collect),
       hires_fix: historyHiresFixRequest(item),
       image_to_image: historyImageToImageRequest(item),
       reference_modules: historyReferenceModulesRequest(item),

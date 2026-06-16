@@ -366,8 +366,6 @@ def _prompt_random_collect_summary(request_data: dict[str, Any]) -> dict[str, An
         return None
     generated_item = data.get("generated_item") if isinstance(data.get("generated_item"), dict) else {}
     generated_tags = str(data.get("generated_tags") or generated_item.get("tags") or "").strip()
-    if not generated_tags and not generated_item:
-        return None
     summary: dict[str, Any] = {
         "enabled": True,
         "instruction": str(data.get("instruction") or ""),

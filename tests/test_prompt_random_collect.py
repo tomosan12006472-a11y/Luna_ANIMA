@@ -74,6 +74,23 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertEqual(summary["generated_tags"], "red dress")
         self.assertFalse(summary["include_characters"])
 
+    def test_history_summary_preserves_enabled_config_without_generated_tags(self) -> None:
+        summary = history_store._prompt_random_collect_summary(
+            {
+                "prompt_random_collect": {
+                    "enabled": True,
+                    "instruction": "keep this",
+                    "strength": "bold",
+                    "include_characters": True,
+                }
+            }
+        )
+        self.assertIsNotNone(summary)
+        self.assertTrue(summary["enabled"])
+        self.assertEqual(summary["instruction"], "keep this")
+        self.assertEqual(summary["strength"], "bold")
+        self.assertEqual(summary["generated_tags"], "")
+
     def test_history_detail_enriches_raw_prompt_from_payload(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             payload_path = Path(directory) / "payload.json"
