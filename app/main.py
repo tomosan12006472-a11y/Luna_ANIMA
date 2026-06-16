@@ -428,7 +428,10 @@ def anima_shift_capability(addr: str | None = None, info: dict[str, Any] | None 
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> FileResponse:
-    return FileResponse(ROOT_DIR / "app" / "static" / "index.html")
+    return FileResponse(
+        ROOT_DIR / "app" / "static" / "index.html",
+        headers={"Cache-Control": "no-cache, max-age=0, must-revalidate"},
+    )
 
 
 @app.post("/api/login")
