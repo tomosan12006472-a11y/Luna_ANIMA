@@ -18,6 +18,22 @@
     pose: "Pose参照は未選択です。",
   };
   const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
+  const CHARACTER_FAVORITES_COLLAPSED_KEY = "animaClaudeCharacterFavoritesCollapsedV1";
+
+  function storedBoolean(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === "true") return true;
+      if (raw === "false") return false;
+    } catch {}
+    return fallback;
+  }
+
+  function storeBoolean(key, value) {
+    try {
+      localStorage.setItem(key, String(Boolean(value)));
+    } catch {}
+  }
 
   const state = {
     bootstrap: null,
@@ -33,7 +49,7 @@
     },
     armedSlot: "character1",
     favorites: { characters: [], original_characters: [] },
-    characterFavoritesCollapsed: false,
+    characterFavoritesCollapsed: storedBoolean(CHARACTER_FAVORITES_COLLAPSED_KEY, true),
     contactFilter: "all",
     contactSearch: {
       q: "",
@@ -711,6 +727,7 @@
 
   function toggleCharacterFavorites() {
     state.characterFavoritesCollapsed = !state.characterFavoritesCollapsed;
+    storeBoolean(CHARACTER_FAVORITES_COLLAPSED_KEY, state.characterFavoritesCollapsed);
     renderFavorites();
   }
 

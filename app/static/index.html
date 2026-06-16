@@ -58,7 +58,7 @@
           <input id="charSearch" type="search" placeholder="2b / scathach / 初音 …" autocomplete="off">
         </label>
         <div class="favbar">
-          <button type="button" class="chip fav-toggle" id="favToggle" data-action="toggle-character-favorites" aria-expanded="true">★ お気に入り ▾</button>
+          <button type="button" class="chip fav-toggle" id="favToggle" data-action="toggle-character-favorites" aria-expanded="false">★ お気に入り ▸</button>
           <span class="lbl" id="favCount">0件</span>
         </div>
         <div id="favRow" class="chiprow character-favorites" aria-label="お気に入り"></div>
@@ -379,7 +379,7 @@
         <button type="button" class="chip" data-filter="favorite">★のみ</button>
         <button type="button" class="chip" data-filter="active">現像中</button>
       </div>
-      <details class="contact-search-panel" id="contactSearchPanel">
+      <details class="contact-search-panel" id="contactSearchPanel" data-fold="history-search">
         <summary>履歴検索 <span id="contactSearchBadge" class="search-badge"></span></summary>
         <div class="contact-search-content">
           <label class="search-wide">検索
@@ -387,7 +387,7 @@
           </label>
           <label>from<input id="contactDateFrom" type="date" data-native-control></label>
           <label>to<input id="contactDateTo" type="date" data-native-control></label>
-          <details class="contact-search-details">
+          <details class="contact-search-details" data-fold="history-search-details">
             <summary>詳細条件</summary>
             <div class="contact-search-grid">
               <label>model<input id="contactSearchModel" type="search" autocomplete="off" data-native-control></label>
@@ -546,7 +546,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.10"></script>
-  <script src="/static/app.js?v=v1.15-random-collect-context-20260616"></script>
+  <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
+  <script src="/static/app.js?v=v1.16-fold-prefs-20260617"></script>
 </body>
 </html>
