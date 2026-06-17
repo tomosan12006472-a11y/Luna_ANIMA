@@ -8,7 +8,7 @@ from app.payload_builder import build_prompts
 
 
 BASE_REQUEST = {
-    "character1": "斯卡哈（Fate）",
+    "character1": "scathach (fate)",
     "character2": "None",
     "character3": "None",
     "original_character": "None",
