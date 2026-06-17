@@ -42,6 +42,14 @@ RATING_TAGS: dict[str, str] = {
     "explicit": "explicit",
 }
 
+
+def quality_prompt_for_request(request: dict[str, Any]) -> str:
+    preset = str(request.get("quality_preset") or "standard")
+    overrides = request.get("quality_prompt_overrides")
+    if isinstance(overrides, dict) and preset in overrides:
+        return str(overrides.get(preset) or "").strip()
+    return QUALITY_PRESETS.get(preset, preset).strip()
+
 NEGATIVE_PRESETS: dict[str, str] = {
     "anima_recommended": "score_1, score_2, score_3, watermark, signature, artist name, loli, child, teen, muscular woman, peeing, blood, worst quality, low quality, blurry, jpeg artifacts, sepia",
     "light": "low quality, blurry, bad anatomy",
@@ -603,7 +611,7 @@ def build_prompts(request: dict[str, Any]) -> dict[str, Any]:
     character_tags, character_names, character_meta, natural_parts, natural_names = build_character_parts(request, seed)
     rating = str(request.get("rating") or "safe").lower()
     rating_tag = RATING_TAGS.get(rating, "safe")
-    quality = QUALITY_PRESETS.get(str(request.get("quality_preset") or "standard"), str(request.get("quality_preset") or ""))
+    quality = quality_prompt_for_request(request)
     meta = str(request.get("meta_prompt") or "anime illustration").strip()
     year = str(request.get("year_prompt") or "").strip()
     outfit = str(request.get("outfit_prompt") or "").strip()

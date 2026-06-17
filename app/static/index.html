@@ -85,6 +85,14 @@
           <button type="button" data-quality="high">高品質</button>
           <button type="button" data-quality="character_check">キャラ確認</button>
         </div>
+        <label class="field"><span class="lbl">QUALITY AUTO INSERT</span>
+          <textarea id="qualityPrompt" rows="2" placeholder="masterpiece, best quality ..."></textarea>
+        </label>
+        <div class="row">
+          <button type="button" class="ghost" data-action="save-auto-prompts">自動挿入を保存</button>
+          <span class="hint" id="qualityPromptSummary">DEFAULT</span>
+        </div>
+        <p id="autoPromptStatus" class="hint" aria-live="polite"></p>
         <label class="field"><span class="lbl">POSITIVE</span>
           <textarea id="positivePrompt" rows="3" placeholder="追加のタグや描写"></textarea>
         </label>
@@ -547,6 +555,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.16-fold-prefs-20260617"></script>
+  <script src="/static/app.js?v=v1.17-quality-auto-prompt-20260617"></script>
 </body>
 </html>

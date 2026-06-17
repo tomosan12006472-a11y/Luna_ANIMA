@@ -44,6 +44,7 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
     "negative_prompt_updated_at": None,
     "rating": "safe",
     "quality_preset": "standard",
+    "quality_prompt_overrides": {},
     "negative_preset": "anima_recommended",
     "meta_prompt": "anime illustration",
     "year_prompt": "",
@@ -131,6 +132,8 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
     },
 }
 
+QUALITY_PROMPT_KEYS = {"standard", "high", "character_check"}
+
 
 KNOWN_UPSCALE_MODELS = ["4x-AnimeSharp.pth", "4x-UltraSharp.pth", "4x_foolhardy_Remacri.pth"]
 KNOWN_LATENT_METHODS = ["nearest-exact", "bilinear", "area", "bicubic", "bislerp", "lanczos"]
@@ -175,6 +178,14 @@ def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     if mode not in {"preset", "source", "custom", "append"}:
         mode = "append"
     result["negative_prompt_mode"] = "preset" if mode == "source" else mode
+    raw_quality_overrides = result.get("quality_prompt_overrides")
+    quality_overrides: dict[str, str] = {}
+    if isinstance(raw_quality_overrides, dict):
+        for key, value in raw_quality_overrides.items():
+            clean_key = str(key or "").strip()
+            if clean_key in QUALITY_PROMPT_KEYS:
+                quality_overrides[clean_key] = str(value or "").strip()
+    result["quality_prompt_overrides"] = quality_overrides
     result["shift"] = clamp_float(result.get("shift"), 4.0, 0.0, 100.0)
     hires = result.setdefault("hires_fix", {})
     mode = str(hires.get("mode") or "latent")

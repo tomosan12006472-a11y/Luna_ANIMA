@@ -19,6 +19,11 @@
   };
   const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
   const CHARACTER_FAVORITES_COLLAPSED_KEY = "animaClaudeCharacterFavoritesCollapsedV1";
+  const QUALITY_PROMPTS = Object.freeze({
+    standard: "masterpiece, best quality, score_7",
+    high: "masterpiece, best quality, high quality, highly detailed, score_8, score_7",
+    character_check: "best quality, clean character design, clear face, full body",
+  });
 
   function storedBoolean(key, fallback) {
     try {
@@ -50,6 +55,7 @@
     armedSlot: "character1",
     favorites: { characters: [], original_characters: [] },
     characterFavoritesCollapsed: storedBoolean(CHARACTER_FAVORITES_COLLAPSED_KEY, true),
+    qualityPromptDrafts: {},
     contactFilter: "all",
     contactSearch: {
       q: "",
@@ -406,6 +412,73 @@
     setChecked("#promptRandomIncludeCharacters", config.include_characters !== false);
   }
 
+  function selectedQualityPreset() {
+    return UI.segValue("#qualitySeg", "quality") || "standard";
+  }
+
+  function qualityPromptOverrides(settings = state.appSettings) {
+    const raw = settings?.quality_prompt_overrides;
+    const out = {};
+    if (!raw || typeof raw !== "object") return out;
+    for (const key of Object.keys(QUALITY_PROMPTS)) {
+      if (Object.prototype.hasOwnProperty.call(raw, key)) out[key] = String(raw[key] ?? "");
+    }
+    return out;
+  }
+
+  function qualityPromptForPreset(preset, overrides = qualityPromptOverrides()) {
+    if (Object.prototype.hasOwnProperty.call(overrides, preset)) return String(overrides[preset] ?? "");
+    return QUALITY_PROMPTS[preset] || "";
+  }
+
+  function isCustomQualityPrompt(preset, overrides = mergedQualityPromptDrafts()) {
+    return (
+      Object.prototype.hasOwnProperty.call(overrides, preset) &&
+      String(overrides[preset] ?? "") !== (QUALITY_PROMPTS[preset] || "")
+    );
+  }
+
+  function normalizeQualityPromptOverrides(overrides = {}) {
+    const out = {};
+    for (const key of Object.keys(QUALITY_PROMPTS)) {
+      if (!Object.prototype.hasOwnProperty.call(overrides, key)) continue;
+      const prompt = String(overrides[key] ?? "");
+      if (prompt !== QUALITY_PROMPTS[key]) out[key] = prompt;
+    }
+    return out;
+  }
+
+  function mergedQualityPromptDrafts() {
+    return { ...qualityPromptOverrides(state.appSettings), ...state.qualityPromptDrafts };
+  }
+
+  function renderQualityPrompt() {
+    const preset = selectedQualityPreset();
+    const overrides = mergedQualityPromptDrafts();
+    setValue("#qualityPrompt", qualityPromptForPreset(preset, overrides));
+    text(
+      "#qualityPromptSummary",
+      isCustomQualityPrompt(preset, overrides) ? "CUSTOM" : "DEFAULT"
+    );
+  }
+
+  function updateQualityPromptDraft() {
+    const preset = selectedQualityPreset();
+    const prompt = value("#qualityPrompt", "");
+    state.qualityPromptDrafts[preset] = prompt;
+    text("#autoPromptStatus", "");
+    text("#qualityPromptSummary", prompt === (QUALITY_PROMPTS[preset] || "") ? "DEFAULT" : "CUSTOM");
+    updateSummaries();
+  }
+
+  function collectQualityPromptOverrides() {
+    const preset = selectedQualityPreset();
+    return normalizeQualityPromptOverrides({
+      ...mergedQualityPromptDrafts(),
+      [preset]: value("#qualityPrompt", ""),
+    });
+  }
+
   function collectRequest() {
     const negative = value("#negativePrompt", "");
     const seedMode = value("#seedModeSelect", "fixed");
@@ -428,6 +501,7 @@
       character3_role: "right",
       rating: UI.segValue("#ratingSeg", "rating") || "safe",
       quality_preset: UI.segValue("#qualitySeg", "quality") || "standard",
+      quality_prompt_overrides: collectQualityPromptOverrides(),
       meta_prompt: value("#metaPrompt", "anime illustration"),
       year_prompt: value("#yearPrompt", ""),
       outfit_prompt: value("#outfitPrompt", ""),
@@ -1999,6 +2073,8 @@
     setValue("#queueCount", settings.generation_count || 1);
     UI.setSegValue("#ratingSeg", "rating", settings.rating || "safe");
     UI.setSegValue("#qualitySeg", "quality", settings.quality_preset || "standard");
+    state.qualityPromptDrafts = qualityPromptOverrides(settings);
+    renderQualityPrompt();
 
     const official = settings.official_loras || {};
     setChecked("#officialHighresEnabled", official.highres?.enabled);
@@ -2804,11 +2880,7 @@
     };
   }
 
-  const HISTORY_QUALITY_PROMPTS = {
-    standard: "masterpiece, best quality, score_7",
-    high: "masterpiece, best quality, high quality, highly detailed, score_8, score_7",
-    character_check: "best quality, clean character design, clear face, full body",
-  };
+  const HISTORY_QUALITY_PROMPTS = QUALITY_PROMPTS;
   const HISTORY_RATING_TAGS = {
     safe: "safe",
     sensitive: "sensitive",
@@ -2946,7 +3018,7 @@
 
   function historyGeneratedPositiveParts(item = {}, qualityPreset = "standard") {
     const parts = [
-      HISTORY_QUALITY_PROMPTS[qualityPreset] || HISTORY_QUALITY_PROMPTS.standard,
+      qualityPromptForPreset(qualityPreset, qualityPromptOverrides(item)),
       item.meta_prompt || "anime illustration",
       item.year_prompt || "",
       HISTORY_RATING_TAGS[item.rating || "safe"] || "safe",
@@ -3013,6 +3085,7 @@
       slots,
       rating: item.rating || "safe",
       quality_preset: qualityPreset,
+      quality_prompt_overrides: qualityPromptOverrides(item),
       meta_prompt: item.meta_prompt || "anime illustration",
       year_prompt: item.year_prompt || "",
       outfit_prompt: item.outfit_prompt || "",
@@ -3059,6 +3132,8 @@
     renderSlots();
     UI.setSegValue("#ratingSeg", "rating", data.rating);
     UI.setSegValue("#qualitySeg", "quality", data.quality_preset);
+    state.qualityPromptDrafts = qualityPromptOverrides(data);
+    renderQualityPrompt();
     setValue("#metaPrompt", data.meta_prompt);
     setValue("#yearPrompt", data.year_prompt);
     setValue("#outfitPrompt", data.outfit_prompt);
@@ -3176,6 +3251,7 @@
       },
       rating: req.rating || state.appSettings.rating || "safe",
       quality_preset: req.quality_preset || state.appSettings.quality_preset || "standard",
+      quality_prompt_overrides: qualityPromptOverrides(req),
       meta_prompt: req.meta_prompt ?? state.appSettings.meta_prompt ?? "anime illustration",
       year_prompt: req.year_prompt ?? state.appSettings.year_prompt ?? "",
       outfit_prompt: req.outfit_prompt ?? state.appSettings.outfit_prompt ?? "",
@@ -3229,6 +3305,7 @@
       character3_role: "right",
       rating: data.rating,
       quality_preset: data.quality_preset,
+      quality_prompt_overrides: data.quality_prompt_overrides,
       meta_prompt: item.meta_prompt || "anime illustration",
       year_prompt: item.year_prompt || "",
       outfit_prompt: item.outfit_prompt || "",
@@ -3329,6 +3406,7 @@
       negative_preset: value("#negativePreset", "anima_recommended"),
       rating: UI.segValue("#ratingSeg", "rating") || "safe",
       quality_preset: UI.segValue("#qualitySeg", "quality") || "standard",
+      quality_prompt_overrides: collectQualityPromptOverrides(),
       meta_prompt: value("#metaPrompt", "anime illustration"),
       year_prompt: value("#yearPrompt", ""),
       outfit_prompt: value("#outfitPrompt", ""),
@@ -3349,6 +3427,27 @@
       },
     });
     return next;
+  }
+
+  async function saveAutoPrompts() {
+    const settings = clone(state.appSettings);
+    Object.assign(settings, {
+      quality_preset: selectedQualityPreset(),
+      quality_prompt_overrides: collectQualityPromptOverrides(),
+    });
+    const data = await api("/api/settings", {
+      method: "POST",
+      body: JSON.stringify({
+        settings,
+        mode: "current",
+        reason: "darkroom_frontend_save_auto_prompts",
+      }),
+    });
+    state.appSettings = data.settings;
+    state.qualityPromptDrafts = qualityPromptOverrides(state.appSettings);
+    renderQualityPrompt();
+    text("#autoPromptStatus", "保存しました");
+    UI.toast("自動挿入プロンプトを保存しました");
   }
 
   async function saveDefaults() {
@@ -3540,6 +3639,7 @@
     if (action === "outfit-clear") return clearRefmodImage("outfit");
     if (action === "pose-upload") return uploadRefmodImage("pose");
     if (action === "pose-clear") return clearRefmodImage("pose");
+    if (action === "save-auto-prompts") return saveAutoPrompts();
     if (action === "save-defaults") return saveDefaults();
     if (action === "reset-defaults") return resetDefaults();
     if (action === "reload-models") return reloadModels();
@@ -3547,7 +3647,10 @@
 
   function bindEvents() {
     UI.bindSeg("#ratingSeg", "rating", updateSummaries);
-    UI.bindSeg("#qualitySeg", "quality", updateSummaries);
+    UI.bindSeg("#qualitySeg", "quality", () => {
+      renderQualityPrompt();
+      updateSummaries();
+    });
     UI.onTab((name) => {
       if (name === "contact" && !state.contactLoaded) {
         loadContact(true).catch((error) => UI.toast(errorMessage(error), "error"));
@@ -3582,6 +3685,7 @@
     $("#promptRandomIncludeCharacters")?.addEventListener("change", updateSummaries);
     $("#promptRandomInstruction")?.addEventListener("input", updateSummaries);
     $("#promptRandomStrength")?.addEventListener("change", updateSummaries);
+    $("#qualityPrompt")?.addEventListener("input", updateQualityPromptDraft);
 
     $("#dictQuery")?.addEventListener("input", schedulePromptDictionarySearch);
 
@@ -3749,6 +3853,7 @@
         if (action?.startsWith("outfit-") || action?.startsWith("pose-")) text("#refModStatus", errorMessage(error));
         if (action?.startsWith("prompt-convert")) text("#promptConverterStatus", errorMessage(error));
         if (action?.startsWith("prompt-random")) text("#promptRandomStatus", errorMessage(error));
+        if (action === "save-auto-prompts") text("#autoPromptStatus", errorMessage(error));
         if (["save-defaults", "reset-defaults", "reload-models"].includes(action)) text("#settingsStatus", errorMessage(error));
         if (["save-recipe", "open-recipes"].includes(action)) text("#recipeStatus", errorMessage(error));
         if (["open-queue", "queue-refresh", "queue-interrupt"].includes(action)) text("#queueStatus", errorMessage(error));

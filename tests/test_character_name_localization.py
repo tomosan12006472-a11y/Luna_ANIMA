@@ -41,6 +41,13 @@ class CharacterNameLocalizationTest(unittest.TestCase):
         self.assertNotRegex(prompts["positive"], re.compile(r"[\u3400-\u9fff]"))
         self.assertEqual(prompts["characters"], ["スカサハ（Fate）"])
 
+    def test_quality_prompt_override_replaces_default_quality_tags(self) -> None:
+        request = dict(BASE_REQUEST)
+        request["quality_prompt_overrides"] = {"standard": "custom quality tag, crisp detail"}
+        prompts = build_prompts(request)
+        self.assertIn("custom quality tag, crisp detail", prompts["positive"])
+        self.assertNotIn("masterpiece, best quality, score_7", prompts["positive"])
+
     def test_catalog_search_matches_japanese_display_name(self) -> None:
         items = catalog.search("スカサハ", "all", 5)
         self.assertTrue(items)
