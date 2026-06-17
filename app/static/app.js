@@ -24,6 +24,12 @@
     high: "masterpiece, best quality, high quality, highly detailed, score_8, score_7",
     character_check: "best quality, clean character design, clear face, full body",
   });
+  const RATING_PROMPTS = Object.freeze({
+    safe: "safe",
+    sensitive: "sensitive",
+    nsfw: "nsfw",
+    explicit: "explicit",
+  });
 
   function storedBoolean(key, fallback) {
     try {
@@ -55,6 +61,7 @@
     armedSlot: "character1",
     favorites: { characters: [], original_characters: [] },
     characterFavoritesCollapsed: storedBoolean(CHARACTER_FAVORITES_COLLAPSED_KEY, true),
+    ratingPromptDrafts: {},
     qualityPromptDrafts: {},
     contactFilter: "all",
     contactSearch: {
@@ -416,6 +423,46 @@
     return UI.segValue("#qualitySeg", "quality") || "standard";
   }
 
+  function selectedRatingPreset() {
+    return UI.segValue("#ratingSeg", "rating") || "safe";
+  }
+
+  function ratingPromptOverrides(settings = state.appSettings) {
+    const raw = settings?.rating_prompt_overrides;
+    const out = {};
+    if (!raw || typeof raw !== "object") return out;
+    for (const key of Object.keys(RATING_PROMPTS)) {
+      if (Object.prototype.hasOwnProperty.call(raw, key)) out[key] = String(raw[key] ?? "");
+    }
+    return out;
+  }
+
+  function ratingPromptForPreset(preset, overrides = ratingPromptOverrides()) {
+    if (Object.prototype.hasOwnProperty.call(overrides, preset)) return String(overrides[preset] ?? "");
+    return RATING_PROMPTS[preset] || String(preset || "");
+  }
+
+  function mergedRatingPromptDrafts() {
+    return { ...ratingPromptOverrides(state.appSettings), ...state.ratingPromptDrafts };
+  }
+
+  function isCustomRatingPrompt(preset, overrides = mergedRatingPromptDrafts()) {
+    return (
+      Object.prototype.hasOwnProperty.call(overrides, preset) &&
+      String(overrides[preset] ?? "") !== (RATING_PROMPTS[preset] || "")
+    );
+  }
+
+  function normalizeRatingPromptOverrides(overrides = {}) {
+    const out = {};
+    for (const key of Object.keys(RATING_PROMPTS)) {
+      if (!Object.prototype.hasOwnProperty.call(overrides, key)) continue;
+      const prompt = String(overrides[key] ?? "");
+      if (prompt !== RATING_PROMPTS[key]) out[key] = prompt;
+    }
+    return out;
+  }
+
   function qualityPromptOverrides(settings = state.appSettings) {
     const raw = settings?.quality_prompt_overrides;
     const out = {};
@@ -462,6 +509,16 @@
     );
   }
 
+  function renderRatingPrompt() {
+    const preset = selectedRatingPreset();
+    const overrides = mergedRatingPromptDrafts();
+    setValue("#ratingPrompt", ratingPromptForPreset(preset, overrides));
+    text(
+      "#ratingPromptSummary",
+      isCustomRatingPrompt(preset, overrides) ? "CUSTOM" : "DEFAULT"
+    );
+  }
+
   function updateQualityPromptDraft() {
     const preset = selectedQualityPreset();
     const prompt = value("#qualityPrompt", "");
@@ -471,11 +528,28 @@
     updateSummaries();
   }
 
+  function updateRatingPromptDraft() {
+    const preset = selectedRatingPreset();
+    const prompt = value("#ratingPrompt", "");
+    state.ratingPromptDrafts[preset] = prompt;
+    text("#autoPromptStatus", "");
+    text("#ratingPromptSummary", prompt === (RATING_PROMPTS[preset] || "") ? "DEFAULT" : "CUSTOM");
+    updateSummaries();
+  }
+
   function collectQualityPromptOverrides() {
     const preset = selectedQualityPreset();
     return normalizeQualityPromptOverrides({
       ...mergedQualityPromptDrafts(),
       [preset]: value("#qualityPrompt", ""),
+    });
+  }
+
+  function collectRatingPromptOverrides() {
+    const preset = selectedRatingPreset();
+    return normalizeRatingPromptOverrides({
+      ...mergedRatingPromptDrafts(),
+      [preset]: value("#ratingPrompt", ""),
     });
   }
 
@@ -500,6 +574,7 @@
       character2_role: "left",
       character3_role: "right",
       rating: UI.segValue("#ratingSeg", "rating") || "safe",
+      rating_prompt_overrides: collectRatingPromptOverrides(),
       quality_preset: UI.segValue("#qualitySeg", "quality") || "standard",
       quality_prompt_overrides: collectQualityPromptOverrides(),
       meta_prompt: value("#metaPrompt", "anime illustration"),
@@ -2073,7 +2148,9 @@
     setValue("#queueCount", settings.generation_count || 1);
     UI.setSegValue("#ratingSeg", "rating", settings.rating || "safe");
     UI.setSegValue("#qualitySeg", "quality", settings.quality_preset || "standard");
+    state.ratingPromptDrafts = ratingPromptOverrides(settings);
     state.qualityPromptDrafts = qualityPromptOverrides(settings);
+    renderRatingPrompt();
     renderQualityPrompt();
 
     const official = settings.official_loras || {};
@@ -2126,7 +2203,11 @@
       req.lighting_prompt,
       req.year_prompt,
     ].filter(Boolean);
-    text("#sceneSummary", sceneParts.length ? sceneParts.slice(0, 3).join(" / ") : "—");
+    text("#autoInsertSummary", [
+      req.quality_preset || "standard",
+      req.rating || "safe",
+      ...sceneParts.slice(0, 2),
+    ].filter(Boolean).join(" / ") || "—");
     const negMode = req.negative_prompt_mode || "append";
     const custom = req.negative_prompt ? "+custom" : "no custom";
     text("#negativeSummary", `${req.negative_preset} · ${negMode} · ${custom}`);
@@ -2881,12 +2962,7 @@
   }
 
   const HISTORY_QUALITY_PROMPTS = QUALITY_PROMPTS;
-  const HISTORY_RATING_TAGS = {
-    safe: "safe",
-    sensitive: "sensitive",
-    nsfw: "nsfw",
-    explicit: "explicit",
-  };
+  const HISTORY_RATING_TAGS = RATING_PROMPTS;
   function promptTerms(textValue) {
     return String(textValue || "").split(/,|\n/).map((term) => term.trim()).filter(Boolean);
   }
@@ -3021,7 +3097,7 @@
       qualityPromptForPreset(qualityPreset, qualityPromptOverrides(item)),
       item.meta_prompt || "anime illustration",
       item.year_prompt || "",
-      HISTORY_RATING_TAGS[item.rating || "safe"] || "safe",
+      ratingPromptForPreset(item.rating || "safe", ratingPromptOverrides(item)),
       item.common || "",
       item.outfit_prompt || "",
       item.expression_prompt || "",
@@ -3084,6 +3160,7 @@
     return {
       slots,
       rating: item.rating || "safe",
+      rating_prompt_overrides: ratingPromptOverrides(item),
       quality_preset: qualityPreset,
       quality_prompt_overrides: qualityPromptOverrides(item),
       meta_prompt: item.meta_prompt || "anime illustration",
@@ -3132,7 +3209,9 @@
     renderSlots();
     UI.setSegValue("#ratingSeg", "rating", data.rating);
     UI.setSegValue("#qualitySeg", "quality", data.quality_preset);
+    state.ratingPromptDrafts = ratingPromptOverrides(data);
     state.qualityPromptDrafts = qualityPromptOverrides(data);
+    renderRatingPrompt();
     renderQualityPrompt();
     setValue("#metaPrompt", data.meta_prompt);
     setValue("#yearPrompt", data.year_prompt);
@@ -3250,6 +3329,7 @@
         original: slotItemFromRequest("original", req.original_character ?? "None"),
       },
       rating: req.rating || state.appSettings.rating || "safe",
+      rating_prompt_overrides: ratingPromptOverrides(req),
       quality_preset: req.quality_preset || state.appSettings.quality_preset || "standard",
       quality_prompt_overrides: qualityPromptOverrides(req),
       meta_prompt: req.meta_prompt ?? state.appSettings.meta_prompt ?? "anime illustration",
@@ -3304,6 +3384,7 @@
       character2_role: "left",
       character3_role: "right",
       rating: data.rating,
+      rating_prompt_overrides: data.rating_prompt_overrides,
       quality_preset: data.quality_preset,
       quality_prompt_overrides: data.quality_prompt_overrides,
       meta_prompt: item.meta_prompt || "anime illustration",
@@ -3405,6 +3486,7 @@
       negative_prompt_mode: value("#negativeMode", "append"),
       negative_preset: value("#negativePreset", "anima_recommended"),
       rating: UI.segValue("#ratingSeg", "rating") || "safe",
+      rating_prompt_overrides: collectRatingPromptOverrides(),
       quality_preset: UI.segValue("#qualitySeg", "quality") || "standard",
       quality_prompt_overrides: collectQualityPromptOverrides(),
       meta_prompt: value("#metaPrompt", "anime illustration"),
@@ -3432,8 +3514,19 @@
   async function saveAutoPrompts() {
     const settings = clone(state.appSettings);
     Object.assign(settings, {
+      rating: selectedRatingPreset(),
+      rating_prompt_overrides: collectRatingPromptOverrides(),
       quality_preset: selectedQualityPreset(),
       quality_prompt_overrides: collectQualityPromptOverrides(),
+      meta_prompt: value("#metaPrompt", "anime illustration"),
+      year_prompt: value("#yearPrompt", ""),
+      outfit_prompt: value("#outfitPrompt", ""),
+      expression_prompt: value("#expressionPrompt", ""),
+      pose_prompt: value("#posePrompt", ""),
+      background_prompt: value("#backgroundPrompt", ""),
+      camera_prompt: value("#cameraPrompt", ""),
+      lighting_prompt: value("#lightingPrompt", ""),
+      natural_description: value("#naturalDescription", ""),
     });
     const data = await api("/api/settings", {
       method: "POST",
@@ -3444,7 +3537,9 @@
       }),
     });
     state.appSettings = data.settings;
+    state.ratingPromptDrafts = ratingPromptOverrides(state.appSettings);
     state.qualityPromptDrafts = qualityPromptOverrides(state.appSettings);
+    renderRatingPrompt();
     renderQualityPrompt();
     text("#autoPromptStatus", "保存しました");
     UI.toast("自動挿入プロンプトを保存しました");
@@ -3646,7 +3741,10 @@
   }
 
   function bindEvents() {
-    UI.bindSeg("#ratingSeg", "rating", updateSummaries);
+    UI.bindSeg("#ratingSeg", "rating", () => {
+      renderRatingPrompt();
+      updateSummaries();
+    });
     UI.bindSeg("#qualitySeg", "quality", () => {
       renderQualityPrompt();
       updateSummaries();
@@ -3685,6 +3783,7 @@
     $("#promptRandomIncludeCharacters")?.addEventListener("change", updateSummaries);
     $("#promptRandomInstruction")?.addEventListener("input", updateSummaries);
     $("#promptRandomStrength")?.addEventListener("change", updateSummaries);
+    $("#ratingPrompt")?.addEventListener("input", updateRatingPromptDraft);
     $("#qualityPrompt")?.addEventListener("input", updateQualityPromptDraft);
 
     $("#dictQuery")?.addEventListener("input", schedulePromptDictionarySearch);

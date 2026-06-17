@@ -85,14 +85,6 @@
           <button type="button" data-quality="high">高品質</button>
           <button type="button" data-quality="character_check">キャラ確認</button>
         </div>
-        <label class="field"><span class="lbl">QUALITY AUTO INSERT</span>
-          <textarea id="qualityPrompt" rows="2" placeholder="masterpiece, best quality ..."></textarea>
-        </label>
-        <div class="row">
-          <button type="button" class="ghost" data-action="save-auto-prompts">自動挿入を保存</button>
-          <span class="hint" id="qualityPromptSummary">DEFAULT</span>
-        </div>
-        <p id="autoPromptStatus" class="hint" aria-live="polite"></p>
         <label class="field"><span class="lbl">POSITIVE</span>
           <textarea id="positivePrompt" rows="3" placeholder="追加のタグや描写"></textarea>
         </label>
@@ -148,8 +140,18 @@
           <p id="promptRandomStatus" class="hint" aria-live="polite"></p>
         </details>
 
-        <details class="tray" data-fold="scene" style="margin-top:10px">
-          <summary><h2>シーン指定</h2><span class="lbl" id="sceneSummary">—</span></summary>
+        <details class="tray" data-fold="auto-insert" style="margin-top:10px">
+          <summary><h2>Auto Insert</h2><span class="lbl" id="autoInsertSummary">—</span></summary>
+          <label class="field"><span class="lbl">QUALITY AUTO INSERT</span>
+            <textarea id="qualityPrompt" rows="2" placeholder="masterpiece, best quality ..."></textarea>
+          </label>
+          <label class="field"><span class="lbl">RATING AUTO INSERT</span>
+            <textarea id="ratingPrompt" rows="1" placeholder="safe"></textarea>
+          </label>
+          <div class="row">
+            <span class="hint">QUALITY: <span id="qualityPromptSummary">DEFAULT</span></span>
+            <span class="hint">RATING: <span id="ratingPromptSummary">DEFAULT</span></span>
+          </div>
           <div class="grid2">
             <label class="field"><span class="lbl">OUTFIT</span><input id="outfitPrompt" type="text"></label>
             <label class="field"><span class="lbl">EXPRESSION</span><input id="expressionPrompt" type="text"></label>
@@ -163,6 +165,10 @@
           <label class="field"><span class="lbl">自然文description</span>
             <textarea id="naturalDescription" rows="3"></textarea>
           </label>
+          <div class="row">
+            <button type="button" class="ghost" data-action="save-auto-prompts">自動挿入を保存</button>
+          </div>
+          <p id="autoPromptStatus" class="hint" aria-live="polite"></p>
         </details>
 
         <details class="tray" data-fold="dynamic" style="margin-top:10px">
@@ -555,6 +561,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.17-quality-auto-prompt-20260617"></script>
+  <script src="/static/app.js?v=v1.18-auto-insert-editor-20260617"></script>
 </body>
 </html>

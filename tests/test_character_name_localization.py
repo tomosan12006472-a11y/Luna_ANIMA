@@ -48,6 +48,13 @@ class CharacterNameLocalizationTest(unittest.TestCase):
         self.assertIn("custom quality tag, crisp detail", prompts["positive"])
         self.assertNotIn("masterpiece, best quality, score_7", prompts["positive"])
 
+    def test_rating_prompt_override_replaces_default_rating_tag(self) -> None:
+        request = dict(BASE_REQUEST)
+        request["rating_prompt_overrides"] = {"safe": "family friendly"}
+        prompts = build_prompts(request)
+        self.assertIn("family friendly", prompts["positive"])
+        self.assertNotIn(", safe,", f", {prompts['positive']},")
+
     def test_catalog_search_matches_japanese_display_name(self) -> None:
         items = catalog.search("スカサハ", "all", 5)
         self.assertTrue(items)

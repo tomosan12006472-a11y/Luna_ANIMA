@@ -128,6 +128,7 @@ class GenerateRequest(BaseModel):
     character3_weight: float = 1.0
     original_weight: float = 1.0
     rating: str = "safe"
+    rating_prompt_overrides: dict[str, str] = Field(default_factory=dict)
     quality_preset: str = "standard"
     quality_prompt_overrides: dict[str, str] = Field(default_factory=dict)
     negative_preset: str = "anima_recommended"

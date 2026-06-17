@@ -43,6 +43,7 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
     "negative_prompt_source": "default",
     "negative_prompt_updated_at": None,
     "rating": "safe",
+    "rating_prompt_overrides": {},
     "quality_preset": "standard",
     "quality_prompt_overrides": {},
     "negative_preset": "anima_recommended",
@@ -132,6 +133,7 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
     },
 }
 
+RATING_PROMPT_KEYS = {"safe", "sensitive", "nsfw", "explicit"}
 QUALITY_PROMPT_KEYS = {"standard", "high", "character_check"}
 
 
@@ -178,6 +180,14 @@ def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     if mode not in {"preset", "source", "custom", "append"}:
         mode = "append"
     result["negative_prompt_mode"] = "preset" if mode == "source" else mode
+    raw_rating_overrides = result.get("rating_prompt_overrides")
+    rating_overrides: dict[str, str] = {}
+    if isinstance(raw_rating_overrides, dict):
+        for key, value in raw_rating_overrides.items():
+            clean_key = str(key or "").strip()
+            if clean_key in RATING_PROMPT_KEYS:
+                rating_overrides[clean_key] = str(value or "").strip()
+    result["rating_prompt_overrides"] = rating_overrides
     raw_quality_overrides = result.get("quality_prompt_overrides")
     quality_overrides: dict[str, str] = {}
     if isinstance(raw_quality_overrides, dict):
