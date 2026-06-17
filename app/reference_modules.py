@@ -134,7 +134,7 @@ def _pose_capability(info: dict[str, Any], *, app_scope: str) -> dict[str, Any]:
     auto_available = pose_image_available and bool(preprocessor)
     warnings: list[str] = []
     if app_scope == "anima":
-        warnings.append("ANIMA Pose reference is disabled until a compatible Qwen/AuraFlow/Flux ControlNet route is confirmed.")
+        warnings.append("ANIMA Pose reference is disabled until a compatible image-model ControlNet route is confirmed.")
     if not preprocessor:
         warnings.append("DWPose/OpenPose preprocessor is not available; use a prepared OpenPose-style pose image.")
     if not selected_model:
@@ -178,7 +178,7 @@ def reference_module_capabilities(info: dict[str, Any] | None, *, cache: dict[st
     if presets and default_preset not in presets:
         warnings.append(f"Preferred IP-Adapter preset is not available: {default_preset}")
     if app_scope == "anima":
-        warnings.append("ANIMA outfit reference uses a generic IP-Adapter node; Qwen/AuraFlow compatibility depends on the local ComfyUI setup.")
+        warnings.append("ANIMA outfit reference uses a generic IP-Adapter node; image-model compatibility depends on the local ComfyUI setup.")
     pose_capability = _pose_capability(info, app_scope=app_scope)
     return {
         "reference_modules": {

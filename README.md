@@ -7,7 +7,7 @@ Luna ANIMA is a local darkroom UI for ANIMA-style image generation through Comfy
 - Windows 10/11
 - Python 3.11 or newer
 - ComfyUI running locally
-- Required ANIMA/Qwen model files and ComfyUI custom nodes installed in your ComfyUI environment
+- Required ANIMA image model files and ComfyUI custom nodes installed in your ComfyUI environment
 - Optional: LM Studio, Ollama, or llama.cpp for Japanese-to-English prompt conversion and Prompt Random Collect
 
 ## Setup
