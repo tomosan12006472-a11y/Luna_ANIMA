@@ -16,9 +16,11 @@ PUBLIC_DIR = USER_DATA_DIR / "public"
 SETTINGS_PATH = USER_DATA_DIR / "settings.json"
 FAVORITES_PATH = USER_DATA_DIR / "favorites.json"
 
-SAA_ROOT = Path(os.environ.get("SAA_ROOT", r"D:\AI\character_select_stand_alone_app"))
+CHARACTER_CATALOG_ROOT = Path(os.environ.get("LUNA_CHARACTER_CATALOG_ROOT", str(ROOT_DIR / "config")))
+CHARACTER_CATALOG_WAI_PATH = ROOT_DIR / "config" / "wai_characters.csv"
+CHARACTER_CATALOG_ORIGINAL_PATH = ROOT_DIR / "config" / "original_character.json"
 COMFYUI_ADDR_DEFAULT = os.environ.get("COMFYUI_ADDR", "127.0.0.1:8188")
-APP_PIN = os.environ.get("ANIMA_CLAUDE_PIN", "2197")
+APP_PIN = os.environ.get("LUNA_ANIMA_PIN", os.environ.get("ANIMA_CLAUDE_PIN", "2197"))
 ANIMA_WORKFLOW_PATH = ROOT_DIR / "config" / "workflows" / "anima_base_api.json"
 ANIMA_MAPPING_PATH = ROOT_DIR / "config" / "anima_mapping.json"
 COMFYUI_LORA_DIRS = [

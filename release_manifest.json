@@ -1,0 +1,10 @@
+{
+  "product": "Luna ANIMA",
+  "app_id": "luna-anima",
+  "port": 51031,
+  "entrypoint": "run_luna_anima.bat",
+  "setup": "setup_venv.bat",
+  "user_data_policy": "excluded_from_distribution",
+  "redistribution": "prohibited",
+  "program_modification": "prohibited"
+}

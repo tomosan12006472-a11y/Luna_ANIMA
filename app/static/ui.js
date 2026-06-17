@@ -92,7 +92,7 @@
   }
 
   /* ---------- fold persistence ---------- */
-  const FOLD_KEY = "animaClaudeFoldsV2";
+  const FOLD_KEY = "lunaAnimaFoldsV1";
   function restoreFolds() {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem(FOLD_KEY) || "{}") || {}; } catch {}

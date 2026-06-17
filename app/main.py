@@ -21,7 +21,7 @@ from . import i2i_store
 from . import lora_catalog
 from . import original_characters
 from . import reference_store
-from .config import ANIMA_HIGHRES_LORA_NAME, ANIMA_MAPPING_PATH, ANIMA_TURBO_LORA_V01_NAME, ANIMA_TURBO_LORA_V02_NAME, ANIMA_WORKFLOW_PATH, APP_PIN, COMFYUI_ADDR_DEFAULT, COMFYUI_ANIMA_TEMPLATE_PATH, COMFYUI_LORA_DIRS, MOBILE_PAYLOAD_DIR, ROOT_DIR, SAA_ROOT
+from .config import ANIMA_HIGHRES_LORA_NAME, ANIMA_MAPPING_PATH, ANIMA_TURBO_LORA_V01_NAME, ANIMA_TURBO_LORA_V02_NAME, ANIMA_WORKFLOW_PATH, APP_PIN, CHARACTER_CATALOG_ROOT, COMFYUI_ADDR_DEFAULT, COMFYUI_ANIMA_TEMPLATE_PATH, COMFYUI_LORA_DIRS, MOBILE_PAYLOAD_DIR, ROOT_DIR
 from .dynamic_prompt import expand_dynamic_prompt, list_wildcards
 from .face_detailer import face_detailer_capabilities, sanitize_face_detailer_settings
 from .generation_prepare import (
@@ -97,7 +97,7 @@ class CachedStaticFiles(StaticFiles):
         return response
 
 
-app = FastAPI(title="ANIMA Claude")
+app = FastAPI(title="Luna ANIMA")
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.mount("/static", CachedStaticFiles(directory=ROOT_DIR / "app" / "static"), name="static")
 
@@ -199,7 +199,7 @@ class SettingsRequest(BaseModel):
 
 
 class PublicSaveRequest(BaseModel):
-    apply_watermark: bool = True
+    apply_watermark: bool = False
     watermark: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -455,8 +455,8 @@ def bootstrap(anima_claude_session: str | None = Cookie(default=None)) -> dict[s
     app_settings = load_app_settings()
     return {
         "ok": True,
-        "saa_root": str(SAA_ROOT),
-        "saa_settings": settings,
+        "character_catalog_root": str(CHARACTER_CATALOG_ROOT),
+        "character_select_settings": settings,
         "anima_workflow": str(ANIMA_WORKFLOW_PATH),
         "anima_mapping": str(ANIMA_MAPPING_PATH),
         "catalog_count": len(catalog.wai),
@@ -1763,9 +1763,7 @@ def public_save(history_id: str, data: PublicSaveRequest, anima_claude_session: 
     item = load_history_item(history_id)
     if not item:
         raise HTTPException(status_code=404, detail="history item not found")
-    watermark = dict(data.watermark) if data.apply_watermark else {"enabled": False}
-    watermark["enabled"] = data.apply_watermark
-    public_info = copy_public_image(item, watermark)
+    public_info = copy_public_image(item, {"enabled": False})
     updated = load_history_item(history_id) or item
     public_image_url = updated.get("public_image_url") or public_info.get("url")
     return {
@@ -1781,8 +1779,8 @@ def public_save(history_id: str, data: PublicSaveRequest, anima_claude_session: 
 def health() -> dict[str, Any]:
     return {
         "ok": True,
-        "app": "ANIMA Claude",
-        "saa_root_exists": SAA_ROOT.exists(),
+        "app": "Luna ANIMA",
+        "character_catalog_root_exists": CHARACTER_CATALOG_ROOT.exists(),
         "catalog_count": len(catalog.wai),
         "custom_count": len(catalog.custom),
     }
@@ -1889,8 +1887,8 @@ def diagnostics(anima_claude_session: str | None = Cookie(default=None)) -> dict
     return {
         "ok": True,
         "diagnostics_mode": "light",
-        "saa_root": str(SAA_ROOT),
-        "saa_root_exists": SAA_ROOT.exists(),
+        "character_catalog_root": str(CHARACTER_CATALOG_ROOT),
+        "character_catalog_root_exists": CHARACTER_CATALOG_ROOT.exists(),
         "catalog_count": len(catalog.wai),
         "custom_count": len(catalog.custom),
         "original_count": len(catalog.original),
@@ -1929,8 +1927,8 @@ def diagnostics_full(anima_claude_session: str | None = Cookie(default=None)) ->
     return {
         "ok": True,
         "diagnostics_mode": "full",
-        "saa_root": str(SAA_ROOT),
-        "saa_root_exists": SAA_ROOT.exists(),
+        "character_catalog_root": str(CHARACTER_CATALOG_ROOT),
+        "character_catalog_root_exists": CHARACTER_CATALOG_ROOT.exists(),
         "catalog_count": len(catalog.wai),
         "custom_count": len(catalog.custom),
         "original_count": len(catalog.original),

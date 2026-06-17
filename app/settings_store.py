@@ -67,15 +67,15 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
     },
     "selected_character_mode": "single",
     "watermark": {
-        "enabled": True,
-        "text": "@Luna_AIart_",
+        "enabled": False,
+        "text": "",
         "position": "bottom_right",
-        "opacity": 0.72,
+        "opacity": 0.0,
         "size": 36,
         "margin": 28,
     },
     "public_save": {
-        "apply_watermark": True,
+        "apply_watermark": False,
     },
     "hires_fix": {
         "enabled": False,

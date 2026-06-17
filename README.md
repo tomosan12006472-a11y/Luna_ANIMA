@@ -1,39 +1,47 @@
-# ANIMA Claude
+# Luna ANIMA
 
-ANIMA Claude is a separate darkroom-style FastAPI app for driving the existing ANIMA workflow without replacing ANIMA_MobilePanel. It runs on port `51031`, so it can run alongside the original ANIMA_MobilePanel service.
+Luna ANIMA is a local darkroom UI for ANIMA-style image generation through ComfyUI.
+
+## What You Need
+
+- Windows 10/11
+- Python 3.11 or newer
+- ComfyUI running locally
+- Required ANIMA/Qwen model files and ComfyUI custom nodes installed in your ComfyUI environment
+- Optional: LM Studio, Ollama, or llama.cpp for Japanese-to-English prompt conversion and Prompt Random Collect
 
 ## Setup
 
 ```bat
-cd /d D:\AI\ANIMA_claude
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+cd /d path\to\Luna_ANIMA
+setup_venv.bat
 ```
 
 ## Launch
 
 ```bat
-run_anima_claude.bat
+run_luna_anima.bat
 ```
 
-Open `http://127.0.0.1:51031/`.
+Open:
 
-## Auth
+- http://127.0.0.1:51031/
 
-The default PIN is `2197`.
+Default PIN:
 
-To override it:
+- `2197`
+
+To change the PIN:
 
 ```bat
-set ANIMA_CLAUDE_PIN=1234
-run_anima_claude.bat
+set LUNA_ANIMA_PIN=1234
+run_luna_anima.bat
 ```
 
-The session cookie name is `anima_claude_session`.
+## Notes
 
-## References
-
-- Character catalog source: SAA CSV under `SAA_ROOT`.
-- ComfyUI API: `127.0.0.1:8188` by default via `COMFYUI_ADDR`.
-- ANIMA workflow: `config/workflows/anima_base_api.json`.
-- ANIMA mapping: `config/anima_mapping.json`.
+- Generated images, history, recipes, favorites, uploaded references, and settings are stored under `user_data`.
+- `user_data` is intentionally not included in distribution packages.
+- The character catalog is bundled under `config`. A legacy external catalog can still be used with `LUNA_CHARACTER_CATALOG_ROOT`.
+- ComfyUI API defaults to `127.0.0.1:8188`. Override it with `COMFYUI_ADDR`.
+- Redistribution and program modification are prohibited. See `LUNA_DISTRIBUTION_TERMS.md`.

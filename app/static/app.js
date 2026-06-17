@@ -18,7 +18,7 @@
     pose: "Pose参照は未選択です。",
   };
   const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
-  const CHARACTER_FAVORITES_COLLAPSED_KEY = "animaClaudeCharacterFavoritesCollapsedV1";
+  const CHARACTER_FAVORITES_COLLAPSED_KEY = "lunaAnimaCharacterFavoritesCollapsedV1";
   const QUALITY_PROMPTS = Object.freeze({
     standard: "masterpiece, best quality, score_7",
     high: "masterpiece, best quality, high quality, highly detailed, score_8, score_7",
@@ -2105,23 +2105,11 @@
   }
 
   function collectWatermark() {
-    const previous = state.appSettings?.watermark || {};
-    return {
-      ...previous,
-      enabled: checked("#watermarkEnabled"),
-      text: value("#watermarkText", "@Luna_AIart_"),
-      position: value("#watermarkPosition", "bottom_right"),
-      opacity: numberValue("#watermarkOpacity", 0.72),
-      size: numberValue("#watermarkSize", 36),
-    };
+    return { enabled: false };
   }
 
-  function applyWatermark(watermark = {}) {
-    setChecked("#watermarkEnabled", watermark.enabled !== false);
-    setValue("#watermarkText", watermark.text || "@Luna_AIart_");
-    setValue("#watermarkPosition", watermark.position || "bottom_right");
-    setValue("#watermarkOpacity", watermark.opacity ?? 0.72);
-    setValue("#watermarkSize", watermark.size ?? 36);
+  function applyWatermark() {
+    state.appSettings = { ...state.appSettings, watermark: { enabled: false } };
   }
 
   function applySettingsToForm(settings = {}, defaults = state.defaults) {
@@ -2817,8 +2805,8 @@
     const data = await api(`/api/history/${escapePathSegment(state.detailItem.id)}/public-save`, {
       method: "POST",
       body: JSON.stringify({
-        apply_watermark: checked("#watermarkEnabled"),
-        watermark: collectWatermark(),
+        apply_watermark: false,
+        watermark: { enabled: false },
       }),
     });
     state.detailItem = data.item || state.detailItem;
@@ -3502,10 +3490,10 @@
       loras: collectLoras(),
       prompt_random_collect: collectPromptRandomCollect(),
       hires_fix: hiresFix,
-      watermark: collectWatermark(),
+      watermark: { enabled: false },
       public_save: {
         ...(next.public_save || {}),
-        apply_watermark: checked("#watermarkEnabled"),
+        apply_watermark: false,
       },
     });
     return next;
@@ -3576,6 +3564,7 @@
     if (table) {
       table.replaceChildren();
       addMetaRow(table, "API_ADDR", data.api_addr || "-");
+      addMetaRow(table, "CHARACTER_CATALOG", data.character_catalog_root_exists ? "built-in/fallback found" : "missing");
       addMetaRow(table, "WORKFLOW", data.anima_workflow_found ? "found" : "missing");
       addMetaRow(table, "MAPPING", data.anima_mapping_found ? "found" : "missing");
       addMetaRow(table, "MODELS_CACHE", data.models_cache || {});
@@ -3964,16 +3953,10 @@
     });
 
     document.addEventListener("input", (event) => {
-      if (event.target.closest("#settingsSheet")) {
-        state.appSettings = { ...state.appSettings, watermark: collectWatermark() };
-      }
       if (event.target.closest("#exposeView") || event.target.closest("#exposeBar")) updateSummaries();
     });
 
     document.addEventListener("change", (event) => {
-      if (event.target.closest("#settingsSheet")) {
-        state.appSettings = { ...state.appSettings, watermark: collectWatermark() };
-      }
       if (event.target.closest("#exposeView") || event.target.closest("#exposeBar")) updateSummaries();
     });
   }

@@ -72,7 +72,7 @@ def prompt_random_collect_status(app_settings: Any) -> dict[str, Any]:
 
 
 def _system_prompt(app_scope: str) -> str:
-    scope = "ANIMA" if app_scope == "anima" else "SAA"
+    scope = "Luna ANIMA" if app_scope == "anima" else "Luna SDXL"
     return (
         "You are a prompt randomization engine for anime image generation. "
         f"The target app is {scope}. Generate extra positive prompt tags for each queued image. "

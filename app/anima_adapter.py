@@ -8,7 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from .character_names import character_entry_payload, localized_search_text
-from .config import ROOT_DIR, SAA_ROOT
+from .config import (
+    CHARACTER_CATALOG_ORIGINAL_PATH,
+    CHARACTER_CATALOG_ROOT,
+    CHARACTER_CATALOG_WAI_PATH,
+    ROOT_DIR,
+)
 from .original_characters import load_original_characters as load_original_character_presets
 
 
@@ -40,6 +45,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 }
 
 CUSTOM_CHARACTER_TAGS_PATH = ROOT_DIR / "config" / "custom_character_tags.json"
+
+
+def _existing_path(*paths: Path) -> Path | None:
+    for path in paths:
+        if path.exists():
+            return path
+    return None
 
 
 @dataclass(frozen=True)
@@ -75,8 +87,11 @@ class CharacterEntry:
 
 def load_settings() -> dict[str, Any]:
     settings = dict(DEFAULT_SETTINGS)
-    path = SAA_ROOT / "settings" / "settings.json"
-    if path.exists():
+    path = _existing_path(
+        ROOT_DIR / "config" / "character_select_settings.json",
+        CHARACTER_CATALOG_ROOT / "settings" / "settings.json",
+    )
+    if path:
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
             for key, value in raw.items():
@@ -88,8 +103,11 @@ def load_settings() -> dict[str, Any]:
 
 
 def load_wai_characters() -> list[CharacterEntry]:
-    path = SAA_ROOT / "data" / "wai_characters.csv"
+    path = _existing_path(CHARACTER_CATALOG_WAI_PATH, CHARACTER_CATALOG_ROOT / "data" / "wai_characters.csv")
     entries: list[CharacterEntry] = []
+    if not path:
+        return entries
+    source = "luna_character_catalog" if path == CHARACTER_CATALOG_WAI_PATH else "legacy_character_catalog"
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         for row in csv.reader(handle):
             if len(row) < 2:
@@ -97,7 +115,7 @@ def load_wai_characters() -> list[CharacterEntry]:
             display_name = row[0].strip()
             prompt_tag = row[1].strip()
             if display_name and prompt_tag:
-                entries.append(CharacterEntry(display_name, prompt_tag, "wai", source="saa_csv"))
+                entries.append(CharacterEntry(display_name, prompt_tag, "wai", source=source))
     return entries
 
 
@@ -159,8 +177,8 @@ def load_original_characters() -> list[CharacterEntry]:
         )
         entries.append(entry)
         seen.update(value for value in [entry.id, entry.display_name] if value)
-    path = SAA_ROOT / "data" / "original_character.json"
-    if not path.exists():
+    path = _existing_path(CHARACTER_CATALOG_ORIGINAL_PATH, CHARACTER_CATALOG_ROOT / "data" / "original_character.json")
+    if not path:
         return entries
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))

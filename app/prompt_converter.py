@@ -218,7 +218,7 @@ def _ensure_ready(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _system_prompt(app_scope: str) -> str:
-    scope = "ANIMA" if app_scope == "anima" else "SAA"
+    scope = "Luna ANIMA" if app_scope == "anima" else "Luna SDXL"
     return (
         "You are a prompt conversion engine for anime image generation. "
         f"The target app is {scope}. Convert Japanese or mixed-language source text into English prompts. "
