@@ -14,9 +14,46 @@ function Copy-LunaPackage {
   )
 
   New-Item -ItemType Directory -Force -Path $StageRoot | Out-Null
-  foreach ($name in @('app', 'config')) {
-    Copy-Item -LiteralPath (Join-Path $SourceRoot $name) -Destination (Join-Path $StageRoot $name) -Recurse -Force
+  Copy-Item -LiteralPath (Join-Path $SourceRoot 'app') -Destination (Join-Path $StageRoot 'app') -Recurse -Force
+
+  $sourceConfig = Join-Path $SourceRoot 'config'
+  $stageConfig = Join-Path $StageRoot 'config'
+  New-Item -ItemType Directory -Force -Path $stageConfig | Out-Null
+  foreach ($name in @(
+    'anima_mapping.json',
+    'character_display_names_ja.json',
+    'custom_character_tags.json',
+    'wai_characters.csv'
+  )) {
+    $path = Join-Path $sourceConfig $name
+    if (Test-Path -LiteralPath $path) {
+      Copy-Item -LiteralPath $path -Destination (Join-Path $stageConfig $name) -Force
+    }
   }
+  $wildcards = Join-Path $sourceConfig 'dynamic_prompt_wildcards'
+  if (Test-Path -LiteralPath $wildcards) {
+    Copy-Item -LiteralPath $wildcards -Destination (Join-Path $stageConfig 'dynamic_prompt_wildcards') -Recurse -Force
+  }
+  $workflow = Join-Path $sourceConfig 'workflows\anima_base_api.json'
+  if (Test-Path -LiteralPath $workflow) {
+    $stageWorkflows = Join-Path $stageConfig 'workflows'
+    New-Item -ItemType Directory -Force -Path $stageWorkflows | Out-Null
+    Copy-Item -LiteralPath $workflow -Destination (Join-Path $stageWorkflows 'anima_base_api.json') -Force
+  }
+  Set-Content -LiteralPath (Join-Path $stageConfig 'original_character.json') -Encoding utf8 -Value '{}'
+  Set-Content -LiteralPath (Join-Path $stageConfig 'positive_prompt_templates.json') -Encoding utf8 -Value @'
+{
+  "version": 1,
+  "source": "luna_distribution",
+  "source_note": "Distribution packages intentionally start with no bundled positive prompt templates. Save your own favorites and templates locally.",
+  "count": 0,
+  "excluded_count": 0,
+  "source_mismatch_count": 0,
+  "categories": [],
+  "items": []
+}
+'@
+
   foreach ($name in @(
     'requirements.txt',
     'README.md',
@@ -83,6 +120,8 @@ Default local URLs:
 
 - Luna ANIMA: http://127.0.0.1:51031/
 - Luna SDXL: http://127.0.0.1:51032/
+
+Model files, LoRA files, LoRA trigger-word catalogs, personal Original character presets, and personal positive prompt templates are not included.
 
 Redistribution and program modification are prohibited. See each app folder for the detailed terms.
 '@

@@ -16,6 +16,8 @@ Install third-party Python packages from `requirements.txt`. Each dependency is 
 
 Image generation requires a local ComfyUI installation and compatible model files, LoRA files, and custom nodes. These are not included in this package.
 
+LoRA trigger-word catalogs, personal Original character presets, and personal positive prompt templates are not included. The app can only display or use LoRA metadata discovered from the user's own local ComfyUI environment or settings.
+
 ## Character Catalog Data
 
 The bundled character catalog is derived from compatible character tag datasets and Japanese display-name mapping data that were reviewed before import. The catalog is included to make Luna ANIMA usable without a separate external character-select app.

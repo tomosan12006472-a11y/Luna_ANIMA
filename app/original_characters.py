@@ -10,19 +10,7 @@ from .config import USER_DATA_DIR
 
 ORIGINAL_CHARACTERS_PATH = USER_DATA_DIR / "original_characters.json"
 
-DEFAULT_ORIGINAL_CHARACTERS: list[dict[str, Any]] = [
-    {
-        "id": "remy",
-        "display_name": "Remy",
-        "source": "original_character",
-        "trigger_words": ["remy", "red eyes", "long white hair"],
-        "positive_tags": ["remy", "red eyes", "long white hair"],
-        "identity_prompt": "Remy is an original anime-style character with long white hair and red eyes.",
-        "negative_guard": "different character, wrong hair color, wrong eye color, short hair, black hair, blue eyes",
-        "default_lora": None,
-        "favorite": True,
-    }
-]
+DEFAULT_ORIGINAL_CHARACTERS: list[dict[str, Any]] = []
 
 
 def now_iso() -> str:
