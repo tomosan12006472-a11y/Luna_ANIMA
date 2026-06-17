@@ -2828,6 +2828,7 @@
       body: JSON.stringify({
         apply_watermark: checked("#watermarkEnabled"),
         watermark: collectWatermark(),
+        watermark_client: "current",
       }),
     });
     state.detailItem = data.item || state.detailItem;

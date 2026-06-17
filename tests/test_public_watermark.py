@@ -7,6 +7,7 @@ import unittest
 from PIL import Image, ImageChops
 
 from app import history_store
+from app import main
 
 
 class PublicWatermarkTests(unittest.TestCase):
@@ -45,6 +46,27 @@ class PublicWatermarkTests(unittest.TestCase):
         self.assertTrue(item["watermark"]["applied"])
         with Image.open(source).convert("RGB") as original, Image.open(output).convert("RGB") as watermarked:
             self.assertIsNotNone(ImageChops.difference(original, watermarked).getbbox())
+
+    def test_legacy_public_save_request_uses_saved_watermark_settings(self) -> None:
+        watermark = main.resolve_public_save_watermark(
+            main.PublicSaveRequest(apply_watermark=False, watermark={"enabled": False}),
+            {
+                "watermark": {"enabled": True, "text": "@Saved", "position": "top_left", "opacity": 0.5, "size": 24},
+                "public_save": {"apply_watermark": True},
+            },
+        )
+        self.assertTrue(watermark["enabled"])
+        self.assertEqual(watermark["text"], "@Saved")
+
+    def test_current_public_save_request_can_disable_watermark(self) -> None:
+        watermark = main.resolve_public_save_watermark(
+            main.PublicSaveRequest(apply_watermark=False, watermark={"enabled": False}, watermark_client="current"),
+            {
+                "watermark": {"enabled": True, "text": "@Saved"},
+                "public_save": {"apply_watermark": True},
+            },
+        )
+        self.assertFalse(watermark["enabled"])
 
 
 if __name__ == "__main__":
