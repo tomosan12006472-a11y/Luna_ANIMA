@@ -39,6 +39,22 @@ def backup_broken_favorites() -> None:
     shutil.move(str(FAVORITES_PATH), str(backup))
 
 
+def current_favorite_display_name(source: str, item: dict[str, Any], fallback_id: str) -> str:
+    prompt_tag = str(item.get("prompt_tag") or "").strip()
+    if source == "original_character":
+        value = str(item.get("id") or item.get("display_name") or item.get("name") or "").strip()
+        entry = catalog.original_by_id.get(value) or catalog.original_by_display.get(value)
+        if not entry and prompt_tag:
+            entry = next((candidate for candidate in catalog.original if candidate.prompt_tag == prompt_tag), None)
+        if entry:
+            return entry.display_name
+    elif prompt_tag:
+        entry = catalog.by_prompt.get(prompt_tag)
+        if entry:
+            return entry.display_name
+    return str(item.get("display_name") or item.get("name") or fallback_id)
+
+
 def normalize_favorites(raw: Any) -> dict[str, list[dict[str, Any]]]:
     data = empty_favorites()
     if not isinstance(raw, dict):
@@ -57,12 +73,13 @@ def normalize_favorites(raw: Any) -> dict[str, list[dict[str, Any]]]:
             if source not in FAVORITE_SOURCES or dedupe in seen:
                 continue
             seen.add(dedupe)
+            display_name = current_favorite_display_name(source, item, favorite_id)
             data[key].append(
                 {
                     "source": source,
                     "id": favorite_id,
-                    "name": str(item.get("name") or item.get("display_name") or favorite_id),
-                    "display_name": str(item.get("display_name") or item.get("name") or favorite_id),
+                    "name": display_name,
+                    "display_name": display_name,
                     "prompt_tag": str(item.get("prompt_tag") or ""),
                     "category": str(item.get("category") or ""),
                     "note": str(item.get("note") or ""),

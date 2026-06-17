@@ -657,6 +657,14 @@
     return "wai_characters";
   }
 
+  function containsCjkText(textValue) {
+    return /[\u3400-\u9fff\uf900-\ufaff]/.test(String(textValue || ""));
+  }
+
+  function containsKanaText(textValue) {
+    return /[\u3040-\u30ff]/.test(String(textValue || ""));
+  }
+
   function isRandomSlotItem(item) {
     return String(item?.kind || "").toLowerCase() === "random" || String(item?.value || "").toLowerCase() === "random";
   }
@@ -680,11 +688,12 @@
     const source = sourceForCharacter(raw);
     const originalDisplayName = String(raw.display_name_original || raw.display_name || raw.name || raw.id || "").trim();
     const localizedDisplayName = String(raw.display_name_ja || raw.localized_display_name || raw.displayNameJa || "").trim();
-    const fallbackDisplayName = String(raw.displayName || originalDisplayName).trim();
-    const displayName = localizedDisplayName || fallbackDisplayName;
-    const id = String(raw.id || originalDisplayName || displayName).trim();
     const promptTag = String(raw.prompt_tag || raw.promptTag || "").trim();
     const promptSafeName = String(raw.prompt_safe_name || raw.promptSafeName || "").trim();
+    const fallbackDisplayName = String(raw.displayName || originalDisplayName).trim();
+    const legacyCjkDisplay = source !== "original_character" && promptSafeName && containsCjkText(fallbackDisplayName) && !containsKanaText(fallbackDisplayName);
+    const displayName = localizedDisplayName || (legacyCjkDisplay ? promptSafeName : fallbackDisplayName) || promptSafeName || promptTag;
+    const id = String(raw.id || originalDisplayName || displayName).trim();
     const kind = raw.kind || (source === "original_character" ? "original" : "wai");
     return { source, id, displayName, originalDisplayName, promptTag, promptSafeName, kind };
   }
@@ -3283,10 +3292,11 @@
     if (raw.toLowerCase() === "random") return randomSlotItem(slotName);
     const original = slotName === "original";
     const display = raw.startsWith("original:") ? raw.slice("original:".length) : raw;
+    const displayName = !original && containsCjkText(display) && !containsKanaText(display) ? "Legacy character" : display;
     return {
       source: original ? "original_character" : "wai_characters",
       id: display,
-      displayName: display,
+      displayName,
       originalDisplayName: display,
       promptTag: "",
       kind: original ? "original" : "wai",

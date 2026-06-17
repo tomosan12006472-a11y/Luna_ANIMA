@@ -4,6 +4,8 @@ import re
 import unittest
 
 from app.anima_adapter import catalog
+from app.favorites_store import normalize_favorites
+from app.history_store import normalize_history_item
 from app.payload_builder import build_prompts
 
 
@@ -60,6 +62,44 @@ class CharacterNameLocalizationTest(unittest.TestCase):
         self.assertTrue(items)
         self.assertEqual(items[0]["prompt_tag"], "scathach (fate)")
         self.assertEqual(items[0]["display_name_ja"], "スカサハ（Fate）")
+
+    def test_legacy_favorite_display_name_uses_current_catalog(self) -> None:
+        data = normalize_favorites(
+            {
+                "characters": [
+                    {
+                        "source": "wai_characters",
+                        "id": "legacy_scathach",
+                        "name": "斯卡哈（Fate）",
+                        "display_name": "斯卡哈（Fate）",
+                        "prompt_tag": "scathach (fate)",
+                    }
+                ]
+            }
+        )
+        self.assertEqual(data["characters"][0]["name"], "スカサハ（Fate）")
+        self.assertEqual(data["characters"][0]["display_name"], "スカサハ（Fate）")
+
+    def test_legacy_history_character_display_name_uses_current_catalog(self) -> None:
+        item = normalize_history_item(
+            {
+                "id": "legacy_history",
+                "characters": [
+                    {
+                        "slot": 1,
+                        "source": "saa_csv",
+                        "id": "斯卡哈（Fate）",
+                        "display_name": "斯卡哈（Fate）",
+                        "prompt_tag": "scathach (fate)",
+                    }
+                ],
+                "character_names": ["斯卡哈（Fate）"],
+            }
+        )
+        self.assertEqual(item["characters"][0]["display_name"], "スカサハ（Fate）")
+        self.assertEqual(item["characters"][0]["display_name_ja"], "スカサハ（Fate）")
+        self.assertEqual(item["characters"][0]["display_name_original"], "斯卡哈（Fate）")
+        self.assertEqual(item["character_names"], ["スカサハ（Fate）"])
 
     def test_external_character_catalog_search_and_prompt(self) -> None:
         items = catalog.search("光の戦士", "all", 5)

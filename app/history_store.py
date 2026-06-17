@@ -14,6 +14,7 @@ from typing import Any
 from PIL import Image
 
 from ._shared_utils import write_json_atomic
+from .anima_adapter import catalog
 from .config import HISTORY_DIR, IMAGE_DIR, PUBLIC_DIR, THUMBNAIL_DIR
 from .output_organizer import infer_anima_generation_method, organization_metadata
 from .payload_builder import compute_hires_size, official_lora_summary
@@ -63,12 +64,64 @@ def load_history_item(history_id: str) -> dict[str, Any] | None:
     return normalize_history_item(item)
 
 
+def _history_character_catalog_entry(char: dict[str, Any]) -> Any:
+    prompt_tag = str(char.get("prompt_tag") or "").strip()
+    source = str(char.get("source") or "")
+    role = str(char.get("role") or "")
+    kind = str(char.get("kind") or "")
+    value = str(char.get("id") or char.get("display_name") or char.get("name") or "").strip()
+    is_original = source == "original_character" or role == "original" or kind == "original"
+    if is_original:
+        entry = catalog.original_by_id.get(value) or catalog.original_by_display.get(value)
+        if not entry and prompt_tag:
+            entry = next((candidate for candidate in catalog.original if candidate.prompt_tag == prompt_tag), None)
+        return entry
+    if prompt_tag:
+        entry = catalog.by_prompt.get(prompt_tag)
+        if entry:
+            return entry
+    return catalog.by_display.get(value) or catalog.by_prompt.get(value)
+
+
+def normalize_history_characters(item: dict[str, Any]) -> None:
+    characters = item.get("characters")
+    if not isinstance(characters, list):
+        return
+    normalized: list[Any] = []
+    names: list[str] = []
+    for char in characters:
+        if not isinstance(char, dict):
+            normalized.append(char)
+            text = str(char or "").strip()
+            if text:
+                names.append(text)
+            continue
+        data = dict(char)
+        original_display = str(data.get("display_name_original") or data.get("display_name") or data.get("name") or data.get("id") or "").strip()
+        entry = _history_character_catalog_entry(data)
+        if entry:
+            data.setdefault("display_name_original", original_display)
+            data["display_name"] = entry.display_name
+            data["name"] = entry.display_name
+            data["display_name_ja"] = entry.display_name
+            data["prompt_tag"] = data.get("prompt_tag") or entry.prompt_tag
+            data.setdefault("prompt_safe_name", "")
+        normalized.append(data)
+        display = str(data.get("display_name_ja") or data.get("display_name") or data.get("name") or "").strip()
+        if display:
+            names.append(display)
+    item["characters"] = normalized
+    if names:
+        item["character_names"] = names
+
+
 def normalize_history_item(item: dict[str, Any]) -> dict[str, Any]:
     history_id = str(item.get("id") or "")
     image_path = Path(str(item.get("image_path") or ""))
     thumb_path = Path(str(item.get("thumbnail_path") or ""))
     has_images = bool(item.get("image_path") and item.get("thumbnail_path") and image_path.exists() and thumb_path.exists())
     item["status"] = str(item.get("status") or ("completed" if has_images else "queued"))
+    normalize_history_characters(item)
     if history_id:
         item["image_url"] = f"/api/history/{history_id}/image" if has_images else None
         item["thumbnail_url"] = f"/api/history/{history_id}/thumbnail" if has_images else None
