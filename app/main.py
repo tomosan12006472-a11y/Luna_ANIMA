@@ -1763,7 +1763,9 @@ def public_save(history_id: str, data: PublicSaveRequest, anima_claude_session: 
     item = load_history_item(history_id)
     if not item:
         raise HTTPException(status_code=404, detail="history item not found")
-    public_info = copy_public_image(item, {"enabled": False})
+    watermark = dict(data.watermark) if data.apply_watermark else {"enabled": False}
+    watermark["enabled"] = data.apply_watermark
+    public_info = copy_public_image(item, watermark)
     updated = load_history_item(history_id) or item
     public_image_url = updated.get("public_image_url") or public_info.get("url")
     return {

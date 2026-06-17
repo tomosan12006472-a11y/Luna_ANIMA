@@ -11,7 +11,7 @@ import time
 import uuid
 from typing import Any
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from ._shared_utils import write_json_atomic
 from .anima_adapter import catalog
@@ -690,11 +690,22 @@ def update_pending_history_status(history_id: str, status: str, error: str | Non
     return normalize_history_item(item)
 
 
-def public_save_settings_hash(source: Path) -> str:
+def public_save_settings_hash(source: Path, apply_watermark: bool, watermark: dict[str, Any] | None) -> str:
     source_stat = source.stat()
+    watermark_payload = {}
+    if apply_watermark:
+        watermark_payload = {
+            "text": str((watermark or {}).get("text", "")),
+            "position": str((watermark or {}).get("position", "bottom_right")),
+            "opacity": float((watermark or {}).get("opacity", 0.72)),
+            "size": int((watermark or {}).get("size", 36)),
+            "margin": int((watermark or {}).get("margin", 28)),
+        }
     payload = {
         "source_mtime_ns": source_stat.st_mtime_ns,
         "source_size_bytes": source_stat.st_size,
+        "apply_watermark": apply_watermark,
+        "watermark": watermark_payload,
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -713,11 +724,11 @@ def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = N
     source = Path(item["image_path"])
     if not source.exists():
         raise FileNotFoundError("source image is missing")
-    _ = watermark
-    suffix = "_public"
+    apply_watermark = bool(watermark and watermark.get("enabled", False))
+    suffix = "_wm" if apply_watermark else "_public"
     output = PUBLIC_DIR / f"{item['id']}{suffix}{source.suffix or '.png'}"
     source_stat = source.stat()
-    settings_hash = public_save_settings_hash(source)
+    settings_hash = public_save_settings_hash(source, apply_watermark, watermark)
     existing = item.get("public_save") if isinstance(item.get("public_save"), dict) else {}
     cached = (
         output.exists()
@@ -726,7 +737,12 @@ def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = N
         and existing.get("path") == str(output)
     )
     if not cached:
-        shutil.copy2(source, output)
+        if apply_watermark:
+            with Image.open(source).convert("RGBA") as image:
+                watermarked = apply_text_watermark(image, watermark or {})
+                watermarked.save(output)
+        else:
+            shutil.copy2(source, output)
     output_stat = output.stat()
     public_save = {
         "saved": True,
@@ -740,9 +756,49 @@ def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = N
         "source_mtime_ns": source_stat.st_mtime_ns,
         "source_size_bytes": source_stat.st_size,
         "size_bytes": output_stat.st_size,
+        "watermark_text": (watermark or {}).get("text", ""),
+        "watermark_position": (watermark or {}).get("position", "bottom_right"),
     }
     public_save.update(public_image_dimensions(output))
     item["public_save"] = public_save
-    item["watermark"] = {"applied": False}
+    if apply_watermark:
+        item["watermark"] = {
+            "applied": True,
+            "text": watermark.get("text", ""),
+            "position": watermark.get("position", "bottom_right"),
+            "opacity": watermark.get("opacity", 0.72),
+            "size": watermark.get("size", 36),
+        }
+    else:
+        item["watermark"] = {"applied": False}
     save_history_item(item)
     return public_save
+
+
+def apply_text_watermark(image: Image.Image, watermark: dict[str, Any]) -> Image.Image:
+    text = str(watermark.get("text") or "@Luna_AIart_")
+    opacity = max(0.0, min(float(watermark.get("opacity", 0.72)), 1.0))
+    size = max(10, int(watermark.get("size", 36)))
+    margin = max(0, int(watermark.get("margin", 28)))
+    position = str(watermark.get("position", "bottom_right"))
+    overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    try:
+        font = ImageFont.truetype("C:/Windows/Fonts/seguisb.ttf", size)
+    except Exception:
+        font = ImageFont.load_default()
+    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=max(1, size // 18))
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+    positions = {
+        "bottom_right": (image.width - text_w - margin, image.height - text_h - margin),
+        "bottom_left": (margin, image.height - text_h - margin),
+        "top_right": (image.width - text_w - margin, margin),
+        "top_left": (margin, margin),
+    }
+    x, y = positions.get(position, positions["bottom_right"])
+    alpha = int(255 * opacity)
+    stroke = (0, 0, 0, min(220, alpha))
+    fill = (255, 255, 255, alpha)
+    draw.text((x, y), text, font=font, fill=fill, stroke_width=max(1, size // 18), stroke_fill=stroke)
+    return Image.alpha_composite(image, overlay)
