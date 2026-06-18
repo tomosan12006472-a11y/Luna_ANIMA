@@ -1,12 +1,52 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+import traceback
+from typing import Any
+import uuid
 
-from .. import main as _main
-from ..main import *  # noqa: F401,F403
+from fastapi import APIRouter, BackgroundTasks, Cookie
+from fastapi.responses import JSONResponse
 
-globals().update(
-    {name: getattr(_main, name) for name in dir(_main) if name.startswith("_") and not name.startswith("__")}
+from .. import comfy_client
+from ..anima_adapter import load_settings
+from ..auth import require_auth
+from ..capabilities import anima_shift_capability
+from ..config import COMFYUI_ADDR_DEFAULT
+from ..generation_helpers import (
+    apply_prompt_random_collect_or_error,
+    pending_history_by_prompt_id,
+    queue_rows,
+    reset_comfy_cache_for_character_prompt,
+)
+from ..generation_prepare import (
+    generation_request_dict,
+    prepare_i2i_request,
+    prepare_reference_modules_request,
+    prepare_reference_request,
+    request_for_queue_item,
+    save_completed_generation_history,
+    save_mobile_payload_data,
+)
+from ..history_store import (
+    create_history_item,
+    create_pending_history_item,
+    update_pending_history_status,
+)
+from ..model_info_cache import _object_choice, cached_object_info, model_cache_status as _model_cache_status
+from ..payload_builder import (
+    build_prompt_payload,
+    build_prompts,
+    compute_hires_size,
+    official_lora_summary,
+)
+from ..schemas.generation import GenerateRequest, QueueCancelRequest
+from ..validators import (
+    error_response,
+    validate_hires_fix,
+    validate_image_to_image,
+    validate_official_loras,
+    validate_queue_count,
+    validate_reference_modules,
 )
 
 router = APIRouter()
@@ -323,9 +363,9 @@ def queue_status(anima_claude_session: str | None = Cookie(default=None)) -> dic
         queue = comfy_client.queue_info(addr)
     except Exception as exc:
         return {"ok": False, "message": str(exc), "running": [], "pending": []}
-    history_by_prompt_id = _pending_history_by_prompt_id()
-    running = _queue_rows(queue.get("queue_running"), history_by_prompt_id, include_position=False)
-    pending = _queue_rows(queue.get("queue_pending"), history_by_prompt_id, include_position=True)
+    history_by_prompt_id = pending_history_by_prompt_id()
+    running = queue_rows(queue.get("queue_running"), history_by_prompt_id, include_position=False)
+    pending = queue_rows(queue.get("queue_pending"), history_by_prompt_id, include_position=True)
     return {"ok": True, "running": running, "pending": pending}
 
 
@@ -340,7 +380,7 @@ def queue_cancel(data: QueueCancelRequest, anima_claude_session: str | None = Co
     result = comfy_client.queue_delete(addr, [prompt_id])
     if not result.get("ok"):
         return {"ok": False, "message": result.get("text") or "ComfyUI queue delete failed", "result": result}
-    history_item = _pending_history_by_prompt_id().get(prompt_id)
+    history_item = pending_history_by_prompt_id().get(prompt_id)
     updated = None
     if history_item and history_item.get("id"):
         updated = update_pending_history_status(str(history_item["id"]), "failed", "Cancelled by user")

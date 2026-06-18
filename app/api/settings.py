@@ -1,13 +1,40 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Any
 
-from .. import main as _main
-from ..main import *  # noqa: F401,F403
+from fastapi import APIRouter, Cookie, Query
+from fastapi.responses import JSONResponse
 
-globals().update(
-    {name: getattr(_main, name) for name in dir(_main) if name.startswith("_") and not name.startswith("__")}
+from .. import original_characters
+from ..anima_adapter import catalog
+from ..auth import require_auth
+from ..catalog_helpers import localized_favorite_item, original_character_lora_candidates
+from ..config import ROOT_DIR
+from ..dynamic_prompt import expand_dynamic_prompt, list_wildcards
+from ..favorites_store import add_favorite, load_favorites, localized_favorites, mark_favorite_used, remove_favorite
+from ..positive_prompt_favorites_store import (
+    add_positive_prompt_favorite,
+    delete_positive_prompt_favorite,
+    list_positive_prompt_favorites,
+    mark_positive_prompt_favorite_used,
+    update_positive_prompt_favorite,
 )
+from ..positive_prompt_templates_store import list_positive_prompt_templates
+from ..prompt_converter import convert_prompt_text, prompt_converter_status
+from ..prompt_dictionary_store import prompt_dictionary_status, search_prompt_dictionary
+from ..prompt_random_collect import prompt_random_collect_status
+from ..recipes_store import add_recipe, delete_recipe, list_recipes, mark_recipe_used
+from ..schemas.catalog import (
+    FavoriteRequest,
+    OriginalCharacterRequest,
+    PositivePromptFavoritePatch,
+    PositivePromptFavoriteRequest,
+    PromptConverterRequest,
+    RecipeRequest,
+)
+from ..schemas.generation import DynamicPromptPreviewRequest
+from ..schemas.settings import SettingsRequest
+from ..settings_store import load_app_settings, reset_app_settings, save_app_settings
 
 router = APIRouter()
 

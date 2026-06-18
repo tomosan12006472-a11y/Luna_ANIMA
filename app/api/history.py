@@ -1,13 +1,48 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+import hashlib
+import json
+from pathlib import Path
+import time
+import traceback
+from typing import Any
+import uuid
 
-from .. import main as _main
-from ..main import *  # noqa: F401,F403
+from fastapi import APIRouter, BackgroundTasks, Cookie, HTTPException, Query, Response
+from fastapi.responses import FileResponse, JSONResponse
 
-globals().update(
-    {name: getattr(_main, name) for name in dir(_main) if name.startswith("_") and not name.startswith("__")}
+from .. import comfy_client
+from ..anima_adapter import load_settings
+from ..auth import require_auth
+from ..config import COMFYUI_ADDR_DEFAULT
+from ..detailer_postprocess import (
+    build_face_detailer_postprocess_request,
+    build_hand_detailer_postprocess_request,
 )
+from ..generation_prepare import (
+    face_detailer_capability_payload,
+    history_page_with_flags,
+    refresh_pending_history_items,
+    save_completed_generation_history,
+    save_mobile_payload_data,
+)
+from ..history_flags_store import attach_flags_to_item, update_history_flags
+from ..history_store import (
+    copy_public_image,
+    create_pending_history_item,
+    enrich_history_item_from_payload,
+    ensure_small_thumbnail,
+    history_collection_revision,
+    lite_history_item,
+    load_history_item,
+)
+from ..payload_builder import (
+    build_face_detailer_postprocess_payload,
+    build_hand_detailer_postprocess_payload,
+)
+from ..responses import cached_file_response, resolve_public_save_watermark
+from ..schemas.generation import FaceDetailerPostprocessRequest, HandDetailerPostprocessRequest
+from ..schemas.history import HistoryFlagsRequest, PublicSaveRequest
 
 router = APIRouter()
 
@@ -33,11 +68,11 @@ def history(
     known_revision: str = "",
     anima_claude_session: str | None = Cookie(default=None),
 ) -> dict[str, Any]:
-    _main.require_auth(anima_claude_session)
+    require_auth(anima_claude_session)
     if not isinstance(filter_name, str):
         filter_name = "all"
-    settings = _main.load_settings()
-    addr = settings.get("api_addr") or _main.COMFYUI_ADDR_DEFAULT
+    settings = load_settings()
+    addr = settings.get("api_addr") or COMFYUI_ADDR_DEFAULT
     search_filters = {
         "q": q,
         "date_from": date_from,
@@ -53,18 +88,18 @@ def history(
         "character": character,
     }
     search_filters = {key: value for key, value in search_filters.items() if str(value or "").strip()}
-    items, warnings, summary, total = _main.history_page_with_flags(limit, offset, filter_name, search_filters)
-    if _main.refresh_pending_history_items(addr, items):
-        items, warnings, summary, total = _main.history_page_with_flags(limit, offset, filter_name, search_filters)
+    items, warnings, summary, total = history_page_with_flags(limit, offset, filter_name, search_filters)
+    if refresh_pending_history_items(addr, items):
+        items, warnings, summary, total = history_page_with_flags(limit, offset, filter_name, search_filters)
     normalized_offset = max(0, int(offset or 0))
-    response_items = [_main.lite_history_item(item) for item in items] if str(view or "").lower() == "list" else items
+    response_items = [lite_history_item(item) for item in items] if str(view or "").lower() == "list" else items
     latest = response_items[0] if response_items else {}
     latest_id = str(latest.get("id") or "")
     latest_created_at = str(latest.get("created_at") or "")
     response_limit = max(1, min(int(limit or 100), 100))
     revision = ":".join(
         [
-            _main.history_collection_revision(),
+            history_collection_revision(),
             str(view or ""),
             str(filter_name or "all"),
             str(response_limit),

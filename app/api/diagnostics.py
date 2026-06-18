@@ -1,13 +1,30 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Any
 
-from .. import main as _main
-from ..main import *  # noqa: F401,F403
+from fastapi import APIRouter, Cookie
 
-globals().update(
-    {name: getattr(_main, name) for name in dir(_main) if name.startswith("_") and not name.startswith("__")}
+from .. import lora_catalog, reference_store
+from ..anima_adapter import catalog, load_settings
+from ..auth import require_auth
+from ..capabilities import anima_shift_capability, comfy_visible_loras
+from ..config import (
+    ANIMA_MAPPING_PATH,
+    ANIMA_WORKFLOW_PATH,
+    CHARACTER_CATALOG_ROOT,
+    COMFYUI_ADDR_DEFAULT,
+    MOBILE_PAYLOAD_DIR,
+    ROOT_DIR,
 )
+from ..diagnostics_helpers import (
+    mapping_diagnostics,
+    official_lora_diagnostics,
+    workflow_source_diagnostics,
+)
+from ..face_detailer import face_detailer_capabilities
+from ..generation_prepare import face_detailer_capability_payload, reference_capability_payload
+from ..history_store import list_history
+from ..model_info_cache import _object_choice, cached_object_info, model_cache_status as _model_cache_status
 
 router = APIRouter()
 
@@ -65,7 +82,7 @@ def diagnostics_full(anima_claude_session: str | None = Cookie(default=None)) ->
         }
     except Exception as exc:
         model_status = {"error": str(exc)}
-    official_loras = _official_lora_diagnostics(info)
+    official_loras = official_lora_diagnostics(info)
     shift_info = anima_shift_capability(addr, info)
     return {
         "ok": True,
@@ -80,8 +97,8 @@ def diagnostics_full(anima_claude_session: str | None = Cookie(default=None)) ->
         "anima_workflow_found": ANIMA_WORKFLOW_PATH.exists(),
         "anima_mapping_found": ANIMA_MAPPING_PATH.exists(),
         "models_cache": _model_cache_status(addr),
-        "workflow_source": _workflow_source_diagnostics(),
-        "mapping": _mapping_diagnostics(),
+        "workflow_source": workflow_source_diagnostics(),
+        "mapping": mapping_diagnostics(),
         "models": model_status,
         "anima_shift": shift_info,
         "reference_assist": reference_store.reference_capabilities(info or {}).get("reference_assist", {}) if info else reference_capability_payload(addr).get("reference_assist", {}),

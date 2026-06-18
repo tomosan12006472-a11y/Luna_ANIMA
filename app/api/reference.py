@@ -1,12 +1,20 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, UploadFile
+from pathlib import Path
+from typing import Any
 
-from .. import main as _main
-from ..main import *  # noqa: F401,F403
+from fastapi import APIRouter, Cookie, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 
-globals().update(
-    {name: getattr(_main, name) for name in dir(_main) if name.startswith("_") and not name.startswith("__")}
+from .. import comfy_client, reference_store
+from ..anima_adapter import load_settings
+from ..auth import require_auth
+from ..config import COMFYUI_ADDR_DEFAULT
+from ..generation_prepare import (
+    face_detailer_capability_payload,
+    reference_capability_payload,
+    reference_modules_availability_payload,
+    reference_modules_model_status_payload,
 )
 
 router = APIRouter()

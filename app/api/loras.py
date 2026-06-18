@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Any
 
-from .. import main as _main
-from ..main import *  # noqa: F401,F403
+from fastapi import APIRouter, Cookie, HTTPException
 
-globals().update(
-    {name: getattr(_main, name) for name in dir(_main) if name.startswith("_") and not name.startswith("__")}
-)
+from .. import lora_catalog
+from ..anima_adapter import load_settings
+from ..auth import require_auth
+from ..capabilities import comfy_visible_loras
+from ..config import COMFYUI_ADDR_DEFAULT
+from ..schemas.loras import LoraFavoriteRequest, LoraReviewRequest
 
 router = APIRouter()
 

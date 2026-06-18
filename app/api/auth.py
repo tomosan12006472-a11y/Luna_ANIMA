@@ -1,13 +1,23 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Any
 
-from .. import main as _main
-from ..main import *  # noqa: F401,F403
+from fastapi import APIRouter, Cookie, Response
+from fastapi.responses import FileResponse, HTMLResponse
 
-globals().update(
-    {name: getattr(_main, name) for name in dir(_main) if name.startswith("_") and not name.startswith("__")}
+from ..anima_adapter import catalog, load_settings
+from ..auth import create_session_token, require_auth, set_session_cookie, validate_login_pin
+from ..capabilities import anima_shift_capability
+from ..config import (
+    ANIMA_MAPPING_PATH,
+    ANIMA_WORKFLOW_PATH,
+    CHARACTER_CATALOG_ROOT,
+    COMFYUI_ADDR_DEFAULT,
+    ROOT_DIR,
 )
+from ..payload_builder import NEGATIVE_PRESETS
+from ..schemas.auth import LoginRequest
+from ..settings_store import load_app_settings
 
 router = APIRouter()
 
@@ -21,11 +31,9 @@ def index() -> FileResponse:
 
 @router.post("/api/login")
 def login(data: LoginRequest, response: Response) -> dict[str, Any]:
-    if data.pin != APP_PIN:
-        raise HTTPException(status_code=403, detail="PINが違います")
-    token = secrets.token_urlsafe(24)
-    SESSIONS.add(token)
-    response.set_cookie("anima_claude_session", token, httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30)
+    validate_login_pin(data.pin)
+    token = create_session_token()
+    set_session_cookie(response, token)
     return {"ok": True}
 
 

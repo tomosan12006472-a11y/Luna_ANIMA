@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, UploadFile
+from pathlib import Path
+from typing import Any
 
-from .. import main as _main
-from ..main import *  # noqa: F401,F403
+from fastapi import APIRouter, Cookie, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 
-globals().update(
-    {name: getattr(_main, name) for name in dir(_main) if name.startswith("_") and not name.startswith("__")}
-)
+from .. import i2i_store
+from ..anima_adapter import load_settings
+from ..auth import require_auth
+from ..config import COMFYUI_ADDR_DEFAULT
+from ..generation_prepare import i2i_capability_payload
+from ..history_store import load_history_item
+from ..schemas.reference import I2IFromHistoryRequest
 
 router = APIRouter()
 
