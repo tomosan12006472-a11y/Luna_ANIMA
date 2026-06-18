@@ -6,7 +6,7 @@ from unittest import mock
 
 from fastapi import HTTPException, Response
 
-from app import main, validators
+from app import main, reference_modules, validators
 
 
 class MainRefactorBehaviorTests(unittest.TestCase):
@@ -32,6 +32,47 @@ class MainRefactorBehaviorTests(unittest.TestCase):
         body = json.loads(response.body.decode("utf-8"))
         self.assertEqual(body["stage"], "validate_reference_modules")
         self.assertEqual(body["comfy_node_errors"]["missing"], "reference_modules.outfit.image_id")
+
+    def test_reference_modules_separates_anima_lllite_from_pose_controlnet(self) -> None:
+        info = {
+            "LoadImage": {},
+            "ControlNetLoader": {
+                "input": {
+                    "required": {
+                        "control_net_name": [
+                            [
+                                "anima-lllite-inpainting-v2.safetensors",
+                                "anima-lllite-regional-exp-v3.safetensors",
+                                "xinsir_controlnet_union_sdxl.safetensors",
+                            ]
+                        ]
+                    }
+                }
+            },
+            "ControlNetApplyAdvanced": {},
+            "SetUnionControlNetType": {},
+            "AnimaLLLiteApply": {
+                "input": {
+                    "required": {
+                        "lllite_name": [
+                            [
+                                "anima-lllite-inpainting-v2.safetensors",
+                                "anima-lllite-regional-exp-v3.safetensors",
+                            ]
+                        ]
+                    },
+                    "optional": {"mask": ["MASK"]},
+                }
+            },
+        }
+
+        modules = reference_modules.reference_module_capabilities(info, app_scope="anima")["reference_modules"]
+
+        self.assertEqual(modules["pose"]["controlnet_models"], ["xinsir_controlnet_union_sdxl.safetensors"])
+        self.assertTrue(modules["anima_lllite"]["available"])
+        self.assertEqual(modules["anima_lllite"]["inpainting_model"], "anima-lllite-inpainting-v2.safetensors")
+        self.assertEqual(modules["anima_lllite"]["regional_model"], "anima-lllite-regional-exp-v3.safetensors")
+        self.assertTrue(modules["anima_lllite"]["mask_supported"])
 
     def test_diagnostics_requires_auth(self) -> None:
         with self.assertRaises(HTTPException) as cm:

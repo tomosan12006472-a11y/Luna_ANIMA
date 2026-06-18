@@ -98,6 +98,54 @@ def _input_choices(info: dict[str, Any], class_name: str, input_name: str) -> li
     return []
 
 
+def _is_lllite_model(name: str) -> bool:
+    return "lllite" in str(name or "").lower()
+
+
+def _controlnet_choices(info: dict[str, Any]) -> list[str]:
+    return _input_choices(info, "ControlNetLoader", "control_net_name")
+
+
+def _regular_controlnet_choices(info: dict[str, Any]) -> list[str]:
+    return [model for model in _controlnet_choices(info) if not _is_lllite_model(model)]
+
+
+def _lllite_choices(info: dict[str, Any]) -> list[str]:
+    choices = _input_choices(info, "AnimaLLLiteApply", "lllite_name")
+    if choices:
+        return [model for model in choices if _is_lllite_model(model)]
+    return [model for model in _controlnet_choices(info) if _is_lllite_model(model)]
+
+
+def _anima_lllite_capability(info: dict[str, Any], *, app_scope: str) -> dict[str, Any]:
+    choices = _lllite_choices(info)
+    has_node = "AnimaLLLiteApply" in info
+    node = info.get("AnimaLLLiteApply") if isinstance(info.get("AnimaLLLiteApply"), dict) else {}
+    optional = ((node.get("input") or {}).get("optional") or {}) if isinstance(node, dict) else {}
+    inpainting_model = next((model for model in choices if "inpainting-v2" in model.lower()), "")
+    regional_model = next((model for model in choices if "regional" in model.lower()), "")
+    warnings: list[str] = []
+    if app_scope != "anima":
+        warnings.append("Anima LLLite is only intended for Luna ANIMA workflows.")
+    if not has_node:
+        warnings.append("ComfyUI-Anima-LLLite node is not available.")
+    if not inpainting_model:
+        warnings.append("anima-lllite-inpainting-v2.safetensors is not available.")
+    if not regional_model:
+        warnings.append("anima-lllite-regional-exp-v3.safetensors is not available.")
+    return {
+        "implemented": app_scope == "anima",
+        "available": app_scope == "anima" and has_node and bool(inpainting_model or regional_model),
+        "strategy": "anima_lllite",
+        "apply_node": "AnimaLLLiteApply" if has_node else "",
+        "models": choices,
+        "inpainting_model": inpainting_model,
+        "regional_model": regional_model,
+        "mask_supported": "mask" in optional,
+        "warnings": warnings,
+    }
+
+
 POSE_PREPROCESSOR_NODES = (
     "DWPreprocessor",
     "DWPose_Preprocessor",
@@ -120,7 +168,7 @@ def _select_pose_controlnet_model(models: list[str]) -> tuple[str, bool]:
 
 def _pose_capability(info: dict[str, Any], *, app_scope: str) -> dict[str, Any]:
     node_names = set(info.keys())
-    models = _input_choices(info, "ControlNetLoader", "control_net_name")
+    models = _regular_controlnet_choices(info)
     selected_model, needs_union_type = _select_pose_controlnet_model(models)
     apply_node = "ControlNetApplyAdvanced" if "ControlNetApplyAdvanced" in node_names else ""
     preprocessor = next((name for name in POSE_PREPROCESSOR_NODES if name in node_names), "")
@@ -196,6 +244,7 @@ def reference_module_capabilities(info: dict[str, Any] | None, *, cache: dict[st
                 "cache": cache or {},
             },
             "pose": pose_capability,
+            "anima_lllite": _anima_lllite_capability(info, app_scope=app_scope),
             "character": {"implemented": False, "available": False, "strategy": "future", "warnings": ["Character module is not implemented in this MVP."]},
             "background": {"implemented": False, "available": False, "strategy": "future", "warnings": ["Background module is not implemented in this MVP."]},
             "composition": {"implemented": False, "available": False, "strategy": "future", "warnings": ["Composition module is not implemented in this MVP."]},
@@ -222,7 +271,7 @@ def reference_module_model_status(info: dict[str, Any] | None, *, comfyui_roots:
             continue
         model_roots.extend([root / "models", root / "ComfyUI" / "models"])
     existing_models_root = next((path for path in model_roots if path.exists()), model_roots[0] if model_roots else Path("models"))
-    controlnet_choices = _input_choices(info, "ControlNetLoader", "control_net_name")
+    controlnet_choices = _regular_controlnet_choices(info)
     return {
         "ok": True,
         "modules": {
@@ -237,10 +286,11 @@ def reference_module_model_status(info: dict[str, Any] | None, *, comfyui_roots:
             "pose": {
                 **(caps.get("pose") or {}),
                 "models": {
-                    "controlnet": {**_scan_model_dir(existing_models_root / "controlnet"), "object_info_choices": controlnet_choices},
+                    "controlnet": {**_scan_model_dir(existing_models_root / "controlnet"), "object_info_choices": controlnet_choices, "lllite_choices": _lllite_choices(info)},
                     "controlnet_aux_ckpts": _scan_model_dir(next((root / "custom_nodes" / "comfyui_controlnet_aux" / "ckpts" for root in comfyui_roots if (root / "custom_nodes").exists()), comfyui_roots[0] / "custom_nodes" / "comfyui_controlnet_aux" / "ckpts" if comfyui_roots else Path("custom_nodes/comfyui_controlnet_aux/ckpts"))),
                 },
             },
+            "anima_lllite": caps.get("anima_lllite") or _anima_lllite_capability(info, app_scope=app_scope),
         },
     }
 
