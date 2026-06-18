@@ -78,6 +78,51 @@ class CharacterNameLocalizationTest(unittest.TestCase):
         self.assertEqual(items[0]["prompt_tag"], "kashin koji (fate)")
         self.assertEqual(items[0]["kind"], "custom")
 
+    def test_expanded_danbooru_catalog_search_matches_game_tags(self) -> None:
+        cases = [
+            ("スタレ", "firefly (honkai: star rail)", "ホタル（スターレイル）"),
+            ("ゼンゼロ", "yixuan (zenless zone zero)", "Yixuan（ゼンゼロ）"),
+            ("sandrone", "sandrone (genshin impact)", "サンドローネ（原神）"),
+        ]
+        for query, prompt_tag, display_name in cases:
+            with self.subTest(query=query):
+                items = catalog.search(query, "all", 20)
+                match = next((item for item in items if item["prompt_tag"] == prompt_tag), None)
+                self.assertIsNotNone(match)
+                self.assertEqual(match["kind"], "custom")
+                self.assertEqual(match["display_name_ja"], display_name)
+
+    def test_expanded_danbooru_catalog_prompt_uses_prompt_safe_names(self) -> None:
+        cases = [
+            (
+                "firefly (honkai: star rail)",
+                "firefly \\(honkai: star rail\\)",
+                "Firefly from Honkai: Star Rail",
+                "ホタル（スターレイル）",
+            ),
+            (
+                "yixuan (zenless zone zero)",
+                "yixuan \\(zenless zone zero\\)",
+                "Yixuan from Zenless Zone Zero",
+                "Yixuan（ゼンゼロ）",
+            ),
+            (
+                "sandrone (genshin impact)",
+                "sandrone \\(genshin impact\\)",
+                "Sandrone from Genshin Impact",
+                "サンドローネ（原神）",
+            ),
+        ]
+        for character, prompt_tag, prompt_name, display_name in cases:
+            with self.subTest(character=character):
+                request = dict(BASE_REQUEST)
+                request["character1"] = character
+                prompts = build_prompts(request)
+                self.assertIn(prompt_tag, prompts["positive"])
+                self.assertIn(prompt_name, prompts["positive"])
+                self.assertNotRegex(prompts["positive"], re.compile(r"[\u3400-\u9fff]"))
+                self.assertEqual(prompts["characters"], [display_name])
+
     def test_legacy_favorite_display_name_uses_current_catalog(self) -> None:
         data = normalize_favorites(
             {
