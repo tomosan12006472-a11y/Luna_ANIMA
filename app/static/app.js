@@ -3615,6 +3615,22 @@
     UI.toast("モデル一覧を更新しました");
   }
 
+  async function reloadUi() {
+    text("#settingsStatus", "UIを再読み込みします...");
+    try {
+      if ("caches" in window) {
+        const keys = await window.caches.keys();
+        await Promise.all(keys.map((key) => window.caches.delete(key)));
+      }
+    } catch (error) {
+      console.warn("Failed to clear browser caches", error);
+    }
+    UI.toast("UIを再読み込みします");
+    const url = new URL(window.location.href);
+    url.searchParams.set("reload", String(Date.now()));
+    window.location.replace(url.toString());
+  }
+
   async function login() {
     text("#loginStatus", "");
     try {
@@ -3750,6 +3766,7 @@
     if (action === "save-defaults") return saveDefaults();
     if (action === "reset-defaults") return resetDefaults();
     if (action === "reload-models") return reloadModels();
+    if (action === "reload-ui") return reloadUi();
   }
 
   function bindEvents() {
@@ -3965,7 +3982,7 @@
         if (action?.startsWith("prompt-convert")) text("#promptConverterStatus", errorMessage(error));
         if (action?.startsWith("prompt-random")) text("#promptRandomStatus", errorMessage(error));
         if (action === "save-auto-prompts") text("#autoPromptStatus", errorMessage(error));
-        if (["save-defaults", "reset-defaults", "reload-models"].includes(action)) text("#settingsStatus", errorMessage(error));
+        if (["save-defaults", "reset-defaults", "reload-models", "reload-ui"].includes(action)) text("#settingsStatus", errorMessage(error));
         if (["save-recipe", "open-recipes"].includes(action)) text("#recipeStatus", errorMessage(error));
         if (["open-queue", "queue-refresh", "queue-interrupt"].includes(action)) text("#queueStatus", errorMessage(error));
       });
