@@ -118,13 +118,19 @@
           <summary><h2>Prompt Random Collect</h2><span class="lbl" id="promptRandomSummary">OFF</span></summary>
           <div class="switchline">
             <input id="promptRandomEnabled" type="checkbox">
-            <span class="grow">露光直前にAIでランダムタグを追加する</span>
+            <span class="grow">露光直前にAIでタグを追加・補完する</span>
           </div>
           <div class="switchline">
             <input id="promptRandomIncludeCharacters" type="checkbox" checked>
             <span class="grow">選択キャラ名もAIに渡す</span>
           </div>
-          <label class="field"><span class="lbl">ランダム指示</span>
+          <label class="field"><span class="lbl">モード</span>
+            <select id="promptRandomMode">
+              <option value="random" selected>ランダム追加</option>
+              <option value="positive_completion">Positive補完</option>
+            </select>
+          </label>
+          <label class="field"><span class="lbl">AI指示</span>
             <textarea id="promptRandomInstruction" rows="2">衣装、表情、背景、小物をランダムに足す</textarea>
           </label>
           <label class="field"><span class="lbl">強さ</span>

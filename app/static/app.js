@@ -390,34 +390,67 @@
     return "None";
   }
 
-  function defaultPromptRandomCollect() {
+  const PROMPT_RANDOM_MODES = new Set(["random", "positive_completion"]);
+  const PROMPT_RANDOM_DEFAULT_INSTRUCTIONS = {
+    random: "衣装、表情、背景、小物をランダムに足す",
+    positive_completion: "既存Positiveの意図を保ったまま、不足している描写を英語タグで補う",
+  };
+
+  function normalizePromptRandomMode(mode) {
+    const normalized = String(mode || "random").trim().toLowerCase();
+    return PROMPT_RANDOM_MODES.has(normalized) ? normalized : "random";
+  }
+
+  function promptRandomDefaultInstruction(mode = "random") {
+    return PROMPT_RANDOM_DEFAULT_INSTRUCTIONS[normalizePromptRandomMode(mode)] || PROMPT_RANDOM_DEFAULT_INSTRUCTIONS.random;
+  }
+
+  function defaultPromptRandomCollect(mode = "random") {
+    const normalizedMode = normalizePromptRandomMode(mode);
     return {
       enabled: false,
-      instruction: "衣装、表情、背景、小物をランダムに足す",
+      mode: normalizedMode,
+      instruction: promptRandomDefaultInstruction(normalizedMode),
       strength: "standard",
       include_characters: true,
     };
   }
 
   function collectPromptRandomCollect() {
+    const mode = normalizePromptRandomMode(value("#promptRandomMode", "random"));
     return {
       enabled: checked("#promptRandomEnabled"),
-      instruction: value("#promptRandomInstruction", defaultPromptRandomCollect().instruction),
+      mode,
+      instruction: value("#promptRandomInstruction", promptRandomDefaultInstruction(mode)),
       strength: value("#promptRandomStrength", "standard"),
       include_characters: checked("#promptRandomIncludeCharacters"),
     };
   }
 
   function promptRandomOnSummary() {
-    return checked("#promptRandomIncludeCharacters") ? "ON / CHAR" : "ON / NO CHAR";
+    const mode = normalizePromptRandomMode(value("#promptRandomMode", "random"));
+    const modeLabel = mode === "positive_completion" ? "補完" : "RANDOM";
+    return `ON / ${modeLabel} / ${checked("#promptRandomIncludeCharacters") ? "CHAR" : "NO CHAR"}`;
   }
 
   function applyPromptRandomCollectToForm(config = {}) {
-    const defaults = defaultPromptRandomCollect();
+    const mode = normalizePromptRandomMode(config.mode);
+    const defaults = defaultPromptRandomCollect(mode);
     setChecked("#promptRandomEnabled", Boolean(config.enabled));
+    setValue("#promptRandomMode", mode);
     setValue("#promptRandomInstruction", config.instruction || defaults.instruction);
     setValue("#promptRandomStrength", config.strength || defaults.strength);
     setChecked("#promptRandomIncludeCharacters", config.include_characters !== false);
+  }
+
+  function updatePromptRandomMode() {
+    const mode = normalizePromptRandomMode(value("#promptRandomMode", "random"));
+    const current = value("#promptRandomInstruction", "").trim();
+    const knownDefaults = Object.values(PROMPT_RANDOM_DEFAULT_INSTRUCTIONS);
+    if (!current || knownDefaults.includes(current)) {
+      setValue("#promptRandomInstruction", promptRandomDefaultInstruction(mode));
+    }
+    updateSummaries();
   }
 
   function selectedQualityPreset() {
@@ -2274,12 +2307,12 @@
 
   async function previewPayload() {
     const request = collectRequest();
-    if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "Random Collect中...");
+    if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "AIタグ生成中...");
     const data = await api("/api/payload/preview", {
       method: "POST",
       body: JSON.stringify(request),
     });
-    if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "Previewに反映しました");
+    if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "AIタグをPreviewに反映しました");
     const preview = $("#payloadPreview");
     if (preview) {
       preview.textContent = JSON.stringify(data, null, 2);
@@ -2704,14 +2737,14 @@
     try {
       const request = collectRequest();
       if (request.prompt_random_collect?.enabled) {
-        text("#promptRandomStatus", "Random Collect中...");
+        text("#promptRandomStatus", "AIタグ生成中...");
         UI.safelight("developing", "RANDOM COLLECT");
       }
       const data = await api("/api/generate", {
         method: "POST",
         body: JSON.stringify(request),
       });
-      if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "Random Collectを反映して投入しました");
+      if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "AIタグを反映して投入しました");
       assertGenerateQueued(data);
       await finishGenerateQueued(data, request);
     } catch (error) {
@@ -3356,9 +3389,11 @@
 
   function historyPromptRandomCollect(raw = {}) {
     const data = raw && typeof raw === "object" ? raw : {};
-    const defaults = defaultPromptRandomCollect();
+    const mode = normalizePromptRandomMode(data.mode);
+    const defaults = defaultPromptRandomCollect(mode);
     return {
       enabled: Boolean(data.enabled),
+      mode,
       instruction: data.instruction || defaults.instruction,
       strength: data.strength || defaults.strength,
       include_characters: data.include_characters !== false,
@@ -3848,6 +3883,7 @@
 
     $("#promptRandomEnabled")?.addEventListener("change", updateSummaries);
     $("#promptRandomIncludeCharacters")?.addEventListener("change", updateSummaries);
+    $("#promptRandomMode")?.addEventListener("change", updatePromptRandomMode);
     $("#promptRandomInstruction")?.addEventListener("input", updateSummaries);
     $("#promptRandomStrength")?.addEventListener("change", updateSummaries);
     $("#ratingPrompt")?.addEventListener("input", updateRatingPromptDraft);

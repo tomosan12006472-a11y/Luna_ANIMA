@@ -443,6 +443,7 @@ def _prompt_random_collect_summary(request_data: dict[str, Any]) -> dict[str, An
     generated_tags = str(data.get("generated_tags") or generated_item.get("tags") or "").strip()
     summary: dict[str, Any] = {
         "enabled": True,
+        "mode": str(data.get("mode") or "random"),
         "instruction": str(data.get("instruction") or ""),
         "strength": str(data.get("strength") or ""),
         "include_characters": data.get("include_characters", True) is not False,

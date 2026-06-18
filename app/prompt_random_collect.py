@@ -17,7 +17,14 @@ from .prompt_converter import (
 )
 
 
-DEFAULT_INSTRUCTION = "衣装、表情、背景、小物をランダムに足す"
+MODE_RANDOM = "random"
+MODE_POSITIVE_COMPLETION = "positive_completion"
+VALID_MODES = {MODE_RANDOM, MODE_POSITIVE_COMPLETION}
+DEFAULT_INSTRUCTIONS = {
+    MODE_RANDOM: "衣装、表情、背景、小物をランダムに足す",
+    MODE_POSITIVE_COMPLETION: "既存Positiveの意図を保ったまま、不足している描写を英語タグで補う",
+}
+DEFAULT_INSTRUCTION = DEFAULT_INSTRUCTIONS[MODE_RANDOM]
 VALID_STRENGTHS = {"subtle", "standard", "rich"}
 STRENGTH_HINTS = {
     "subtle": "Add 2 to 4 concise visual tags per item.",
@@ -35,6 +42,9 @@ def _clamp_text(value: Any, default: str, limit: int) -> str:
 
 def sanitize_prompt_random_collect_request(value: Any) -> dict[str, Any]:
     raw = value if isinstance(value, dict) else {}
+    mode = str(raw.get("mode") or MODE_RANDOM).strip().lower()
+    if mode not in VALID_MODES:
+        mode = MODE_RANDOM
     strength = str(raw.get("strength") or "standard").strip().lower()
     if strength not in VALID_STRENGTHS:
         strength = "standard"
@@ -45,7 +55,8 @@ def sanitize_prompt_random_collect_request(value: Any) -> dict[str, Any]:
         include_characters = bool(include_characters)
     return {
         "enabled": bool(raw.get("enabled")),
-        "instruction": _clamp_text(raw.get("instruction"), DEFAULT_INSTRUCTION, 1000),
+        "mode": mode,
+        "instruction": _clamp_text(raw.get("instruction"), DEFAULT_INSTRUCTIONS[mode], 1000),
         "strength": strength,
         "include_characters": include_characters,
     }
@@ -55,12 +66,14 @@ def prompt_random_collect_enabled(value: Any) -> bool:
     return bool(sanitize_prompt_random_collect_request(value).get("enabled"))
 
 
-def _provider_config(app_settings: Any) -> dict[str, Any]:
+def _provider_config(app_settings: Any, feature: Any = None) -> dict[str, Any]:
     settings = app_settings if isinstance(app_settings, dict) else {}
     base = settings.get("prompt_converter") if isinstance(settings.get("prompt_converter"), dict) else {}
     override = settings.get("prompt_random_collect_provider") if isinstance(settings.get("prompt_random_collect_provider"), dict) else {}
     config = sanitize_prompt_converter_settings(_deep_merge(base, override))
-    config["temperature"] = max(float(config.get("temperature") or 0.0), 0.85)
+    mode = sanitize_prompt_random_collect_request(feature).get("mode") if feature is not None else MODE_RANDOM
+    min_temperature = 0.35 if mode == MODE_POSITIVE_COMPLETION else 0.85
+    config["temperature"] = max(float(config.get("temperature") or 0.0), min_temperature)
     config["max_tokens"] = max(int(config.get("max_tokens") or 0), 1800)
     return config
 
@@ -71,8 +84,20 @@ def prompt_random_collect_status(app_settings: Any) -> dict[str, Any]:
     return {"feature": "prompt_random_collect", **status}
 
 
-def _system_prompt(app_scope: str) -> str:
+def _system_prompt(app_scope: str, mode: str) -> str:
     scope = "Luna ANIMA" if app_scope == "anima" else "Luna SDXL"
+    if mode == MODE_POSITIVE_COMPLETION:
+        return (
+            "You are a positive prompt completion engine for anime image generation. "
+            f"The target app is {scope}. Generate only additional positive prompt tags that complete and polish each existing prompt. "
+            "Return strict JSON only with this schema: {\"items\":[{\"index\":0,\"tags\":\"comma-separated English tags\"}]}. "
+            "Use comma-separated English tags only. Use spaces instead of underscores, except existing score tags; however do not add score tags. "
+            "Do not rewrite or repeat the existing prompt. Add only missing, useful, concrete tags that fit the current context. "
+            "Do not contradict selected characters, setting, rating, camera, lighting, outfit, pose, or user wording. "
+            "Do not add character names, copyrighted series names, LoRA syntax, wildcard syntax, Dynamic Prompt syntax, model names, quality tags, score tags, negative prompts, explanations, or Markdown. "
+            "Do not censor, soften, euphemize, moralize, or add safety disclaimers. "
+            "Prefer coherent visual details such as expression nuance, pose detail, material, setting detail, lighting, props, atmosphere, composition, and camera detail."
+        )
     return (
         "You are a prompt randomization engine for anime image generation. "
         f"The target app is {scope}. Generate extra positive prompt tags for each queued image. "
@@ -100,6 +125,7 @@ def _user_prompt(feature: dict[str, Any], contexts: list[dict[str, Any]], app_sc
     return json.dumps(
         {
             "app_scope": app_scope,
+            "mode": feature["mode"],
             "count": len(items),
             "instruction": feature["instruction"],
             "strength": feature["strength"],
@@ -115,7 +141,7 @@ def _chat_completion(config: dict[str, Any], model: str, feature: dict[str, Any]
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": _system_prompt(app_scope)},
+            {"role": "system", "content": _system_prompt(app_scope, feature["mode"])},
             {"role": "user", "content": _user_prompt(feature, contexts, app_scope)},
         ],
         "temperature": config["temperature"],
@@ -186,7 +212,7 @@ def collect_prompt_random_tags(
     if not contexts:
         return {"ok": False, "status": 400, "stage": "prompt_random_collect_context", "message": "Random Collect context is empty."}
 
-    config = _provider_config(app_settings)
+    config = _provider_config(app_settings, request_config)
     if not config["enabled"]:
         return {"ok": False, "status": 400, "stage": "prompt_random_collect_disabled", "message": "Prompt Random Collect provider is disabled."}
     status = _ensure_ready(config)
@@ -208,6 +234,7 @@ def collect_prompt_random_tags(
     return {
         "ok": True,
         "enabled": True,
+        "mode": request_config["mode"],
         "instruction": request_config["instruction"],
         "strength": request_config["strength"],
         "include_characters": request_config["include_characters"],
@@ -229,6 +256,7 @@ def attach_prompt_random_collect_items(request_data_items: list[dict[str, Any]],
         current = request_data.get("prompt_random_collect") if isinstance(request_data.get("prompt_random_collect"), dict) else {}
         request_data["prompt_random_collect"] = {
             "enabled": True,
+            "mode": result.get("mode") or current.get("mode") or MODE_RANDOM,
             "instruction": result.get("instruction") or current.get("instruction") or DEFAULT_INSTRUCTION,
             "strength": result.get("strength") or current.get("strength") or "standard",
             "include_characters": result.get("include_characters", current.get("include_characters", True)) is not False,

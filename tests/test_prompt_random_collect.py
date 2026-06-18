@@ -12,9 +12,18 @@ class PromptRandomCollectTests(unittest.TestCase):
     def test_sanitize_request_defaults_instruction_and_strength(self) -> None:
         result = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "strength": "bad"})
         self.assertTrue(result["enabled"])
+        self.assertEqual(result["mode"], "random")
         self.assertEqual(result["instruction"], prompt_random_collect.DEFAULT_INSTRUCTION)
         self.assertEqual(result["strength"], "standard")
         self.assertTrue(result["include_characters"])
+
+    def test_sanitize_request_accepts_positive_completion_mode(self) -> None:
+        result = prompt_random_collect.sanitize_prompt_random_collect_request(
+            {"enabled": True, "mode": "positive_completion", "instruction": ""}
+        )
+        self.assertTrue(result["enabled"])
+        self.assertEqual(result["mode"], "positive_completion")
+        self.assertEqual(result["instruction"], prompt_random_collect.DEFAULT_INSTRUCTIONS["positive_completion"])
 
     def test_sanitize_request_can_disable_character_context(self) -> None:
         result = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "include_characters": False})
@@ -47,6 +56,7 @@ class PromptRandomCollectTests(unittest.TestCase):
             requests,
             {
                 "instruction": "test",
+                "mode": "positive_completion",
                 "strength": "subtle",
                 "include_characters": False,
                 "generated_items": [{"index": 0, "tags": "red dress"}, {"index": 1, "tags": "blue dress"}],
@@ -55,6 +65,7 @@ class PromptRandomCollectTests(unittest.TestCase):
         )
         self.assertEqual(prompt_random_collect.prompt_random_collect_tags(requests[0]), "red dress")
         self.assertEqual(prompt_random_collect.prompt_random_collect_tags(requests[1]), "blue dress")
+        self.assertEqual(requests[0]["prompt_random_collect"]["mode"], "positive_completion")
         self.assertFalse(requests[0]["prompt_random_collect"]["include_characters"])
 
     def test_history_summary_preserves_generated_tags_for_reuse_strip(self) -> None:
@@ -62,6 +73,7 @@ class PromptRandomCollectTests(unittest.TestCase):
             {
                 "prompt_random_collect": {
                     "enabled": True,
+                    "mode": "positive_completion",
                     "instruction": "test",
                     "strength": "subtle",
                     "include_characters": False,
@@ -71,6 +83,7 @@ class PromptRandomCollectTests(unittest.TestCase):
             }
         )
         self.assertIsNotNone(summary)
+        self.assertEqual(summary["mode"], "positive_completion")
         self.assertEqual(summary["generated_tags"], "red dress")
         self.assertFalse(summary["include_characters"])
 
