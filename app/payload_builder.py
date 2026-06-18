@@ -1,1167 +1,193 @@
 from __future__ import annotations
 
-from copy import deepcopy
-import json
-import math
-import re
-from typing import Any
-
-from ._shared_utils import compact_join, next_node_id, normalize_lora_strengths, sanitize_prompt_text
-from .anima_adapter import catalog, generate_seed
-from .character_names import contains_cjk, display_name_ja, prompt_safe_character_name
 from .config import (
     ANIMA_HIGHRES_LORA_NAME,
     ANIMA_TURBO_LORA_V01_NAME,
     ANIMA_TURBO_LORA_V02_NAME,
-    ANIMA_MAPPING_PATH,
-    ANIMA_WORKFLOW_PATH,
     COMFYUI_LORA_DIRS,
     ROOT_DIR,
 )
-from .dynamic_prompt import expand_dynamic_prompt
-from .face_detailer import add_face_detailer_to_workflow, face_detailer_seed, sanitize_face_detailer_settings, sanitize_hand_detailer_settings
-from .output_organizer import build_output_prefix, infer_anima_generation_method
-from .prompt_random_collect import prompt_random_collect_tags
-from .reference_modules import apply_outfit_reference_to_workflow, apply_pose_reference_to_workflow
-
-
-DYNAMIC_WILDCARD_CONFIG_DIR = ROOT_DIR / "config" / "dynamic_prompt_wildcards"
-DYNAMIC_WILDCARD_USER_DIR = ROOT_DIR / "user_data" / "dynamic_prompt_wildcards"
-
-
-QUALITY_PRESETS: dict[str, str] = {
-    "standard": "masterpiece, best quality, score_7",
-    "high": "masterpiece, best quality, high quality, highly detailed, score_8, score_7",
-    "character_check": "best quality, clean character design, clear face, full body",
-}
-
-RATING_TAGS: dict[str, str] = {
-    "safe": "safe",
-    "sensitive": "sensitive",
-    "nsfw": "nsfw",
-    "explicit": "explicit",
-}
-
-
-def quality_prompt_for_request(request: dict[str, Any]) -> str:
-    preset = str(request.get("quality_preset") or "standard")
-    overrides = request.get("quality_prompt_overrides")
-    if isinstance(overrides, dict) and preset in overrides:
-        return str(overrides.get(preset) or "").strip()
-    return QUALITY_PRESETS.get(preset, preset).strip()
-
-
-def rating_prompt_for_request(request: dict[str, Any]) -> str:
-    rating = str(request.get("rating") or "safe").lower()
-    overrides = request.get("rating_prompt_overrides")
-    if isinstance(overrides, dict) and rating in overrides:
-        return str(overrides.get(rating) or "").strip()
-    return RATING_TAGS.get(rating, rating).strip()
-
-NEGATIVE_PRESETS: dict[str, str] = {
-    "anima_recommended": "score_1, score_2, score_3, watermark, signature, artist name, loli, child, teen, muscular woman, peeing, blood, worst quality, low quality, blurry, jpeg artifacts, sepia",
-    "light": "low quality, blurry, bad anatomy",
-    "strong": "worst quality, low quality, bad anatomy, bad hands, extra fingers, missing fingers, text, logo, watermark, artist name",
-    "logo_watermark": "text, logo, watermark, signature, artist name, jpeg artifacts",
-    "hands_eyes": "bad hands, extra fingers, missing fingers, fused fingers, bad eyes, asymmetrical eyes",
-    "low_quality": "worst quality, low quality, blurry, noisy, jpeg artifacts",
-}
-
-LORA_SAMPLE_WORKFLOW_MODE = "anima_lora_sample"
-LORA_SAMPLE_MODEL_NAME = "Anima\\anima-base-v1.0.safetensors"
-LORA_SAMPLE_NEGATIVE = "worst quality, low quality, score_1, score_2, score_3, artist name, text, watermark, logo"
-
-
-def is_lora_sample_mode(request: dict[str, Any]) -> bool:
-    return str(request.get("workflow_mode") or "").strip() == LORA_SAMPLE_WORKFLOW_MODE
-
-
-def find_lora_file(name: str) -> str:
-    for directory in COMFYUI_LORA_DIRS:
-        path = directory / name
-        if path.exists():
-            return str(path)
-    return ""
-
-
-def comfy_lora_name(name: str) -> str:
-    return name.replace("/", "\\")
-
-
-def resolve_official_loras(request: dict[str, Any]) -> dict[str, Any]:
-    if is_lora_sample_mode(request):
-        return {
-            "highres": {"enabled": False, "file": ANIMA_HIGHRES_LORA_NAME, "path": "", "strength": 0.0},
-            "turbo": {
-                "enabled": False,
-                "file": ANIMA_TURBO_LORA_V02_NAME,
-                "path": "",
-                "version": "v0.2",
-                "strength": 0.0,
-                "preset_applied": False,
-            },
-        }
-    official = request.get("official_loras") or {}
-    highres = official.get("highres") if isinstance(official.get("highres"), dict) else {}
-    turbo = official.get("turbo") if isinstance(official.get("turbo"), dict) else {}
-    turbo_v02_path = find_lora_file(ANIMA_TURBO_LORA_V02_NAME)
-    turbo_v01_path = find_lora_file(ANIMA_TURBO_LORA_V01_NAME)
-    requested_version = str(turbo.get("version") or "auto")
-    if requested_version == "v0.1":
-        turbo_name = ANIMA_TURBO_LORA_V01_NAME
-        turbo_path = turbo_v01_path
-    elif requested_version == "v0.2":
-        turbo_name = ANIMA_TURBO_LORA_V02_NAME
-        turbo_path = turbo_v02_path
-    else:
-        turbo_name = ANIMA_TURBO_LORA_V02_NAME if turbo_v02_path else ANIMA_TURBO_LORA_V01_NAME
-        turbo_path = turbo_v02_path or turbo_v01_path
-    return {
-        "highres": {
-            "enabled": bool(highres.get("enabled")),
-            "file": ANIMA_HIGHRES_LORA_NAME,
-            "path": find_lora_file(ANIMA_HIGHRES_LORA_NAME),
-            "strength": max(0.0, min(1.0, float(highres.get("strength") or 0.6))),
-        },
-        "turbo": {
-            "enabled": bool(turbo.get("enabled")),
-            "file": turbo_name,
-            "path": turbo_path,
-            "version": "v0.2" if turbo_name == ANIMA_TURBO_LORA_V02_NAME else "v0.1",
-            "strength": max(0.0, min(1.0, float(turbo.get("strength") or 0.6))),
-            "preset_applied": bool(turbo.get("preset_applied")),
-        },
-    }
-
-
-def official_lora_summary(request: dict[str, Any]) -> dict[str, Any]:
-    resolved = resolve_official_loras(request)
-    return {
-        "highres": {
-            "enabled": resolved["highres"]["enabled"],
-            "file": resolved["highres"]["file"] if resolved["highres"]["enabled"] else "",
-            "found": bool(resolved["highres"]["path"]),
-            "strength": resolved["highres"]["strength"],
-        },
-        "turbo": {
-            "enabled": resolved["turbo"]["enabled"],
-            "file": resolved["turbo"]["file"] if resolved["turbo"]["enabled"] else "",
-            "found": bool(resolved["turbo"]["path"]),
-            "version": resolved["turbo"]["version"],
-            "strength": resolved["turbo"]["strength"],
-            "preset_applied": resolved["turbo"]["preset_applied"],
-        },
-    }
-
-
-def normalize_lora_application(value: Any) -> str:
-    text = str(value or "model_clip").strip().lower()
-    if text in {"off", "none", "disabled"}:
-        return "off"
-    if text in {"base", "model", "model_only"}:
-        return "model_only"
-    return "model_clip"
-
-
-def apply_official_loras(workflow: dict[str, Any], request: dict[str, Any]) -> list[Any]:
-    resolved = resolve_official_loras(request)
-    previous_model: list[Any] = ["44", 0]
-    next_node_id = 9001
-    for key in ("highres", "turbo"):
-        item = resolved[key]
-        if not item["enabled"]:
-            continue
-        if not item["path"]:
-            raise ValueError(f"Official ANIMA LoRA file is missing: {item['file']}")
-        node_id = str(next_node_id)
-        workflow[node_id] = {
-            "class_type": "LoraLoaderModelOnly",
-            "inputs": {
-                "model": previous_model,
-                "lora_name": item["file"],
-                "strength_model": item["strength"],
-            },
-        }
-        previous_model = [node_id, 0]
-        next_node_id += 1
-    workflow["46"]["inputs"]["model"] = previous_model
-    return previous_model
-
-
-def apply_catalog_loras(workflow: dict[str, Any], request: dict[str, Any], previous_model: list[Any]) -> list[Any]:
-    next_node_id = 9051
-    previous_clip: list[Any] = ["45", 0]
-    for raw in request.get("loras", []) or []:
-        if not isinstance(raw, dict):
-            continue
-        raw = normalize_lora_strengths(raw)
-        application = normalize_lora_application(raw.get("application", raw.get("mode")))
-        if raw.get("enabled") is False or application == "off":
-            continue
-        lora_name = str(raw.get("name") or raw.get("relative_path") or "").strip()
-        if not lora_name:
-            continue
-        node_id = str(next_node_id)
-        if application == "model_only":
-            workflow[node_id] = {
-                "class_type": "LoraLoaderModelOnly",
-                "inputs": {
-                    "model": previous_model,
-                    "lora_name": comfy_lora_name(lora_name),
-                    "strength_model": raw["strength_model"],
-                },
-            }
-            previous_model = [node_id, 0]
-        else:
-            workflow[node_id] = {
-                "class_type": "LoraLoader",
-                "inputs": {
-                    "model": previous_model,
-                    "clip": previous_clip,
-                    "lora_name": comfy_lora_name(lora_name),
-                    "strength_model": raw["strength_model"],
-                    "strength_clip": raw["strength_clip"],
-                },
-            }
-            previous_model = [node_id, 0]
-            previous_clip = [node_id, 1]
-        next_node_id += 1
-    workflow["46"]["inputs"]["model"] = previous_model
-    workflow["11"]["inputs"]["clip"] = previous_clip
-    workflow["12"]["inputs"]["clip"] = previous_clip
-    return previous_model
-
-
-def load_base_workflow() -> dict[str, Any]:
-    return json.loads(ANIMA_WORKFLOW_PATH.read_text(encoding="utf-8"))
-
-
-def load_anima_mapping() -> dict[str, Any]:
-    try:
-        value = json.loads(ANIMA_MAPPING_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return value if isinstance(value, dict) else {}
-
-
-def _float_or_none(value: Any) -> float | None:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(number):
-        return None
-    return number
-
-
-def model_sampling_shift_metadata(request: dict[str, Any] | None = None, workflow: dict[str, Any] | None = None) -> dict[str, Any]:
-    mapping = load_anima_mapping()
-    model_sampling = mapping.get("model_sampling") if isinstance(mapping.get("model_sampling"), dict) else {}
-    node_id = str(model_sampling.get("node_id") or "")
-    input_name = str(model_sampling.get("input") or "shift")
-    class_type = str(model_sampling.get("class_type") or "ModelSamplingAuraFlow")
-    warnings: list[str] = []
-    if workflow is None:
-        workflow = load_base_workflow()
-    node = workflow.get(node_id) if node_id else None
-    inputs = node.get("inputs") if isinstance(node, dict) else None
-    workflow_value = _float_or_none(inputs.get(input_name)) if isinstance(inputs, dict) else None
-    mapping_default = _float_or_none(model_sampling.get("fixed"))
-    default = workflow_value if workflow_value is not None else mapping_default
-    if default is None:
-        default = 4.0
-        warnings.append("ModelSamplingAuraFlow shift default was not found; using fallback 4.0.")
-    requested_raw = request.get("shift") if isinstance(request, dict) else None
-    requested = _float_or_none(requested_raw)
-    if requested is None and requested_raw not in (None, ""):
-        warnings.append(f"Invalid shift value ignored: {requested_raw}")
-    supported = bool(
-        node_id
-        and isinstance(node, dict)
-        and str(node.get("class_type") or class_type) == class_type
-        and isinstance(inputs, dict)
-        and input_name in inputs
-    )
-    if not node_id:
-        warnings.append("model_sampling node_id is missing from anima_mapping.json.")
-    elif not isinstance(node, dict):
-        warnings.append(f"ModelSamplingAuraFlow node {node_id} was not found in the workflow.")
-    elif not isinstance(inputs, dict) or input_name not in inputs:
-        warnings.append(f"ModelSamplingAuraFlow input {input_name} was not found in node {node_id}.")
-    shift = requested if requested is not None else default
-    return {
-        "supported": supported,
-        "node_class": class_type,
-        "node_id": node_id,
-        "input_name": input_name,
-        "current_workflow_value": workflow_value,
-        "default": default,
-        "shift": shift,
-        "shift_source": "request" if requested is not None else "workflow",
-        "warnings": warnings,
-    }
-
-
-def apply_model_sampling_shift(workflow: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
-    info = model_sampling_shift_metadata(request, workflow)
-    if not info.get("supported"):
-        return info
-    node = workflow[str(info["node_id"])]
-    node["inputs"][str(info["input_name"])] = float(info["shift"])
-    return info
-
-
-def round_to_multiple(value: float, multiple: int = 8) -> int:
-    if value <= 0:
-        return multiple
-    return max(multiple, int(round(value / multiple) * multiple))
-
-
-def compute_hires_size(request: dict[str, Any]) -> dict[str, Any]:
-    base_width = int(request.get("width") or 1024)
-    base_height = int(request.get("height") or 1536)
-    hires_fix = request.get("hires_fix") or {}
-    enabled = bool(hires_fix.get("enabled"))
-    factor = float(hires_fix.get("upscale_factor") or 1.0)
-    target_width = int(hires_fix.get("target_width") or 0)
-    target_height = int(hires_fix.get("target_height") or 0)
-    if not enabled:
-        factor = 1.0
-        final_width = base_width
-        final_height = base_height
-    elif target_width > 0 and target_height > 0:
-        final_width = round_to_multiple(target_width)
-        final_height = round_to_multiple(target_height)
-        factor = max(final_width / base_width, final_height / base_height)
-    else:
-        factor = factor if math.isfinite(factor) and factor > 1.0 else 1.0
-        final_width = round_to_multiple(base_width * factor)
-        final_height = round_to_multiple(base_height * factor)
-    return {
-        "base_width": base_width,
-        "base_height": base_height,
-        "enabled": enabled,
-        "factor": factor,
-        "target_width": target_width or None,
-        "target_height": target_height or None,
-        "final_width": final_width,
-        "final_height": final_height,
-    }
-
-
-def apply_hires_fix(workflow: dict[str, Any], request: dict[str, Any]) -> None:
-    hires = request.get("hires_fix") if isinstance(request.get("hires_fix"), dict) else {}
-    if is_lora_sample_mode(request) or not hires.get("enabled"):
-        return
-
-    size = compute_hires_size(request)
-    mode = str(hires.get("mode") or "latent").lower()
-    sampler_inputs = workflow["19"]["inputs"]
-    steps = int(hires.get("steps") or 15)
-    denoise = float(hires.get("denoise") or 0.45)
-
-    def hires_sampler_inputs(latent_image: list[Any]) -> dict[str, Any]:
-        return {
-            "model": sampler_inputs.get("model"),
-            "positive": sampler_inputs.get("positive"),
-            "negative": sampler_inputs.get("negative"),
-            "seed": sampler_inputs.get("seed"),
-            "steps": steps,
-            "cfg": sampler_inputs.get("cfg"),
-            "sampler_name": sampler_inputs.get("sampler_name"),
-            "scheduler": sampler_inputs.get("scheduler"),
-            "denoise": denoise,
-            "latent_image": latent_image,
-        }
-
-    if mode == "model":
-        upscale_model = str(hires.get("upscale_model") or "").strip()
-        if not upscale_model:
-            raise ValueError("Hires.fix model mode requires upscale_model.")
-        load_id = next_node_id(workflow, 9200)
-        upscale_id = next_node_id(workflow, int(load_id) + 1)
-        scale_id = next_node_id(workflow, int(upscale_id) + 1)
-        encode_id = next_node_id(workflow, int(scale_id) + 1)
-        sampler_id = next_node_id(workflow, int(encode_id) + 1)
-        decode_id = next_node_id(workflow, int(sampler_id) + 1)
-        workflow[load_id] = {
-            "class_type": "UpscaleModelLoader",
-            "inputs": {"model_name": upscale_model},
-            "_meta": {"title": "Hires Fix Upscale Model"},
-        }
-        workflow[upscale_id] = {
-            "class_type": "ImageUpscaleWithModel",
-            "inputs": {"upscale_model": [load_id, 0], "image": ["8", 0]},
-            "_meta": {"title": "Hires Fix Image Upscale"},
-        }
-        workflow[scale_id] = {
-            "class_type": "ImageScale",
-            "inputs": {
-                "image": [upscale_id, 0],
-                "width": size["final_width"],
-                "height": size["final_height"],
-                "upscale_method": "lanczos",
-                "crop": "disabled",
-            },
-            "_meta": {"title": "Hires Fix Image Scale"},
-        }
-        workflow[encode_id] = {
-            "class_type": "VAEEncode",
-            "inputs": {"pixels": [scale_id, 0], "vae": ["15", 0]},
-            "_meta": {"title": "Hires Fix VAE Encode"},
-        }
-        workflow[sampler_id] = {
-            "class_type": "KSampler",
-            "inputs": hires_sampler_inputs([encode_id, 0]),
-            "_meta": {"title": "Hires Fix KSampler"},
-        }
-    else:
-        mode = "latent"
-        upscale_id = next_node_id(workflow, 9200)
-        sampler_id = next_node_id(workflow, int(upscale_id) + 1)
-        decode_id = next_node_id(workflow, int(sampler_id) + 1)
-        workflow[upscale_id] = {
-            "class_type": "LatentUpscaleBy",
-            "inputs": {
-                "samples": ["19", 0],
-                "upscale_method": str(hires.get("latent_upscale_method") or hires.get("upscale_method") or "nearest-exact"),
-                "scale_by": size["factor"],
-            },
-            "_meta": {"title": "Hires Fix Latent Upscale"},
-        }
-        workflow[sampler_id] = {
-            "class_type": "KSampler",
-            "inputs": hires_sampler_inputs([upscale_id, 0]),
-            "_meta": {"title": "Hires Fix KSampler"},
-        }
-
-    workflow[decode_id] = {
-        "class_type": "VAEDecode",
-        "inputs": {"samples": [sampler_id, 0], "vae": ["15", 0]},
-        "_meta": {"title": "Hires Fix VAE Decode"},
-    }
-    workflow["1"]["inputs"]["images"] = [decode_id, 0]
-    hires.update(
-        {
-            "applied": True,
-            "mode": mode,
-            "final_width": size["final_width"],
-            "final_height": size["final_height"],
-            "factor": size["factor"],
-        }
-    )
-    request["hires_fix"] = hires
-
-
-def escape_standard_character_tag(tag: str) -> str:
-    return tag.replace("\\", "\\\\").replace("(", r"\(").replace(")", r"\)")
-
-
-def format_weighted(tag: str, weight: float) -> str:
-    tag = tag.strip()
-    if not tag:
-        return ""
-    if abs(float(weight) - 1.0) < 0.0001:
-        return tag
-    return f"({tag}:{weight:g})"
-
-
-def apply_dynamic_prompts(request: dict[str, Any], positive: str, negative: str, seed: int) -> tuple[str, str, dict[str, Any] | None]:
-    settings = request.get("dynamic_prompt") if isinstance(request.get("dynamic_prompt"), dict) else {}
-    enabled = bool(settings.get("enabled"))
-    result = expand_dynamic_prompt(
-        positive_prompt=positive,
-        negative_prompt=negative,
-        seed=settings.get("wildcard_seed", seed),
-        enabled=enabled,
-        config_dir=DYNAMIC_WILDCARD_CONFIG_DIR,
-        user_dir=DYNAMIC_WILDCARD_USER_DIR,
-    )
-    if not enabled:
-        return positive, negative, None
-    return str(result.get("expanded_positive_prompt") or ""), str(result.get("expanded_negative_prompt") or ""), result
-
-
-def split_prompt_terms(text: str) -> list[str]:
-    return [item.strip() for item in re.split(r",|\n", text or "") if item.strip()]
-
-
-def character_metadata(entry: Any, slot: int, role: str = "") -> dict[str, Any]:
-    source = "original_character" if getattr(entry, "kind", "") == "original" else str(getattr(entry, "source", "") or "saa_csv")
-    display_name = getattr(entry, "display_name", "")
-    prompt_tag = getattr(entry, "prompt_tag", "")
-    return {
-        "slot": slot,
-        "source": source,
-        "id": getattr(entry, "id", "") or getattr(entry, "display_name", ""),
-        "display_name": display_name_ja(display_name, prompt_tag),
-        "display_name_original": display_name,
-        "role": role,
-        "prompt_tag": prompt_tag,
-        "prompt_safe_name": prompt_safe_character_name(display_name, prompt_tag),
-        "trigger_words": list(getattr(entry, "trigger_words", None) or []),
-        "identity_prompt": getattr(entry, "identity_prompt", ""),
-        "negative_guard": getattr(entry, "negative_guard", ""),
-        "default_lora": getattr(entry, "default_lora", None),
-    }
-
-
-def original_identity_sentence(entry: Any, role: str) -> str:
-    name = getattr(entry, "display_name", "") or "The original character"
-    identity = getattr(entry, "identity_prompt", "") or f"{name} is an original anime-style character."
-    if role == "left":
-        return f"The girl on the left is {name}, an original anime-style character."
-    if role == "right":
-        return f"The girl on the right is {name}, an original anime-style character."
-    if role and role != "main":
-        return f"{name} is the {role} character."
-    return identity
-
-
-def build_character_parts(request: dict[str, Any], seed: int) -> tuple[list[str], list[str], list[dict[str, Any]], list[str], list[str]]:
-    character_values = [
-        request.get("character1", "Random"),
-        request.get("character2", "None"),
-        request.get("character3", "None"),
-    ]
-    roles = [
-        str(request.get("character1_role") or "main"),
-        str(request.get("character2_role") or "left"),
-        str(request.get("character3_role") or "right"),
-    ]
-    weights = [
-        float(request.get("character1_weight", 1.0)),
-        float(request.get("character2_weight", 1.0)),
-        float(request.get("character3_weight", 1.0)),
-    ]
-    tags: list[str] = []
-    names: list[str] = []
-    metadata: list[dict[str, Any]] = []
-    natural_parts: list[str] = []
-    natural_names: list[str] = []
-    for index, value in enumerate(character_values):
-        tag, name, entry = catalog.resolve_character_entry(str(value), index, seed, original=False)
-        if not tag:
-            continue
-        if not entry and contains_cjk(tag):
-            continue
-        role = roles[index]
-        prompt_tag = tag if getattr(entry, "kind", "") == "original" else escape_standard_character_tag(tag)
-        weighted = format_weighted(prompt_tag, weights[index])
-        safe_name = prompt_safe_character_name(name, tag)
-        display_name = display_name_ja(name, tag)
-        tags.append(weighted)
-        names.append(f"{display_name} ({role})" if role and role != "main" else display_name)
-        if safe_name:
-            natural_names.append(f"{safe_name} ({role})" if role and role != "main" else safe_name)
-        if entry:
-            metadata.append(character_metadata(entry, index + 1, role))
-            if getattr(entry, "kind", "") == "original":
-                natural_parts.append(original_identity_sentence(entry, role))
-    original_value = request.get("original_character", "None")
-    original_tag, original_name, original_entry = catalog.resolve_character_entry(str(original_value), 3, seed, original=True)
-    if original_tag:
-        original_weight = float(request.get("original_weight", 1.0))
-        tags.append(format_weighted(original_tag, original_weight))
-        names.append(display_name_ja(original_name, original_tag))
-        safe_name = prompt_safe_character_name(original_name, original_tag)
-        if safe_name:
-            natural_names.append(safe_name)
-        if original_entry:
-            metadata.append(character_metadata(original_entry, 4, "original"))
-            natural_parts.append(original_identity_sentence(original_entry, "main"))
-    return tags, names, metadata, natural_parts, natural_names
-
-
-def generated_natural_description(character_names: list[str]) -> str:
-    if not character_names:
-        return ""
-    if len(character_names) == 1:
-        return f"An anime illustration of {character_names[0]} in a clean, expressive composition."
-    lines = ["An anime illustration with multiple characters."]
-    for name in character_names:
-        lines.append(f"{name} is clearly separated by position and silhouette.")
-    return " ".join(lines)
-
-
-def normalize_natural_description(value: str) -> str:
-    return re.sub(r"\s+", " ", value or "").strip()
-
-
-def is_generated_natural_description(value: str) -> bool:
-    text = normalize_natural_description(value)
-    if re.fullmatch(r"An anime illustration of .+ in a clean, expressive composition\.", text):
-        return True
-    return text.startswith("An anime illustration with multiple characters.") and (
-        " is clearly separated by position and silhouette." in text
-    )
-
-
-def build_natural_description(character_names: list[str], request: dict[str, Any], natural_parts: list[str] | None = None) -> str:
-    manual = str(request.get("natural_description") or "").strip()
-    parts = [item for item in natural_parts or [] if item]
-    generated = generated_natural_description(character_names)
-    if manual and character_names and is_generated_natural_description(manual):
-        if normalize_natural_description(manual) != normalize_natural_description(generated):
-            manual = ""
-    if manual:
-        return " ".join([*parts, manual])
-    if parts:
-        return " ".join(parts)
-    return generated
-
-
-def build_prompts(request: dict[str, Any]) -> dict[str, Any]:
-    if is_lora_sample_mode(request):
-        return build_lora_sample_prompts(request)
-
-    seed = generate_seed(request.get("seed"))
-    character_tags, character_names, character_meta, natural_parts, natural_names = build_character_parts(request, seed)
-    rating = str(request.get("rating") or "safe").lower()
-    rating_tag = rating_prompt_for_request(request)
-    quality = quality_prompt_for_request(request)
-    meta = str(request.get("meta_prompt") or "anime illustration").strip()
-    year = str(request.get("year_prompt") or "").strip()
-    outfit = str(request.get("outfit_prompt") or "").strip()
-    expression = str(request.get("expression_prompt") or "").strip()
-    pose = str(request.get("pose_prompt") or "").strip()
-    background = str(request.get("background_prompt") or "").strip()
-    camera = str(request.get("camera_prompt") or "").strip()
-    lighting = str(request.get("lighting_prompt") or "").strip()
-    positive = str(request.get("positive_prompt") or "").strip()
-    common = str(request.get("common_prompt") or "").strip()
-    natural = build_natural_description(natural_names, request, natural_parts)
-    prompt_ban = str(request.get("prompt_ban") or "").strip()
-    random_collect = prompt_random_collect_tags(request)
-
-    people_tag = ""
-    count = len(character_tags)
-    if count == 1:
-        people_tag = "1girl"
-    elif count > 1:
-        people_tag = f"{count}girls"
-
-    positive_terms = [
-        quality,
-        meta,
-        year,
-        rating_tag,
-        people_tag,
-        *character_tags,
-        common,
-        outfit,
-        expression,
-        pose,
-        background,
-        camera,
-        lighting,
-        natural,
-        positive,
-        random_collect,
-    ]
-    full_positive = sanitize_prompt_text(compact_join(positive_terms))
-    if prompt_ban:
-        for term in [item.strip() for item in prompt_ban.split(",") if item.strip()]:
-            full_positive = re.sub(re.escape(term), "", full_positive, flags=re.IGNORECASE)
-        full_positive = sanitize_prompt_text(full_positive)
-
-    negative_preset_key = str(request.get("negative_preset") or "anima_recommended")
-    negative_preset = NEGATIVE_PRESETS.get(negative_preset_key, "")
-    negative_manual = str(request["negative_prompt_raw"] if "negative_prompt_raw" in request else request.get("negative_prompt", "")).strip()
-    negative_mode = str(request.get("negative_prompt_mode") or "append")
-    if negative_mode in {"preset", "source"}:
-        negative_mode = "preset"
-        full_negative = negative_preset
-    elif negative_mode == "custom":
-        full_negative = negative_manual
-    else:
-        negative_mode = "append"
-        full_negative = compact_join([negative_preset, negative_manual])
-
-    full_positive, full_negative, dynamic_prompt = apply_dynamic_prompts(request, full_positive, full_negative, seed)
-
-    prompts = {
-        "seed": seed,
-        "positive": full_positive,
-        "negative": full_negative,
-        "negative_mode": negative_mode,
-        "negative_preset": negative_preset_key,
-        "characters": character_names,
-        "character_metadata": character_meta,
-        "negative_guards": [item.get("negative_guard", "") for item in character_meta if item.get("negative_guard")],
-        "rating": rating,
-        "natural_description": natural,
-    }
-    if dynamic_prompt:
-        prompts["dynamic_prompt"] = dynamic_prompt
-    return prompts
-
-
-def build_lora_sample_prompts(request: dict[str, Any]) -> dict[str, Any]:
-    seed = generate_seed(request.get("seed"))
-    character_tags, character_names, character_meta, _natural_parts, _natural_names = build_character_parts(request, seed)
-    positive = str(request.get("positive_prompt") or "").strip()
-    if not positive:
-        positive = compact_join([*character_tags, str(request.get("common_prompt") or "").strip()])
-    positive = sanitize_prompt_text(positive)
-    prompt_ban = str(request.get("prompt_ban") or "").strip()
-    if prompt_ban:
-        for term in [item.strip() for item in prompt_ban.split(",") if item.strip()]:
-            positive = re.sub(re.escape(term), "", positive, flags=re.IGNORECASE)
-        positive = sanitize_prompt_text(positive)
-
-    negative_preset_key = str(request.get("negative_preset") or "anima_recommended")
-    negative_preset = NEGATIVE_PRESETS.get(negative_preset_key, "")
-    negative_manual = str(request["negative_prompt_raw"] if "negative_prompt_raw" in request else request.get("negative_prompt", "")).strip()
-    negative_mode = str(request.get("negative_prompt_mode") or "custom")
-    if negative_mode in {"preset", "source"}:
-        negative_mode = "preset"
-        full_negative = negative_preset or LORA_SAMPLE_NEGATIVE
-    elif negative_mode == "append":
-        full_negative = compact_join([negative_preset, negative_manual])
-    else:
-        negative_mode = "custom"
-        full_negative = negative_manual or LORA_SAMPLE_NEGATIVE
-
-    positive, full_negative, dynamic_prompt = apply_dynamic_prompts(request, positive, full_negative, seed)
-
-    prompts = {
-        "seed": seed,
-        "positive": positive,
-        "negative": full_negative,
-        "negative_mode": negative_mode,
-        "negative_preset": negative_preset_key,
-        "characters": character_names,
-        "character_metadata": character_meta,
-        "negative_guards": [item.get("negative_guard", "") for item in character_meta if item.get("negative_guard")],
-        "rating": str(request.get("rating") or "safe").lower(),
-        "natural_description": "",
-    }
-    if dynamic_prompt:
-        prompts["dynamic_prompt"] = dynamic_prompt
-    return prompts
-
-
-def build_workflow(request: dict[str, Any]) -> dict[str, Any]:
-    prompts = build_prompts(request)
-    workflow = deepcopy(load_base_workflow())
-    sample_mode = is_lora_sample_mode(request)
-    model = str(request.get("model") or (LORA_SAMPLE_MODEL_NAME if sample_mode else "Anima\\anima-preview3-base.safetensors"))
-    text_encoder = str(request.get("text_encoder") or "qwen_3_06b_base.safetensors")
-    vae = str(request.get("vae") or "qwen_image_vae.safetensors")
-    sampler = str(request.get("sampler") or ("euler" if sample_mode else "er_sde"))
-    scheduler = str(request.get("scheduler") or "simple")
-    steps = int(request.get("steps") or (30 if sample_mode else 32))
-    cfg = float(request.get("cfg") or (4.0 if sample_mode else 4.5))
-    width = int(request.get("width") or 1024)
-    height = int(request.get("height") or (1024 if sample_mode else 1536))
-    seed = int(prompts["seed"])
-
-    workflow["44"]["inputs"]["model_name"] = model
-    workflow["45"]["inputs"]["clip_name"] = text_encoder
-    workflow["15"]["inputs"]["vae_name"] = vae
-    workflow["11"]["inputs"]["text"] = prompts["positive"]
-    workflow["12"]["inputs"]["text"] = prompts["negative"]
-    workflow["28"]["inputs"]["width"] = width
-    workflow["28"]["inputs"]["height"] = height
-    workflow["28"]["inputs"]["batch_size"] = 1
-    workflow["19"]["inputs"]["seed"] = seed
-    workflow["19"]["inputs"]["steps"] = steps
-    workflow["19"]["inputs"]["cfg"] = cfg
-    workflow["19"]["inputs"]["sampler_name"] = sampler
-    workflow["19"]["inputs"]["scheduler"] = scheduler
-    workflow["19"]["inputs"]["denoise"] = float(request.get("denoise") or 1.0)
-    method = infer_anima_generation_method(request)
-    workflow["1"]["inputs"]["filename_prefix"] = build_output_prefix(
-        panel_id="anima",
-        generation_method=method,
-        original_prefix="Anima",
-    )
-    apply_model_sampling_shift(workflow, request)
-    previous_model = apply_official_loras(workflow, request)
-    apply_catalog_loras(workflow, request, previous_model)
-    apply_hires_fix(workflow, request)
-    apply_image_to_image(workflow, request)
-    apply_reference_assist(workflow, request)
-    apply_reference_modules(workflow, request)
-    apply_face_detailer(workflow, request, seed)
-    apply_hand_detailer(workflow, request, seed)
-    return workflow
-
-
-def apply_image_to_image(workflow: dict[str, Any], request: dict[str, Any]) -> None:
-    i2i = request.get("image_to_image") if isinstance(request.get("image_to_image"), dict) else {}
-    if not i2i.get("apply_to_payload"):
-        return
-    image_name = str((i2i.get("comfyui_image") or {}).get("name") or i2i.get("image_name") or i2i.get("prepared_filename") or "")
-    if not image_name:
-        i2i["apply_to_payload"] = False
-        i2i["unsupported_reason"] = "missing ComfyUI i2i image"
-        request["image_to_image"] = i2i
-        return
-    denoise = max(0.01, min(1.0, float(i2i.get("denoise") or 0.45)))
-    load_id = next_node_id(workflow)
-    encode_id = next_node_id(workflow, int(load_id) + 1)
-    workflow[load_id] = {
-        "class_type": "LoadImage",
-        "inputs": {"image": image_name},
-        "_meta": {"title": "Image to Image Source"},
-    }
-    workflow[encode_id] = {
-        "class_type": "VAEEncode",
-        "inputs": {"pixels": [load_id, 0], "vae": ["15", 0]},
-        "_meta": {"title": "Image to Image VAE Encode"},
-    }
-    workflow["19"]["inputs"]["latent_image"] = [encode_id, 0]
-    workflow["19"]["inputs"]["denoise"] = denoise
-    i2i.update(
-        {
-            "applied": True,
-            "mode": "generation",
-            "denoise": denoise,
-            "image_name": image_name,
-            "sampler_node": "19",
-            "load_image_node": load_id,
-            "latent_node": encode_id,
-        }
-    )
-    request["image_to_image"] = i2i
-
-
-def apply_reference_modules(workflow: dict[str, Any], request: dict[str, Any]) -> None:
-    modules = request.get("reference_modules") if isinstance(request.get("reference_modules"), dict) else {}
-    apply_outfit_reference_to_workflow(workflow, modules, sampler_ids=["19"], next_node_id=next_node_id)
-    apply_pose_reference_to_workflow(workflow, modules, sampler_ids=["19"], next_node_id=next_node_id)
-    request["reference_modules"] = modules
-
-
-def build_face_detailer_postprocess_workflow(request: dict[str, Any], image_name: str) -> dict[str, Any]:
-    seed = generate_seed(request.get("seed"))
-    positive = sanitize_prompt_text(request.get("positive_prompt") or request.get("positive") or "")
-    negative = sanitize_prompt_text(request.get("negative_prompt") or request.get("negative") or "")
-    model = str(request.get("model") or "Anima\\anima-preview3-base.safetensors")
-    text_encoder = str(request.get("text_encoder") or "qwen_3_06b_base.safetensors")
-    vae = str(request.get("vae") or "qwen_image_vae.safetensors")
-    settings = sanitize_face_detailer_settings(request.get("face_detailer"), mode="postprocess")
-    settings["enabled"] = True
-    settings["mode"] = "postprocess"
-    fd_seed = face_detailer_seed(seed, settings=settings)
-    base = load_base_workflow()
-    model_loader = deepcopy(base["44"])
-    model_loader["inputs"]["model_name"] = model
-    clip_loader = deepcopy(base["45"])
-    clip_loader["inputs"]["clip_name"] = text_encoder
-    vae_loader = deepcopy(base["15"])
-    vae_loader["inputs"]["vae_name"] = vae
-    workflow: dict[str, Any] = {
-        "1": {
-            "class_type": "SaveImage",
-            "inputs": {
-                "filename_prefix": build_output_prefix(panel_id="anima", generation_method="face_detailer_postprocess", original_prefix="AnimaFaceDetailer"),
-                "images": ["10", 0],
-            },
-            "_meta": {"title": "Save Face Detailer Result"},
-        },
-        "10": {"class_type": "LoadImage", "inputs": {"image": image_name}, "_meta": {"title": "Source Image"}},
-        "11": {"class_type": "CLIPTextEncode", "inputs": {"text": positive, "clip": ["45", 0]}, "_meta": {"title": "Positive"}},
-        "12": {"class_type": "CLIPTextEncode", "inputs": {"text": negative, "clip": ["45", 0]}, "_meta": {"title": "Negative"}},
-        "15": vae_loader,
-        "44": model_loader,
-        "45": clip_loader,
-        "46": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["44", 0], "shift": float(request.get("shift") or 4.0)}, "_meta": {"title": "Model Sampling"}},
-    }
-    apply_model_sampling_shift(workflow, request)
-    previous_model = apply_official_loras(workflow, request)
-    apply_catalog_loras(workflow, request, previous_model)
-    metadata = add_face_detailer_to_workflow(
-        workflow,
-        image=["10", 0],
-        model=["46", 0],
-        clip=workflow["11"]["inputs"].get("clip", ["45", 0]),
-        vae=["15", 0],
-        positive=["11", 0],
-        negative=["12", 0],
-        output_node_id="1",
-        output_input_name="images",
-        seed=fd_seed,
-        settings=settings,
-    )
-    request["face_detailer"] = metadata
-    return workflow
-
-
-def build_hand_detailer_postprocess_workflow(request: dict[str, Any], image_name: str) -> dict[str, Any]:
-    seed = generate_seed(request.get("seed"))
-    positive = sanitize_prompt_text(request.get("positive_prompt") or request.get("positive") or "")
-    negative = sanitize_prompt_text(request.get("negative_prompt") or request.get("negative") or "")
-    model = str(request.get("model") or "Anima\\anima-preview3-base.safetensors")
-    text_encoder = str(request.get("text_encoder") or "qwen_3_06b_base.safetensors")
-    vae = str(request.get("vae") or "qwen_image_vae.safetensors")
-    settings = sanitize_hand_detailer_settings(request.get("hand_detailer"), mode="postprocess")
-    settings["enabled"] = True
-    settings["mode"] = "postprocess"
-    hd_seed = face_detailer_seed(seed, settings=settings)
-    base = load_base_workflow()
-    model_loader = deepcopy(base["44"])
-    model_loader["inputs"]["model_name"] = model
-    clip_loader = deepcopy(base["45"])
-    clip_loader["inputs"]["clip_name"] = text_encoder
-    vae_loader = deepcopy(base["15"])
-    vae_loader["inputs"]["vae_name"] = vae
-    workflow: dict[str, Any] = {
-        "1": {
-            "class_type": "SaveImage",
-            "inputs": {
-                "filename_prefix": build_output_prefix(panel_id="anima", generation_method="hand_detailer_postprocess", original_prefix="AnimaHandDetailer"),
-                "images": ["10", 0],
-            },
-            "_meta": {"title": "Save Hand Detailer Result"},
-        },
-        "10": {"class_type": "LoadImage", "inputs": {"image": image_name}, "_meta": {"title": "Source Image"}},
-        "11": {"class_type": "CLIPTextEncode", "inputs": {"text": positive, "clip": ["45", 0]}, "_meta": {"title": "Positive"}},
-        "12": {"class_type": "CLIPTextEncode", "inputs": {"text": negative, "clip": ["45", 0]}, "_meta": {"title": "Negative"}},
-        "15": vae_loader,
-        "44": model_loader,
-        "45": clip_loader,
-        "46": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["44", 0], "shift": float(request.get("shift") or 4.0)}, "_meta": {"title": "Model Sampling"}},
-    }
-    apply_model_sampling_shift(workflow, request)
-    previous_model = apply_official_loras(workflow, request)
-    apply_catalog_loras(workflow, request, previous_model)
-    lllite_model, lllite_metadata = add_hand_lllite_mask_to_workflow(
-        workflow,
-        image=["10", 0],
-        model=["46", 0],
-        settings=settings,
-    )
-    metadata = add_face_detailer_to_workflow(
-        workflow,
-        image=["10", 0],
-        model=lllite_model,
-        clip=workflow["11"]["inputs"].get("clip", ["45", 0]),
-        vae=["15", 0],
-        positive=["11", 0],
-        negative=["12", 0],
-        output_node_id="1",
-        output_input_name="images",
-        seed=hd_seed,
-        settings=settings,
-        title_prefix="Hand Detailer",
-    )
-    metadata["target"] = "hand"
-    metadata["lllite"] = lllite_metadata
-    request["hand_detailer"] = metadata
-    return workflow
-
-
-def apply_face_detailer(workflow: dict[str, Any], request: dict[str, Any], seed: int) -> None:
-    settings = sanitize_face_detailer_settings(request.get("face_detailer"), mode="generation")
-    settings["mode"] = "generation"
-    fd_seed = face_detailer_seed(seed, index=int(request.get("queue_index") or 0), settings=settings)
-    sampler_inputs = workflow["19"]["inputs"]
-    metadata = add_face_detailer_to_workflow(
-        workflow,
-        image=workflow["1"]["inputs"].get("images") or ["8", 0],
-        model=sampler_inputs.get("model"),
-        clip=workflow["11"]["inputs"].get("clip", ["45", 0]),
-        vae=["15", 0],
-        positive=sampler_inputs.get("positive"),
-        negative=sampler_inputs.get("negative"),
-        output_node_id="1",
-        output_input_name="images",
-        seed=fd_seed,
-        settings=settings,
-    )
-    request["face_detailer"] = metadata
-
-
-def add_hand_lllite_mask_to_workflow(
-    workflow: dict[str, Any],
-    *,
-    image: list[Any],
-    model: list[Any],
-    settings: dict[str, Any],
-) -> tuple[list[Any], dict[str, Any]]:
-    metadata = {
-        "enabled": bool(settings.get("lllite_enabled")),
-        "model": settings.get("lllite_model"),
-        "strength": settings.get("lllite_strength"),
-        "start_percent": settings.get("lllite_start"),
-        "end_percent": settings.get("lllite_end"),
-        "warnings": [],
-    }
-    if not settings.get("lllite_enabled"):
-        metadata["applied"] = False
-        return model, metadata
-
-    detector_id = next_node_id(workflow, 9400)
-    segs_id = next_node_id(workflow, int(detector_id) + 1)
-    mask_id = next_node_id(workflow, int(segs_id) + 1)
-    lllite_id = next_node_id(workflow, int(mask_id) + 1)
-    workflow[detector_id] = {
-        "class_type": "UltralyticsDetectorProvider",
-        "inputs": {"model_name": settings.get("detector") or "bbox/hand_yolov8s.pt"},
-        "_meta": {"title": "Hand LLLite Detector"},
-    }
-    workflow[segs_id] = {
-        "class_type": "BboxDetectorSEGS",
-        "inputs": {
-            "bbox_detector": [detector_id, 0],
-            "image": image,
-            "threshold": settings["bbox_threshold"],
-            "dilation": settings["bbox_dilation"],
-            "crop_factor": settings["bbox_crop_factor"],
-            "drop_size": settings["drop_size"],
-            "labels": "hand",
-        },
-        "_meta": {"title": "Hand LLLite SEGS"},
-    }
-    workflow[mask_id] = {
-        "class_type": "SegsToCombinedMask",
-        "inputs": {"segs": [segs_id, 0]},
-        "_meta": {"title": "Hand LLLite Mask"},
-    }
-    workflow[lllite_id] = {
-        "class_type": "AnimaLLLiteApply",
-        "inputs": {
-            "model": model,
-            "lllite_name": settings["lllite_model"],
-            "image": image,
-            "strength": settings["lllite_strength"],
-            "start_percent": settings["lllite_start"],
-            "end_percent": settings["lllite_end"],
-            "preserve_wrapper": True,
-            "mask": [mask_id, 0],
-        },
-        "_meta": {"title": "Hand LLLite Inpainting"},
-    }
-    metadata.update(
-        {
-            "applied": True,
-            "detector_node_id": detector_id,
-            "segs_node_id": segs_id,
-            "mask_node_id": mask_id,
-            "node_id": lllite_id,
-        }
-    )
-    return [lllite_id, 0], metadata
-
-
-def apply_hand_detailer(workflow: dict[str, Any], request: dict[str, Any], seed: int) -> None:
-    settings = sanitize_hand_detailer_settings(request.get("hand_detailer"), mode="generation")
-    settings["mode"] = "generation"
-    hd_seed = face_detailer_seed(seed, index=int(request.get("queue_index") or 0), settings=settings)
-    if not settings.get("enabled"):
-        request["hand_detailer"] = {
-            "enabled": False,
-            "mode": "generation",
-            "detector": settings.get("detector"),
-            "lllite": {"enabled": bool(settings.get("lllite_enabled")), "applied": False},
-        }
-        return
-    image = workflow["1"]["inputs"].get("images") or ["8", 0]
-    sampler_inputs = workflow["19"]["inputs"]
-    model = sampler_inputs.get("model")
-    lllite_model, lllite_metadata = add_hand_lllite_mask_to_workflow(
-        workflow,
-        image=image,
-        model=model,
-        settings=settings,
-    )
-    metadata = add_face_detailer_to_workflow(
-        workflow,
-        image=image,
-        model=lllite_model,
-        clip=workflow["11"]["inputs"].get("clip", ["45", 0]),
-        vae=["15", 0],
-        positive=sampler_inputs.get("positive"),
-        negative=sampler_inputs.get("negative"),
-        output_node_id="1",
-        output_input_name="images",
-        seed=hd_seed,
-        settings=settings,
-        title_prefix="Hand Detailer",
-    )
-    metadata["target"] = "hand"
-    metadata["lllite"] = lllite_metadata
-    request["hand_detailer"] = metadata
-
-
-def apply_reference_assist(workflow: dict[str, Any], request: dict[str, Any]) -> None:
-    ref = request.get("reference_assist") if isinstance(request.get("reference_assist"), dict) else {}
-    if not ref.get("apply_to_payload"):
-        return
-    image_name = str((ref.get("comfyui_image") or {}).get("name") or ref.get("image_name") or "")
-    controlnet_model = str(ref.get("controlnet_model") or "")
-    if not image_name or not controlnet_model:
-        return
-    apply_node_type = str(ref.get("apply_node_type") or "ControlNetApplyAdvanced")
-    strength = max(0.0, min(1.0, float(ref.get("strength") or 0.25)))
-    start_percent = max(0.0, min(1.0, float(ref.get("start_percent") or 0.0)))
-    end_percent = max(0.0, min(1.0, float(ref.get("end_percent") or 0.65)))
-    load_id = next_node_id(workflow)
-    control_id = next_node_id(workflow, int(load_id) + 1)
-    workflow[load_id] = {
-        "inputs": {"image": image_name},
-        "class_type": "LoadImage",
-        "_meta": {"title": "Reference Assist Image"},
-    }
-    workflow[control_id] = {
-        "inputs": {"control_net_name": controlnet_model},
-        "class_type": "ControlNetLoader",
-        "_meta": {"title": "Reference Assist ControlNet"},
-    }
-    control_output: list[Any] = [control_id, 0]
-    if ref.get("has_union_type"):
-        union_id = next_node_id(workflow, int(control_id) + 1)
-        workflow[union_id] = {
-            "inputs": {"control_net": [control_id, 0], "type": str(ref.get("union_type") or "auto")},
-            "class_type": "SetUnionControlNetType",
-            "_meta": {"title": "Reference Assist Union Type"},
-        }
-        control_output = [union_id, 0]
-    sampler = workflow.get("19")
-    inputs = sampler.get("inputs") if isinstance(sampler, dict) else None
-    if not isinstance(inputs, dict) or "positive" not in inputs or "negative" not in inputs:
-        return
-    apply_id = next_node_id(workflow, int(control_output[0]) + 1)
-    if apply_node_type == "ControlNetApplyAdvanced":
-        apply_inputs: dict[str, Any] = {
-            "positive": inputs.get("positive"),
-            "negative": inputs.get("negative"),
-            "control_net": control_output,
-            "image": [load_id, 0],
-            "strength": strength,
-            "start_percent": start_percent,
-            "end_percent": end_percent,
-        }
-        positive_output = [apply_id, 0]
-        negative_output = [apply_id, 1]
-    else:
-        apply_inputs = {
-            "conditioning": inputs.get("positive"),
-            "control_net": control_output,
-            "image": [load_id, 0],
-            "strength": strength,
-        }
-        positive_output = [apply_id, 0]
-        negative_output = inputs.get("negative")
-    workflow[apply_id] = {
-        "inputs": apply_inputs,
-        "class_type": apply_node_type,
-        "_meta": {"title": "Reference Assist Apply"},
-    }
-    inputs["positive"] = positive_output
-    inputs["negative"] = negative_output
-
-
-def build_prompt_payload(request: dict[str, Any], client_id: str) -> dict[str, Any]:
-    return {"prompt": build_workflow(request), "client_id": client_id}
-
-
-def build_face_detailer_postprocess_payload(request: dict[str, Any], client_id: str, image_name: str) -> dict[str, Any]:
-    return {"prompt": build_face_detailer_postprocess_workflow(request, image_name), "client_id": client_id}
-
-
-def build_hand_detailer_postprocess_payload(request: dict[str, Any], client_id: str, image_name: str) -> dict[str, Any]:
-    return {"prompt": build_hand_detailer_postprocess_workflow(request, image_name), "client_id": client_id}
+from .output_organizer import build_output_prefix
+from .workflow import base as _base
+from .workflow import detailer as _detailer
+from .workflow import loras as _loras
+from .workflow.base import (
+    _float_or_none,
+    apply_model_sampling_shift,
+    build_prompt_payload as _build_prompt_payload,
+    build_workflow as _build_workflow,
+    load_anima_mapping,
+    load_base_workflow,
+    model_sampling_shift_metadata,
+)
+from .workflow.detailer import (
+    add_hand_lllite_mask_to_workflow,
+    apply_face_detailer,
+    apply_hand_detailer,
+    build_face_detailer_postprocess_payload as _build_face_detailer_postprocess_payload,
+    build_face_detailer_postprocess_workflow as _build_face_detailer_postprocess_workflow,
+    build_hand_detailer_postprocess_payload as _build_hand_detailer_postprocess_payload,
+    build_hand_detailer_postprocess_workflow as _build_hand_detailer_postprocess_workflow,
+)
+from .workflow.hires import apply_hires_fix, compute_hires_size, round_to_multiple
+from .workflow.i2i import apply_image_to_image
+from .workflow.loras import (
+    apply_catalog_loras as _apply_catalog_loras,
+    apply_official_loras as _apply_official_loras,
+    comfy_lora_name,
+    find_lora_file as _find_lora_file,
+    normalize_lora_application,
+    official_lora_summary as _official_lora_summary,
+    resolve_official_loras as _resolve_official_loras,
+)
+from .workflow.prompts import (
+    DYNAMIC_WILDCARD_CONFIG_DIR,
+    DYNAMIC_WILDCARD_USER_DIR,
+    LORA_SAMPLE_MODEL_NAME,
+    LORA_SAMPLE_NEGATIVE,
+    LORA_SAMPLE_WORKFLOW_MODE,
+    NEGATIVE_PRESETS,
+    QUALITY_PRESETS,
+    RATING_TAGS,
+    apply_dynamic_prompts,
+    build_character_parts,
+    build_lora_sample_prompts,
+    build_natural_description,
+    build_prompts,
+    character_metadata,
+    escape_standard_character_tag,
+    format_weighted,
+    generated_natural_description,
+    is_generated_natural_description,
+    is_lora_sample_mode,
+    normalize_natural_description,
+    original_identity_sentence,
+    quality_prompt_for_request,
+    rating_prompt_for_request,
+    split_prompt_terms,
+)
+from .workflow.reference import apply_reference_assist, apply_reference_modules
+
+
+find_lora_file = _find_lora_file
+
+
+def _sync_facade_overrides() -> None:
+    _loras.find_lora_file = find_lora_file
+    _base.build_output_prefix = build_output_prefix
+    _detailer.build_output_prefix = build_output_prefix
+    _base.apply_official_loras = apply_official_loras
+    _base.apply_catalog_loras = apply_catalog_loras
+    _detailer.apply_official_loras = apply_official_loras
+    _detailer.apply_catalog_loras = apply_catalog_loras
+
+
+def resolve_official_loras(request: dict[str, object]) -> dict[str, object]:
+    _sync_facade_overrides()
+    return _resolve_official_loras(request)
+
+
+def official_lora_summary(request: dict[str, object]) -> dict[str, object]:
+    _sync_facade_overrides()
+    return _official_lora_summary(request)
+
+
+def apply_official_loras(workflow: dict[str, object], request: dict[str, object]) -> list[object]:
+    _sync_facade_overrides()
+    return _apply_official_loras(workflow, request)
+
+
+def apply_catalog_loras(workflow: dict[str, object], request: dict[str, object], previous_model: list[object]) -> list[object]:
+    _sync_facade_overrides()
+    return _apply_catalog_loras(workflow, request, previous_model)
+
+
+def build_workflow(request: dict[str, object]) -> dict[str, object]:
+    _sync_facade_overrides()
+    return _build_workflow(request)
+
+
+def build_prompt_payload(request: dict[str, object], client_id: str) -> dict[str, object]:
+    _sync_facade_overrides()
+    return _build_prompt_payload(request, client_id)
+
+
+def build_face_detailer_postprocess_workflow(request: dict[str, object], image_name: str) -> dict[str, object]:
+    _sync_facade_overrides()
+    return _build_face_detailer_postprocess_workflow(request, image_name)
+
+
+def build_hand_detailer_postprocess_workflow(request: dict[str, object], image_name: str) -> dict[str, object]:
+    _sync_facade_overrides()
+    return _build_hand_detailer_postprocess_workflow(request, image_name)
+
+
+def build_face_detailer_postprocess_payload(request: dict[str, object], client_id: str, image_name: str) -> dict[str, object]:
+    _sync_facade_overrides()
+    return _build_face_detailer_postprocess_payload(request, client_id, image_name)
+
+
+def build_hand_detailer_postprocess_payload(request: dict[str, object], client_id: str, image_name: str) -> dict[str, object]:
+    _sync_facade_overrides()
+    return _build_hand_detailer_postprocess_payload(request, client_id, image_name)
+
+
+__all__ = [
+    "ANIMA_HIGHRES_LORA_NAME",
+    "ANIMA_TURBO_LORA_V01_NAME",
+    "ANIMA_TURBO_LORA_V02_NAME",
+    "COMFYUI_LORA_DIRS",
+    "ROOT_DIR",
+    "build_output_prefix",
+    "DYNAMIC_WILDCARD_CONFIG_DIR",
+    "DYNAMIC_WILDCARD_USER_DIR",
+    "QUALITY_PRESETS",
+    "RATING_TAGS",
+    "NEGATIVE_PRESETS",
+    "LORA_SAMPLE_WORKFLOW_MODE",
+    "LORA_SAMPLE_MODEL_NAME",
+    "LORA_SAMPLE_NEGATIVE",
+    "quality_prompt_for_request",
+    "rating_prompt_for_request",
+    "is_lora_sample_mode",
+    "find_lora_file",
+    "comfy_lora_name",
+    "resolve_official_loras",
+    "official_lora_summary",
+    "normalize_lora_application",
+    "apply_official_loras",
+    "apply_catalog_loras",
+    "load_base_workflow",
+    "load_anima_mapping",
+    "_float_or_none",
+    "model_sampling_shift_metadata",
+    "apply_model_sampling_shift",
+    "round_to_multiple",
+    "compute_hires_size",
+    "apply_hires_fix",
+    "escape_standard_character_tag",
+    "format_weighted",
+    "apply_dynamic_prompts",
+    "split_prompt_terms",
+    "character_metadata",
+    "original_identity_sentence",
+    "build_character_parts",
+    "generated_natural_description",
+    "normalize_natural_description",
+    "is_generated_natural_description",
+    "build_natural_description",
+    "build_prompts",
+    "build_lora_sample_prompts",
+    "build_workflow",
+    "apply_image_to_image",
+    "apply_reference_modules",
+    "build_face_detailer_postprocess_workflow",
+    "build_hand_detailer_postprocess_workflow",
+    "apply_face_detailer",
+    "add_hand_lllite_mask_to_workflow",
+    "apply_hand_detailer",
+    "apply_reference_assist",
+    "build_prompt_payload",
+    "build_face_detailer_postprocess_payload",
+    "build_hand_detailer_postprocess_payload",
+]
