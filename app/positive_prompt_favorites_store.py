@@ -28,14 +28,6 @@ def _empty_payload() -> dict[str, Any]:
     return {"version": 1, "app_scope": APP_SCOPE, "items": []}
 
 
-def _backup_broken_file() -> None:
-    if not FAVORITES_PATH.exists():
-        return
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = FAVORITES_PATH.with_name(f"{FAVORITES_PATH.stem}.broken_{stamp}{FAVORITES_PATH.suffix}")
-    FAVORITES_PATH.replace(backup_path)
-
-
 def _normalize_tags(value: Any) -> list[str]:
     if value is None:
         return []
@@ -106,9 +98,8 @@ def _load_payload_unlocked() -> dict[str, Any]:
         time.sleep(0.05)
         try:
             data = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            _backup_broken_file()
-            return _empty_payload()
+        except Exception as second_error:
+            raise RuntimeError("positive prompt favorites are temporarily unreadable") from second_error
     if not isinstance(data, dict):
         return _empty_payload()
     items = data.get("items")
