@@ -29,7 +29,7 @@ Open:
 
 Default PIN:
 
-- `2197`
+- `1234`
 
 To change the PIN:
 
@@ -38,13 +38,34 @@ set LUNA_ANIMA_PIN=1234
 run_luna_anima.bat
 ```
 
+By default Luna ANIMA binds to `127.0.0.1`. To expose the app on another host:
+
+```bat
+set LUNA_ANIMA_HOST=0.0.0.0
+set LUNA_ANIMA_PIN=your-private-pin
+run_luna_anima.bat
+```
+
+Startup is refused when `LUNA_ANIMA_HOST` is `0.0.0.0` or `::` and the default PIN is still in use.
+
+## Runtime Layout
+
+- `app/main.py` builds the FastAPI app, installs middleware, mounts static assets, runs the startup security check, and includes routers.
+- API routes live under `app/api/`.
+- Request models live under `app/schemas/`.
+- Session authentication lives in `app/auth.py`; the cookie name is `anima_claude_session`.
+- Shared static/file response helpers live in `app/responses.py`.
+- ComfyUI payload generation remains in `app/payload_builder.py`.
+
 ## Notes
 
 - Generated images, history, recipes, favorites, uploaded references, and settings are stored under `user_data`.
 - `user_data` is intentionally not included in distribution packages.
+- Existing `user_data/settings.json` and saved history are expected to remain compatible across refactors.
 - The character catalog is bundled under `config`. A legacy external catalog can still be used with `LUNA_CHARACTER_CATALOG_ROOT`.
 - Model files, LoRA files, LoRA trigger-word catalogs, and personal Original character presets are not included.
 - Personal positive prompt templates are not included; distribution packages start with an empty template catalog.
 - LoRA controls only scan and use files already installed in the user's local ComfyUI environment.
 - ComfyUI API defaults to `127.0.0.1:8188`. Override it with `COMFYUI_ADDR`.
+- Reference and image-to-image uploads use FastAPI multipart upload handling.
 - Redistribution and program modification are prohibited. See `LUNA_DISTRIBUTION_TERMS.md`.
