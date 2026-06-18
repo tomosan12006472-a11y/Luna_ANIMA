@@ -54,6 +54,8 @@ def infer_anima_generation_method(request: dict[str, Any]) -> str:
     operation = str(request.get("operation") or "")
     if operation == "face_detailer_postprocess":
         return "face_detailer_postprocess"
+    if operation == "hand_detailer_postprocess":
+        return "hand_detailer_postprocess"
     ref = request.get("reference_assist") if isinstance(request.get("reference_assist"), dict) else {}
     modules = request.get("reference_modules") if isinstance(request.get("reference_modules"), dict) else {}
     i2i = request.get("image_to_image") if isinstance(request.get("image_to_image"), dict) else {}

@@ -330,6 +330,40 @@ class PayloadGoldenTests(unittest.TestCase):
         self.assertTrue(request["hand_detailer"]["applied"])
         self.assertTrue(request["hand_detailer"]["lllite"]["applied"])
 
+    def test_build_hand_detailer_postprocess_payload(self) -> None:
+        request = {
+            "operation": "hand_detailer_postprocess",
+            "model": "Anima\\anima-preview3-base.safetensors",
+            "text_encoder": "qwen_3_06b_base.safetensors",
+            "vae": "qwen_image_vae.safetensors",
+            "shift": 4.0,
+            "seed": 987654321,
+            "positive_prompt": "anime illustration, detailed hands",
+            "negative_prompt": "bad anatomy, watermark",
+            "official_loras": {"highres": {"enabled": False}, "turbo": {"enabled": False}},
+            "loras": [],
+            "hand_detailer": {
+                "enabled": True,
+                "steps": 9,
+                "cfg": 4.0,
+                "denoise": 0.44,
+                "bbox_threshold": 0.34,
+                "lllite_strength": 0.88,
+            },
+        }
+        payload = payload_builder.build_hand_detailer_postprocess_payload(request, "golden-client", "golden/source.png")
+        workflow = payload["prompt"]
+        nodes = {node["class_type"]: node for node in workflow.values()}
+        hand_nodes = [node for node in workflow.values() if node.get("_meta", {}).get("title") == "Hand Detailer"]
+        self.assertEqual(workflow["1"]["inputs"]["filename_prefix"], "20990101/anima/hand_detailer_postprocess/AnimaHandDetailer")
+        self.assertEqual(workflow["10"]["inputs"]["image"], "golden/source.png")
+        self.assertEqual(nodes["AnimaLLLiteApply"]["inputs"]["image"], ["10", 0])
+        self.assertEqual(nodes["AnimaLLLiteApply"]["inputs"]["mask"], [request["hand_detailer"]["lllite"]["mask_node_id"], 0])
+        self.assertEqual(nodes["BboxDetectorSEGS"]["inputs"]["labels"], "hand")
+        self.assertEqual(hand_nodes[0]["inputs"]["image"], ["10", 0])
+        self.assertTrue(request["hand_detailer"]["applied"])
+        self.assertTrue(request["hand_detailer"]["lllite"]["applied"])
+
 
 if __name__ == "__main__":
     unittest.main()

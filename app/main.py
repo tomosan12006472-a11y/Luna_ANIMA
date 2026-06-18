@@ -23,7 +23,7 @@ from . import original_characters
 from . import reference_store
 from .config import ANIMA_HIGHRES_LORA_NAME, ANIMA_MAPPING_PATH, ANIMA_TURBO_LORA_V01_NAME, ANIMA_TURBO_LORA_V02_NAME, ANIMA_WORKFLOW_PATH, APP_PIN, CHARACTER_CATALOG_ROOT, COMFYUI_ADDR_DEFAULT, COMFYUI_ANIMA_TEMPLATE_PATH, COMFYUI_LORA_DIRS, MOBILE_PAYLOAD_DIR, ROOT_DIR
 from .dynamic_prompt import expand_dynamic_prompt, list_wildcards
-from .face_detailer import face_detailer_capabilities, sanitize_face_detailer_settings
+from .face_detailer import face_detailer_capabilities, sanitize_face_detailer_settings, sanitize_hand_detailer_settings
 from .generation_prepare import (
     face_detailer_capability_payload,
     generation_request_dict,
@@ -60,7 +60,7 @@ from .history_store import (
 )
 from .model_info_cache import _object_choice, cached_object_info, model_cache_status as _model_cache_status
 from .multipart_uploads import parse_multipart_file_upload
-from .payload_builder import NEGATIVE_PRESETS, build_face_detailer_postprocess_payload, build_prompt_payload, build_prompts, compute_hires_size, find_lora_file, model_sampling_shift_metadata, official_lora_summary
+from .payload_builder import NEGATIVE_PRESETS, build_face_detailer_postprocess_payload, build_hand_detailer_postprocess_payload, build_prompt_payload, build_prompts, compute_hires_size, find_lora_file, model_sampling_shift_metadata, official_lora_summary
 from .positive_prompt_favorites_store import (
     add_positive_prompt_favorite,
     delete_positive_prompt_favorite,
@@ -176,6 +176,11 @@ class GenerateRequest(BaseModel):
 
 
 class FaceDetailerPostprocessRequest(BaseModel):
+    history_id: str
+    settings: dict[str, Any] = Field(default_factory=dict)
+
+
+class HandDetailerPostprocessRequest(BaseModel):
     history_id: str
     settings: dict[str, Any] = Field(default_factory=dict)
 
@@ -1646,6 +1651,65 @@ def build_face_detailer_postprocess_request(item: dict[str, Any], settings: dict
     return request_data, prompts, warnings
 
 
+def build_hand_detailer_postprocess_request(item: dict[str, Any], settings: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+    warnings: list[str] = []
+    positive, negative, dynamic_prompt = face_detailer_history_prompts(item)
+    app_settings = load_app_settings()
+    text_encoder = str(item.get("text_encoder") or app_settings.get("text_encoder") or "qwen_3_06b_base.safetensors")
+    vae = str(item.get("vae") or app_settings.get("vae") or "qwen_image_vae.safetensors")
+    if not item.get("text_encoder"):
+        warnings.append("History text encoder is missing; using current saved text encoder.")
+    if not item.get("vae"):
+        warnings.append("History VAE is missing; using current saved VAE.")
+    if not positive:
+        warnings.append("History positive prompt is missing.")
+    hand_settings = sanitize_hand_detailer_settings(settings, mode="postprocess")
+    hand_settings["enabled"] = True
+    hand_settings["mode"] = "postprocess"
+    request_data = {
+        "operation": "hand_detailer_postprocess",
+        "parent_history_id": item.get("id"),
+        "source_image": {
+            "history_id": item.get("id"),
+            "filename": item.get("filename"),
+            "type": "output",
+        },
+        "workflow_mode": "hand_detailer_postprocess",
+        "model": item.get("model") or app_settings.get("model") or "Anima\\anima-preview3-base.safetensors",
+        "text_encoder": text_encoder,
+        "vae": vae,
+        "width": item.get("output_width") or item.get("width") or 1024,
+        "height": item.get("output_height") or item.get("height") or 1536,
+        "steps": item.get("steps") or 32,
+        "cfg": item.get("cfg") or 4.5,
+        "shift": item.get("shift") if item.get("shift") is not None else app_settings.get("shift", 4.0),
+        "model_sampling": item.get("model_sampling") or {},
+        "sampler": item.get("sampler") or "er_sde",
+        "scheduler": item.get("scheduler") or "simple",
+        "seed": item.get("seed", -1),
+        "positive_prompt": positive,
+        "negative_prompt": negative,
+        "negative_prompt_raw": negative,
+        "negative_prompt_mode": "custom",
+        "common_prompt": item.get("common") or "",
+        "rating": item.get("rating") or "safe",
+        "natural_description": item.get("natural_description") or "",
+        "loras": item.get("loras") or [],
+        "official_loras": item.get("official_loras") or {"highres": {"enabled": False}, "turbo": {"enabled": False}},
+        "hires_fix": {"enabled": False},
+        "reference_assist": {"enabled": False},
+        "dynamic_prompt": dynamic_prompt if dynamic_prompt else {"enabled": False},
+        "face_detailer": {"enabled": False},
+        "hand_detailer": hand_settings,
+    }
+    request_data["model_sampling"] = model_sampling_shift_metadata(request_data)
+    request_data["shift"] = request_data["model_sampling"].get("shift")
+    prompts = {"seed": request_data["seed"], "positive": positive, "negative": negative, "rating": request_data["rating"], "natural_description": request_data["natural_description"]}
+    if dynamic_prompt:
+        prompts["dynamic_prompt"] = dynamic_prompt
+    return request_data, prompts, warnings
+
+
 @app.post("/api/face-detailer/postprocess")
 def face_detailer_postprocess(
     data: FaceDetailerPostprocessRequest,
@@ -1712,6 +1776,77 @@ def face_detailer_postprocess(
             "parent_history_id": item.get("id"),
             "warnings": warnings,
             "face_detailer": request_data.get("face_detailer", {}),
+        },
+    )
+
+
+@app.post("/api/hand-detailer/postprocess")
+def hand_detailer_postprocess(
+    data: HandDetailerPostprocessRequest,
+    background_tasks: BackgroundTasks,
+    anima_claude_session: str | None = Cookie(default=None),
+) -> JSONResponse:
+    require_auth(anima_claude_session)
+    item = load_history_item(data.history_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="history item not found")
+    image_path = Path(str(item.get("image_path") or ""))
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="source image not found")
+    settings = load_settings()
+    addr = settings.get("api_addr") or COMFYUI_ADDR_DEFAULT
+    caps = face_detailer_capability_payload(addr).get("face_detailer", {})
+    hand_caps = caps.get("hand_detailer") if isinstance(caps.get("hand_detailer"), dict) else {}
+    if not caps.get("hand_supported"):
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Hand Detailer is not available.", "face_detailer": caps, "hand_detailer": hand_caps})
+    request_data, prompts, warnings = build_hand_detailer_postprocess_request(item, data.settings)
+    digest = hashlib.sha256(f"{item.get('id')}:{time.time()}".encode("utf-8")).hexdigest()[:10]
+    upload_name = f"anima_hand_detailer_{item.get('id')}_{digest}{image_path.suffix or '.png'}"
+    upload_result = comfy_client.upload_image(addr, filename=upload_name, data=image_path.read_bytes(), overwrite=True)
+    if not upload_result.get("ok"):
+        return JSONResponse(status_code=502, content={"ok": False, "message": "Failed to upload source image to ComfyUI.", "upload": upload_result})
+    uploaded = upload_result.get("json") if isinstance(upload_result.get("json"), dict) else {}
+    image_name = str(uploaded.get("name") or upload_name)
+    client_id = f"anima-hand-detailer-{uuid.uuid4()}"
+    try:
+        payload = build_hand_detailer_postprocess_payload(request_data, client_id, image_name)
+        dump_path = save_mobile_payload_data(payload, request_data, "hand_detailer_postprocess")
+    except Exception as exc:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={"ok": False, "message": str(exc), "stage": "build_hand_detailer_payload"})
+    result = comfy_client.run_generation(addr, payload, wait=False)
+    if not result.ok:
+        return JSONResponse(status_code=502, content={"ok": False, "message": result.error or "Hand Detailer queue failed", "stage": result.stage, "comfy_node_errors": result.node_errors})
+    pending_item = None
+    if result.prompt_id:
+        pending_item = create_pending_history_item(
+            request_data=request_data,
+            prompts=prompts,
+            prompt_id=result.prompt_id,
+            payload_path=dump_path,
+            workflow_mode="hand_detailer_postprocess",
+            index=0,
+        )
+        background_tasks.add_task(
+            save_completed_generation_history,
+            addr=addr,
+            request_data=request_data,
+            prompts=prompts,
+            prompt_id=result.prompt_id,
+            payload_path=str(dump_path),
+            workflow_mode="hand_detailer_postprocess",
+            history_id=pending_item["id"],
+        )
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "queued": True,
+            "prompt_id": result.prompt_id,
+            "pending_history_id": pending_item["id"] if pending_item else None,
+            "parent_history_id": item.get("id"),
+            "warnings": warnings,
+            "hand_detailer": request_data.get("hand_detailer", {}),
         },
     )
 

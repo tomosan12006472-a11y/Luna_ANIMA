@@ -1993,6 +1993,27 @@
     }
   }
 
+  async function queueFrameHandDetailer() {
+    if (!state.detailItem?.id) return;
+    text("#frameActionStatus", "手補正をキュー投入中...");
+    const data = await api("/api/hand-detailer/postprocess", {
+      method: "POST",
+      body: JSON.stringify({
+        history_id: state.detailItem.id,
+        settings: collectHandDetailerSettings(true, "postprocess"),
+      }),
+    });
+    UI.closeSheets();
+    text("#hdStatus", "手補正をキューに入れました");
+    UI.toast("手補正をキューに入れました");
+    UI.safelight("developing", "HAND DETAILING");
+    state.pollHadActive = true;
+    await loadContact(true);
+    if (Array.isArray(data.warnings) && data.warnings.length) {
+      UI.toast(data.warnings.slice(0, 2).join(" / "));
+    }
+  }
+
   function canSubmitGenerateRequest() {
     if (checked("#i2iEnabled") && !state.i2i.imageId) {
       text("#i2iStatus", "下絵が未選択です");
@@ -3906,6 +3927,7 @@
     }
     if (action === "frame-to-i2i") return setFrameAsI2iSource();
     if (action === "frame-face-detail") return queueFrameFaceDetailer();
+    if (action === "frame-hand-detail") return queueFrameHandDetailer();
     if (action === "i2i-upload") return uploadI2iImage();
     if (action === "i2i-clear") return clearI2iImage();
     if (action === "outfit-upload") return uploadRefmodImage("outfit");
