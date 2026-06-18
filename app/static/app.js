@@ -95,6 +95,7 @@
     promptSheetMode: "favorites",
     promptSheetItems: [],
     promptSheetEditingId: "",
+    promptSheetPage: { query: "", total: 0, limit: 50, hasMore: false },
     recipes: [],
     promptSheetQueryTimer: 0,
     dictQueryTimer: 0,
@@ -1141,7 +1142,21 @@
       }
     }
 
-    text("#promptSheetCount", String(visibleItems.length));
+    if (state.promptSheetMode === "templates") {
+      const page = state.promptSheetPage || {};
+      const total = Number(page.total ?? visibleItems.length);
+      text("#promptSheetCount", total > visibleItems.length ? `${visibleItems.length} / ${total}` : String(total));
+      if (page.hasMore) {
+        const more = document.createElement("button");
+        more.type = "button";
+        more.className = "ghost";
+        more.dataset.action = "load-more-prompts";
+        more.textContent = `もっと見る (${Math.max(0, total - visibleItems.length)}件)`;
+        root.appendChild(more);
+      }
+    } else {
+      text("#promptSheetCount", String(visibleItems.length));
+    }
     text("#promptSheetStatus", "");
   }
 
@@ -1155,17 +1170,32 @@
   async function loadPositiveFavorites() {
     const data = await api("/api/prompts/positive-favorites");
     state.promptSheetItems = Array.isArray(data.items) ? data.items : [];
+    state.promptSheetPage = { query: "", total: state.promptSheetItems.length, limit: 50, hasMore: false };
     renderPromptSheet();
     return data;
   }
 
-  async function loadPositiveTemplates(query = value("#promptSheetQuery", "")) {
+  async function loadPositiveTemplates(query = value("#promptSheetQuery", ""), { append = false } = {}) {
+    const normalizedQuery = String(query || "").trim();
+    const limit = Number(state.promptSheetPage?.limit || 50);
+    const offset = append && state.promptSheetPage?.query === normalizedQuery ? state.promptSheetItems.length : 0;
     const params = new URLSearchParams({
-      query: String(query || "").trim(),
-      limit: "50",
+      query: normalizedQuery,
+      limit: String(limit),
+      offset: String(offset),
     });
     const data = await api(`/api/prompts/positive-templates?${params.toString()}`);
-    state.promptSheetItems = Array.isArray(data.items) ? data.items : [];
+    if (value("#promptSheetQuery", "").trim() !== normalizedQuery) return data;
+    const pageItems = Array.isArray(data.items) ? data.items : [];
+    state.promptSheetItems = append && state.promptSheetPage?.query === normalizedQuery
+      ? [...state.promptSheetItems, ...pageItems]
+      : pageItems;
+    state.promptSheetPage = {
+      query: normalizedQuery,
+      total: Number(data.total ?? state.promptSheetItems.length),
+      limit: Number(data.limit ?? limit),
+      hasMore: Boolean(data.has_more),
+    };
     renderPromptSheet();
     return data;
   }
@@ -1226,6 +1256,7 @@
   async function openPositiveTemplates() {
     state.promptSheetMode = "templates";
     state.promptSheetItems = [];
+    state.promptSheetPage = { query: "", total: 0, limit: 50, hasMore: false };
     text("#promptSheetTitle", "テンプレート");
     setValue("#promptSheetQuery", "");
     setPromptSheetLoading("読み込み中...");
@@ -4012,6 +4043,16 @@
     });
 
     $("#promptSheetList")?.addEventListener("click", (event) => {
+      const moreTarget = event.target.closest("[data-action='load-more-prompts']");
+      if (moreTarget) {
+        event.preventDefault();
+        text("#promptSheetStatus", "読み込み中...");
+        loadPositiveTemplates(value("#promptSheetQuery", ""), { append: true }).catch((error) => {
+          text("#promptSheetStatus", errorMessage(error));
+          UI.toast(errorMessage(error), "error");
+        });
+        return;
+      }
       const deleteTarget = event.target.closest("[data-prompt-delete-id]");
       if (deleteTarget) {
         event.preventDefault();
@@ -4031,7 +4072,7 @@
       }
       state.promptSheetQueryTimer = window.setTimeout(() => {
         text("#promptSheetStatus", "読み込み中...");
-        loadPositiveTemplates().catch((error) => {
+        loadPositiveTemplates(value("#promptSheetQuery", ""), { append: false }).catch((error) => {
           text("#promptSheetStatus", errorMessage(error));
           UI.toast(errorMessage(error), "error");
         });
