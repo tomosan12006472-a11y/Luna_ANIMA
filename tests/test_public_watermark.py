@@ -47,6 +47,35 @@ class PublicWatermarkTests(unittest.TestCase):
         with Image.open(source).convert("RGB") as original, Image.open(output).convert("RGB") as watermarked:
             self.assertIsNotNone(ImageChops.difference(original, watermarked).getbbox())
 
+    def test_public_save_preserves_newer_history_status(self) -> None:
+        source = self.root / "source.png"
+        Image.new("RGB", (320, 180), (20, 30, 40)).save(source)
+        history_store.save_history_item(
+            {
+                "id": "frame-1",
+                "created_at": "2026-06-18T09:00:00",
+                "status": "completed",
+                "image_path": str(source),
+                "thumbnail_path": str(source),
+                "public_save": {"saved": False},
+                "watermark": {"applied": False},
+            }
+        )
+        stale_item = history_store.load_history_item("frame-1")
+        self.assertIsNotNone(stale_item)
+
+        history_store.update_pending_history_status("frame-1", "stale", "Timed out waiting for ComfyUI history")
+        public_save = history_store.copy_public_image(stale_item or {}, {"enabled": False})
+
+        current = history_store.load_history_item("frame-1")
+        self.assertIsNotNone(current)
+        self.assertTrue(public_save["saved"])
+        self.assertEqual(current["status"], "stale")
+        self.assertEqual(current["queue"]["status"], "stale")
+        self.assertEqual(current["queue"]["error"], "Timed out waiting for ComfyUI history")
+        self.assertTrue(current["public_save"]["saved"])
+        self.assertFalse(current["watermark"]["applied"])
+
     def test_legacy_public_save_request_uses_saved_watermark_settings(self) -> None:
         watermark = main.resolve_public_save_watermark(
             main.PublicSaveRequest(apply_watermark=False, watermark={"enabled": False}),
