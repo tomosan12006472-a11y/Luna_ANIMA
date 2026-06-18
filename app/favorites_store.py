@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-import json
 import re
-import shutil
 from threading import Lock
-import time
 from typing import Any
 
-from ._shared_utils import write_json_atomic
+from ._shared_utils import read_json_with_retry, write_json_atomic
 from .character_names import localize_favorites_payload
 from .config import FAVORITES_PATH
 from .anima_adapter import catalog
@@ -29,14 +26,6 @@ def empty_favorites() -> dict[str, list[dict[str, Any]]]:
 def slug(value: str) -> str:
     text = re.sub(r"[^0-9A-Za-zぁ-んァ-ヶ一-龠ー]+", "_", value.strip().lower()).strip("_")
     return text or "favorite"
-
-
-def backup_broken_favorites() -> None:
-    if not FAVORITES_PATH.exists():
-        return
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup = FAVORITES_PATH.with_name(f"favorites.broken_{stamp}.json")
-    shutil.move(str(FAVORITES_PATH), str(backup))
 
 
 def current_favorite_display_name(source: str, item: dict[str, Any], fallback_id: str) -> str:
@@ -102,15 +91,7 @@ def load_favorites() -> dict[str, list[dict[str, Any]]]:
 def _load_favorites_unlocked() -> dict[str, list[dict[str, Any]]]:
     if not FAVORITES_PATH.exists():
         return empty_favorites()
-    try:
-        raw = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        time.sleep(0.05)
-        try:
-            raw = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            backup_broken_favorites()
-            return empty_favorites()
+    raw = read_json_with_retry(FAVORITES_PATH, label="character favorites")
     return normalize_favorites(raw)
 
 

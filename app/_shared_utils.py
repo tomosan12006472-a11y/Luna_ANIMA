@@ -4,8 +4,13 @@ import json
 import os
 from pathlib import Path
 import re
+import time
 from typing import Any
 import uuid
+
+
+class JsonStoreReadError(RuntimeError):
+    pass
 
 
 def clamp_strength(value: Any, default: float = 0.0) -> float:
@@ -74,3 +79,14 @@ def write_json_atomic(path: Path, data: Any) -> None:
     tmp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
     tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(tmp_path, path)
+
+
+def read_json_with_retry(path: Path, *, label: str, delay: float = 0.05) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        time.sleep(delay)
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception as second_error:
+            raise JsonStoreReadError(f"{label} is temporarily unreadable") from second_error

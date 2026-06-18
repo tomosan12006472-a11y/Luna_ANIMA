@@ -1,14 +1,10 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime
-import json
-import shutil
 from threading import Lock
-import time
 from typing import Any
 
-from ._shared_utils import clamp_float, clamp_strength, normalize_lora_strengths, write_json_atomic
+from ._shared_utils import clamp_float, clamp_strength, normalize_lora_strengths, read_json_with_retry, write_json_atomic
 from .config import SETTINGS_PATH
 from .face_detailer import DEFAULT_FACE_DETAILER_SETTINGS, sanitize_face_detailer_settings
 from .i2i_store import sanitize_image_to_image
@@ -162,14 +158,6 @@ def sanitize_lora_list(items: Any) -> list[dict[str, Any]]:
     return result
 
 
-def backup_broken_settings() -> None:
-    if not SETTINGS_PATH.exists():
-        return
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup = SETTINGS_PATH.with_name(f"settings.broken_{stamp}.json")
-    shutil.move(str(SETTINGS_PATH), str(backup))
-
-
 def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     result = deep_merge(DEFAULT_APP_SETTINGS, settings)
     workflow_mode = str(result.get("workflow_mode") or "anima")
@@ -255,17 +243,8 @@ def load_app_settings() -> dict[str, Any]:
 def _load_app_settings_unlocked() -> dict[str, Any]:
     if not SETTINGS_PATH.exists():
         return deepcopy(DEFAULT_APP_SETTINGS)
-    try:
-        raw = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        time.sleep(0.05)
-        try:
-            raw = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            backup_broken_settings()
-            return deepcopy(DEFAULT_APP_SETTINGS)
+    raw = read_json_with_retry(SETTINGS_PATH, label="settings")
     if not isinstance(raw, dict):
-        backup_broken_settings()
         return deepcopy(DEFAULT_APP_SETTINGS)
     return sanitize_app_settings(raw)
 
@@ -273,6 +252,8 @@ def _load_app_settings_unlocked() -> dict[str, Any]:
 def save_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     merged = sanitize_app_settings(settings)
     with _SETTINGS_LOCK:
+        if SETTINGS_PATH.exists():
+            read_json_with_retry(SETTINGS_PATH, label="settings")
         write_json_atomic(SETTINGS_PATH, merged)
     return merged
 

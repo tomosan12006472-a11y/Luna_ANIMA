@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-import json
 import secrets
 from threading import Lock
-import time
 from typing import Any
 
-from ._shared_utils import write_json_atomic
+from ._shared_utils import read_json_with_retry, write_json_atomic
 from .config import ROOT_DIR
 
 
@@ -24,14 +22,6 @@ def _now() -> str:
 
 def _empty_payload() -> dict[str, Any]:
     return {"version": 1, "app_scope": APP_SCOPE, "items": []}
-
-
-def _backup_broken_file() -> None:
-    if not RECIPES_PATH.exists():
-        return
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = RECIPES_PATH.with_name(f"{RECIPES_PATH.stem}.broken_{stamp}{RECIPES_PATH.suffix}")
-    RECIPES_PATH.replace(backup_path)
 
 
 def _make_id() -> str:
@@ -68,15 +58,7 @@ def _load_payload() -> dict[str, Any]:
 def _load_payload_unlocked() -> dict[str, Any]:
     if not RECIPES_PATH.exists():
         return _empty_payload()
-    try:
-        data = json.loads(RECIPES_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        time.sleep(0.05)
-        try:
-            data = json.loads(RECIPES_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            _backup_broken_file()
-            return _empty_payload()
+    data = read_json_with_retry(RECIPES_PATH, label="recipes")
     if not isinstance(data, dict):
         return _empty_payload()
     items = data.get("items")
