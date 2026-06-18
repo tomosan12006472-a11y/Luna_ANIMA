@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -32,6 +33,11 @@ class HistoryCacheTests(unittest.TestCase):
         items, warnings = history_store.list_all_history_with_warnings()
         self.assertEqual(warnings, [])
         return [str(item.get("id")) for item in items]
+
+    def list_items_by_id(self) -> dict[str, dict[str, object]]:
+        items, warnings = history_store.list_all_history_with_warnings()
+        self.assertEqual(warnings, [])
+        return {str(item.get("id")): item for item in items}
 
     def test_second_call_uses_cache_without_rereading_files(self) -> None:
         self.write_item("older", "2026-06-10T10:00:00")
@@ -66,6 +72,19 @@ class HistoryCacheTests(unittest.TestCase):
 
         os.utime(path, ns=(next_time, next_time))
         self.assertEqual(history_store.list_all_history_with_warnings()[0][0]["status"], "failed")
+
+    def test_older_file_update_refreshes_cache_when_latest_mtime_and_total_size_are_unchanged(self) -> None:
+        older = self.write_item("older", "2026-06-10T10:00:00", status="queued")
+        newer = self.write_item("newer", "2026-06-11T10:00:00", status="queued")
+        base_time = 1_800_000_000_000_000_000
+        os.utime(older, ns=(base_time, base_time))
+        os.utime(newer, ns=(base_time + 3_000_000_000, base_time + 3_000_000_000))
+        self.assertEqual(self.list_items_by_id()["older"]["status"], "queued")
+
+        self.write_item("older", "2026-06-10T10:00:00", status="failed")
+        os.utime(older, ns=(base_time + 1_000_000_000, base_time + 1_000_000_000))
+
+        self.assertEqual(self.list_items_by_id()["older"]["status"], "failed")
 
     def test_file_deletion_refreshes_cache(self) -> None:
         self.write_item("first", "2026-06-10T10:00:00")
