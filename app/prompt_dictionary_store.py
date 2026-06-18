@@ -7,6 +7,7 @@ import time
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 
@@ -20,11 +21,13 @@ EXTRA_TSV = "danbooru_extra.tsv"
 class _DictionaryCache:
     loaded_at: float = 0.0
     data_dir: Path | None = None
+    signature: tuple[tuple[str, bool, int, int], ...] = ()
     entries: list[dict[str, Any]] | None = None
     warning: str | None = None
 
 
 _CACHE = _DictionaryCache()
+_CACHE_LOCK = Lock()
 
 
 def _repo_root() -> Path:
@@ -51,6 +54,19 @@ def _resolve_data_dir() -> Path | None:
         if (data_dir / MAIN_TSV).exists():
             return data_dir
     return None
+
+
+def _dictionary_signature(data_dir: Path) -> tuple[tuple[str, bool, int, int], ...]:
+    signature: list[tuple[str, bool, int, int]] = []
+    for name in (MAIN_TSV, EXTRA_TSV):
+        path = data_dir / name
+        try:
+            stat = path.stat()
+        except FileNotFoundError:
+            signature.append((name, False, 0, 0))
+        else:
+            signature.append((name, True, stat.st_mtime_ns, stat.st_size))
+    return tuple(signature)
 
 
 def _normalize(text: Any) -> str:
@@ -135,53 +151,80 @@ def _read_tsv(path: Path, source: str) -> list[dict[str, Any]]:
     return items
 
 
-def _load_entries(force: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    if _CACHE.entries is not None and not force:
-        return _CACHE.entries, _status_from_cache()
-
-    data_dir = _resolve_data_dir()
-    if not data_dir:
-        _CACHE.loaded_at = time.time()
-        _CACHE.data_dir = None
-        _CACHE.entries = []
-        _CACHE.warning = "prompt dictionary data was not found"
-        return _CACHE.entries, _status_from_cache()
-
-    entries = _read_tsv(data_dir / MAIN_TSV, "prompt_dictionary")
-    extra_path = data_dir / EXTRA_TSV
-    if extra_path.exists():
-        existing = {str(item["tag"]).lower(): item for item in entries}
-        for item in _read_tsv(extra_path, "danbooru_extra"):
-            key = str(item["tag"]).lower()
-            if key in existing:
-                current = existing[key]
-                for field in ("ja", "description", "dictionary_section"):
-                    if not current.get(field) and item.get(field):
-                        current[field] = item[field]
-                for field in ("aliases", "search_aliases", "related_tags"):
-                    merged = list(dict.fromkeys([*(current.get(field) or []), *(item.get(field) or [])]))
-                    current[field] = merged[:24]
-                current["_search"] = _normalize(
-                    " ".join(
-                        [
-                            current.get("tag", ""),
-                            current.get("display_tag", ""),
-                            current.get("ja", ""),
-                            current.get("description", ""),
-                            " ".join(current.get("aliases") or []),
-                            " ".join(current.get("search_aliases") or []),
-                            " ".join(current.get("related_tags") or []),
-                        ]
+def _read_dictionary_entries(data_dir: Path) -> tuple[list[dict[str, Any]], tuple[tuple[str, bool, int, int], ...]]:
+    for attempt in range(2):
+        before = _dictionary_signature(data_dir)
+        entries = _read_tsv(data_dir / MAIN_TSV, "prompt_dictionary")
+        extra_path = data_dir / EXTRA_TSV
+        if extra_path.exists():
+            existing = {str(item["tag"]).lower(): item for item in entries}
+            for item in _read_tsv(extra_path, "danbooru_extra"):
+                key = str(item["tag"]).lower()
+                if key in existing:
+                    current = existing[key]
+                    for field in ("ja", "description", "dictionary_section"):
+                        if not current.get(field) and item.get(field):
+                            current[field] = item[field]
+                    for field in ("aliases", "search_aliases", "related_tags"):
+                        merged = list(dict.fromkeys([*(current.get(field) or []), *(item.get(field) or [])]))
+                        current[field] = merged[:24]
+                    current["_search"] = _normalize(
+                        " ".join(
+                            [
+                                current.get("tag", ""),
+                                current.get("display_tag", ""),
+                                current.get("ja", ""),
+                                current.get("description", ""),
+                                " ".join(current.get("aliases") or []),
+                                " ".join(current.get("search_aliases") or []),
+                                " ".join(current.get("related_tags") or []),
+                            ]
+                        )
                     )
-                )
-            else:
-                entries.append(item)
+                else:
+                    entries.append(item)
+        after = _dictionary_signature(data_dir)
+        if before == after:
+            return entries, after
+        if attempt == 0:
+            time.sleep(0.05)
+    raise RuntimeError("prompt dictionary data changed while being read")
 
-    _CACHE.loaded_at = time.time()
-    _CACHE.data_dir = data_dir
-    _CACHE.entries = entries
-    _CACHE.warning = None
-    return entries, _status_from_cache()
+
+def _load_entries(force: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    data_dir = _resolve_data_dir()
+    signature = _dictionary_signature(data_dir) if data_dir else ()
+    with _CACHE_LOCK:
+        if _CACHE.entries is not None and not force and _CACHE.data_dir == data_dir and _CACHE.signature == signature:
+            return _CACHE.entries, _status_from_cache()
+
+        if not data_dir:
+            _CACHE.loaded_at = time.time()
+            _CACHE.data_dir = None
+            _CACHE.signature = ()
+            _CACHE.entries = []
+            _CACHE.warning = "prompt dictionary data was not found"
+            return _CACHE.entries, _status_from_cache()
+
+        try:
+            entries, loaded_signature = _read_dictionary_entries(data_dir)
+        except Exception as exc:
+            if _CACHE.entries is not None:
+                _CACHE.warning = f"prompt dictionary reload failed: {exc}"
+                return _CACHE.entries, _status_from_cache()
+            _CACHE.loaded_at = time.time()
+            _CACHE.data_dir = data_dir
+            _CACHE.signature = signature
+            _CACHE.entries = []
+            _CACHE.warning = f"prompt dictionary data could not be loaded: {exc}"
+            return _CACHE.entries, _status_from_cache()
+
+        _CACHE.loaded_at = time.time()
+        _CACHE.data_dir = data_dir
+        _CACHE.signature = loaded_signature
+        _CACHE.entries = entries
+        _CACHE.warning = None
+        return entries, _status_from_cache()
 
 
 def _status_from_cache() -> dict[str, Any]:
@@ -193,6 +236,15 @@ def _status_from_cache() -> dict[str, Any]:
         "loaded_at": _CACHE.loaded_at or None,
         "warning": _CACHE.warning,
     }
+
+
+def _reset_cache_for_tests() -> None:
+    with _CACHE_LOCK:
+        _CACHE.loaded_at = 0.0
+        _CACHE.data_dir = None
+        _CACHE.signature = ()
+        _CACHE.entries = None
+        _CACHE.warning = None
 
 
 def prompt_dictionary_status() -> dict[str, Any]:
@@ -211,23 +263,27 @@ def _score_entry(entry: dict[str, Any], query: str, tokens: list[str]) -> float:
     display = _normalize(entry.get("display_tag"))
     ja = _normalize(entry.get("ja"))
     haystack = str(entry.get("_search") or "")
-    score = 0.0
+    text_score = 0.0
 
     for needle, weight in ((tag, 120), (display, 100), (ja, 95)):
         if not needle:
             continue
         if needle == query:
-            score += weight
+            text_score += weight
         elif needle.startswith(query):
-            score += weight * 0.72
+            text_score += weight * 0.72
         elif query in needle:
-            score += weight * 0.42
+            text_score += weight * 0.42
 
     for token in tokens:
         if token and token in haystack:
-            score += 18
+            text_score += 18
     if query and query in haystack:
-        score += 35
+        text_score += 35
+    if text_score <= 0:
+        return 0.0
+
+    score = text_score
     if tag == query and "(" not in tag:
         score += 140
     elif tag.startswith(query) and "(" in tag:
