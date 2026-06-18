@@ -14,6 +14,7 @@ from PIL import Image, ImageOps
 
 from ._shared_utils import write_json_atomic
 from .config import ROOT_DIR
+from .schemas.reference import ImageToImageSettings
 
 
 I2I_DIR = ROOT_DIR / "user_data" / "i2i_inputs"
@@ -319,20 +320,5 @@ def i2i_capabilities(info: dict[str, Any] | None, *, cache: dict[str, Any] | Non
 
 
 def sanitize_image_to_image(value: Any, *, app_scope: str) -> dict[str, Any]:
-    raw = value if isinstance(value, dict) else {}
-    resize_mode = str(raw.get("resize_mode") or "fit").lower()
-    if resize_mode not in {"fit", "cover", "stretch"}:
-        resize_mode = "fit"
-    return {
-        "enabled": bool(raw.get("enabled")),
-        "app_scope": app_scope,
-        "image_id": str(raw.get("image_id") or ""),
-        "source": str(raw.get("source") or ""),
-        "source_history_id": str(raw.get("source_history_id") or ""),
-        "denoise": clamp_float(raw.get("denoise"), 0.45, 0.01, 1.0),
-        "resize_mode": resize_mode,
-        "use_source_size": bool(raw.get("use_source_size")),
-        "allow_with_hires_fix": bool(raw.get("allow_with_hires_fix")),
-        "allow_with_reference_assist": bool(raw.get("allow_with_reference_assist")),
-        "comfyui_image": raw.get("comfyui_image") if isinstance(raw.get("comfyui_image"), dict) else {"name": None, "subfolder": "", "type": "input"},
-    }
+    raw = value.model_dump() if hasattr(value, "model_dump") else value if isinstance(value, dict) else {}
+    return ImageToImageSettings.model_validate({**raw, "app_scope": app_scope}).model_dump()

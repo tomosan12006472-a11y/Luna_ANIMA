@@ -108,6 +108,10 @@ def face_detailer_capability_payload(addr: str, refresh: bool = False) -> dict[s
 
 def generation_request_dict(data: Any) -> dict[str, Any]:
     request_data = data.model_dump()
+    dynamic_prompt = request_data.get("dynamic_prompt") if isinstance(request_data.get("dynamic_prompt"), dict) else {}
+    if dynamic_prompt.get("wildcard_seed") is None:
+        dynamic_prompt.pop("wildcard_seed", None)
+        request_data["dynamic_prompt"] = dynamic_prompt
     request_data["loras"] = lora_catalog.normalize_lora_slots(request_data.get("loras"))
     request_data["model_sampling"] = model_sampling_shift_metadata(request_data)
     request_data["shift"] = request_data["model_sampling"].get("shift")

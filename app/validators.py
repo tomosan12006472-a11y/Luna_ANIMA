@@ -18,6 +18,13 @@ MAX_QUEUE_COUNT = 10
 MAX_OUTPUT_PIXELS = 4096 * 4096
 
 
+def _settings_dict(value: Any) -> dict[str, Any]:
+    if hasattr(value, "model_dump"):
+        dumped = value.model_dump()
+        return dumped if isinstance(dumped, dict) else {}
+    return value if isinstance(value, dict) else {}
+
+
 def error_response(
     *,
     status_code: int,
@@ -30,13 +37,13 @@ def error_response(
     traceback_short: str = "",
     retryable: bool = False,
 ) -> JSONResponse:
-    hires_fix = data.hires_fix if data else {}
+    hires_fix = _settings_dict(data.hires_fix) if data else {}
     content = {
         "ok": False,
         "error_type": "generation_error",
         "stage": stage,
         "message": message,
-        "mode": hires_fix.get("mode", "") if isinstance(hires_fix, dict) else "",
+        "mode": hires_fix.get("mode", ""),
         "workflow_mode": data.workflow_mode if data else "",
         "hires_fix": hires_fix,
         "comfy_status": comfy_status,
@@ -49,7 +56,7 @@ def error_response(
 
 
 def validate_hires_fix(data: Any, addr: str) -> JSONResponse | None:
-    hires = data.hires_fix or {}
+    hires = _settings_dict(data.hires_fix)
     if not hires.get("enabled"):
         return None
     try:
@@ -151,7 +158,7 @@ def validate_hires_fix(data: Any, addr: str) -> JSONResponse | None:
 
 
 def validate_image_to_image(data: Any) -> JSONResponse | None:
-    i2i = data.image_to_image if isinstance(data.image_to_image, dict) else {}
+    i2i = _settings_dict(data.image_to_image)
     if not i2i.get("enabled"):
         return None
     if not str(i2i.get("image_id") or ""):
@@ -163,7 +170,7 @@ def validate_image_to_image(data: Any) -> JSONResponse | None:
             comfy_node_errors={"missing": "image_to_image.image_id"},
             retryable=False,
         )
-    hires = data.hires_fix if isinstance(data.hires_fix, dict) else {}
+    hires = _settings_dict(data.hires_fix)
     if hires.get("enabled") and not i2i.get("allow_with_hires_fix"):
         return error_response(
             status_code=400,
@@ -173,7 +180,7 @@ def validate_image_to_image(data: Any) -> JSONResponse | None:
             comfy_node_errors={"image_to_image": "hires_fix_not_allowed"},
             retryable=False,
         )
-    reference = data.reference_assist if isinstance(data.reference_assist, dict) else {}
+    reference = _settings_dict(data.reference_assist)
     if reference.get("enabled") and not i2i.get("allow_with_reference_assist"):
         return error_response(
             status_code=400,
@@ -200,7 +207,7 @@ def validate_queue_count(data: Any) -> JSONResponse | None:
 
 
 def validate_reference_modules(data: Any, addr: str) -> JSONResponse | None:
-    modules = sanitize_reference_modules(data.reference_modules if isinstance(data.reference_modules, dict) else {}, app_scope="anima")
+    modules = sanitize_reference_modules(_settings_dict(data.reference_modules), app_scope="anima")
     outfit = modules.get("outfit") if isinstance(modules.get("outfit"), dict) else {}
     caps = reference_modules_availability_payload(addr)
     if outfit.get("enabled"):

@@ -15,6 +15,7 @@ from .prompt_converter import (
     prompt_converter_status,
     sanitize_prompt_converter_settings,
 )
+from .schemas.generation import PromptRandomCollectSettings
 
 
 MODE_RANDOM = "random"
@@ -41,25 +42,8 @@ def _clamp_text(value: Any, default: str, limit: int) -> str:
 
 
 def sanitize_prompt_random_collect_request(value: Any) -> dict[str, Any]:
-    raw = value if isinstance(value, dict) else {}
-    mode = str(raw.get("mode") or MODE_RANDOM).strip().lower()
-    if mode not in VALID_MODES:
-        mode = MODE_RANDOM
-    strength = str(raw.get("strength") or "standard").strip().lower()
-    if strength not in VALID_STRENGTHS:
-        strength = "standard"
-    include_characters = raw.get("include_characters", True)
-    if isinstance(include_characters, str):
-        include_characters = include_characters.strip().lower() not in {"0", "false", "off", "no"}
-    else:
-        include_characters = bool(include_characters)
-    return {
-        "enabled": bool(raw.get("enabled")),
-        "mode": mode,
-        "instruction": _clamp_text(raw.get("instruction"), DEFAULT_INSTRUCTIONS[mode], 1000),
-        "strength": strength,
-        "include_characters": include_characters,
-    }
+    raw = value.model_dump() if hasattr(value, "model_dump") else value if isinstance(value, dict) else {}
+    return PromptRandomCollectSettings.model_validate(raw).model_dump()
 
 
 def prompt_random_collect_enabled(value: Any) -> bool:
