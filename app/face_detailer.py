@@ -5,6 +5,7 @@ import math
 from typing import Any
 
 from ._shared_utils import next_node_id
+from .schemas.generation import FaceDetailerRequestSettings, HandDetailerRequestSettings
 
 
 DEFAULT_DETECTOR = "bbox/face_yolov8m.pt"
@@ -75,55 +76,18 @@ def _int(value: Any, default: int, minimum: int, maximum: int) -> int:
 
 
 def sanitize_face_detailer_settings(value: Any, *, mode: str = "generation") -> dict[str, Any]:
-    raw = value if isinstance(value, dict) else {}
-    settings = deepcopy(DEFAULT_FACE_DETAILER_SETTINGS)
-    settings.update(raw)
-    settings["enabled"] = bool(settings.get("enabled"))
-    settings["mode"] = "postprocess" if str(mode or settings.get("mode") or "") == "postprocess" else "generation"
-    settings["detector"] = str(settings.get("detector") or DEFAULT_DETECTOR)
-    settings["steps"] = _int(settings.get("steps"), 12, 1, 60)
-    settings["cfg"] = _float(settings.get("cfg"), 5.0, 0.0, 30.0)
-    settings["denoise"] = _float(settings.get("denoise"), 0.3, 0.0, 1.0)
-    settings["guide_size"] = _int(settings.get("guide_size"), 512, 64, 2048)
-    settings["max_size"] = _int(settings.get("max_size"), 1024, 128, 4096)
-    settings["bbox_threshold"] = _float(settings.get("bbox_threshold"), 0.65, 0.0, 1.0)
-    settings["bbox_dilation"] = _int(settings.get("bbox_dilation"), 10, -512, 512)
-    settings["bbox_crop_factor"] = _float(settings.get("bbox_crop_factor"), 3.0, 1.0, 10.0)
-    settings["drop_size"] = _int(settings.get("drop_size"), 64, 4, 512)
-    settings["sam_enabled"] = bool(settings.get("sam_enabled"))
-    settings["seed_offset"] = _int(settings.get("seed_offset"), 100000, 0, 2147483647)
-    if "seed" in settings and settings.get("seed") not in (None, ""):
-        settings["seed"] = _int(settings.get("seed"), -1, -1, 4294967295)
+    raw = value.model_dump() if hasattr(value, "model_dump") else value if isinstance(value, dict) else {}
+    settings = FaceDetailerRequestSettings.model_validate({**raw, "mode": mode}).model_dump()
+    if "seed" in raw and raw.get("seed") not in (None, ""):
+        settings["seed"] = _int(raw.get("seed"), -1, -1, 4294967295)
     return settings
 
 
 def sanitize_hand_detailer_settings(value: Any, *, mode: str = "generation") -> dict[str, Any]:
-    raw = value if isinstance(value, dict) else {}
-    settings = deepcopy(DEFAULT_HAND_DETAILER_SETTINGS)
-    settings.update(raw)
-    settings["enabled"] = bool(settings.get("enabled"))
-    settings["mode"] = "generation" if str(mode or settings.get("mode") or "") != "postprocess" else "postprocess"
-    settings["detector"] = str(settings.get("detector") or DEFAULT_HAND_DETECTOR)
-    settings["steps"] = _int(settings.get("steps"), 14, 1, 60)
-    settings["cfg"] = _float(settings.get("cfg"), 4.0, 0.0, 30.0)
-    settings["denoise"] = _float(settings.get("denoise"), 0.45, 0.0, 1.0)
-    settings["guide_size"] = _int(settings.get("guide_size"), 512, 64, 2048)
-    settings["max_size"] = _int(settings.get("max_size"), 1024, 128, 4096)
-    settings["bbox_threshold"] = _float(settings.get("bbox_threshold"), 0.35, 0.0, 1.0)
-    settings["bbox_dilation"] = _int(settings.get("bbox_dilation"), 16, -512, 512)
-    settings["bbox_crop_factor"] = _float(settings.get("bbox_crop_factor"), 2.5, 1.0, 10.0)
-    settings["drop_size"] = _int(settings.get("drop_size"), 24, 4, 512)
-    settings["sam_enabled"] = bool(settings.get("sam_enabled"))
-    settings["seed_offset"] = _int(settings.get("seed_offset"), 200000, 0, 2147483647)
-    settings["lllite_enabled"] = bool(settings.get("lllite_enabled", True))
-    settings["lllite_model"] = str(settings.get("lllite_model") or DEFAULT_ANIMA_LLLITE_INPAINTING)
-    settings["lllite_strength"] = _float(settings.get("lllite_strength"), 0.85, 0.0, 10.0)
-    settings["lllite_start"] = _float(settings.get("lllite_start"), 0.0, 0.0, 1.0)
-    settings["lllite_end"] = _float(settings.get("lllite_end"), 1.0, 0.0, 1.0)
-    if settings["lllite_end"] < settings["lllite_start"]:
-        settings["lllite_end"] = settings["lllite_start"]
-    if "seed" in settings and settings.get("seed") not in (None, ""):
-        settings["seed"] = _int(settings.get("seed"), -1, -1, 4294967295)
+    raw = value.model_dump() if hasattr(value, "model_dump") else value if isinstance(value, dict) else {}
+    settings = HandDetailerRequestSettings.model_validate({**raw, "mode": mode}).model_dump()
+    if "seed" in raw and raw.get("seed") not in (None, ""):
+        settings["seed"] = _int(raw.get("seed"), -1, -1, 4294967295)
     return settings
 
 

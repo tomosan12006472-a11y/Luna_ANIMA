@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
+from .schemas.reference import ReferenceModulesSettings
+
 
 DEFAULT_REFERENCE_MODULES: dict[str, Any] = {
     "enabled": True,
@@ -45,50 +47,14 @@ def clamp_float(value: Any, default: float, minimum: float = 0.0, maximum: float
 
 
 def sanitize_reference_modules(value: Any, *, app_scope: str = "anima") -> dict[str, Any]:
-    raw = value if isinstance(value, dict) else {}
-    outfit_raw = raw.get("outfit") if isinstance(raw.get("outfit"), dict) else {}
-    pose_raw = raw.get("pose") if isinstance(raw.get("pose"), dict) else {}
-    default_preset = "REGULAR - FLUX and SD3.5 only (high strength)" if app_scope == "anima" else "PLUS (high strength)"
-    outfit = {
-        "enabled": bool(outfit_raw.get("enabled")),
-        "image_id": str(outfit_raw.get("image_id") or ""),
-        "image_name": str(outfit_raw.get("image_name") or ""),
-        "strength": clamp_float(outfit_raw.get("strength"), 0.45),
-        "mode": str(outfit_raw.get("mode") or "image_prompt"),
-        "strategy": "ip_adapter",
-        "crop_mode": str(outfit_raw.get("crop_mode") or "user_prepared"),
-        "start_at": clamp_float(outfit_raw.get("start_at"), 0.0),
-        "end_at": clamp_float(outfit_raw.get("end_at"), 0.75),
-        "preset": str(outfit_raw.get("preset") or default_preset),
-        "provider": str(outfit_raw.get("provider") or "CUDA"),
-        "comfyui_image": outfit_raw.get("comfyui_image") if isinstance(outfit_raw.get("comfyui_image"), dict) else {"name": None, "subfolder": "", "type": "input"},
-    }
-    if outfit["end_at"] < outfit["start_at"]:
-        outfit["end_at"] = outfit["start_at"]
-    pose_mode = str(pose_raw.get("mode") or "pose_image")
-    if pose_mode not in {"pose_image", "auto_dwpose"}:
-        pose_mode = "pose_image"
-    pose = {
-        "enabled": bool(pose_raw.get("enabled")),
-        "image_id": str(pose_raw.get("image_id") or ""),
-        "image_name": str(pose_raw.get("image_name") or ""),
-        "mode": pose_mode,
-        "strength": clamp_float(pose_raw.get("strength"), 0.75),
-        "start_at": clamp_float(pose_raw.get("start_at"), 0.0),
-        "end_at": clamp_float(pose_raw.get("end_at"), 0.85),
-        "strategy": "controlnet_openpose",
-        "controlnet_model": str(pose_raw.get("controlnet_model") or ""),
-        "union_type": str(pose_raw.get("union_type") or "openpose"),
-        "comfyui_image": pose_raw.get("comfyui_image") if isinstance(pose_raw.get("comfyui_image"), dict) else {"name": None, "subfolder": "", "type": "input"},
-    }
-    if pose["end_at"] < pose["start_at"]:
-        pose["end_at"] = pose["start_at"]
-    return {
-        "enabled": bool(raw.get("enabled", True)),
-        "preset": str(raw.get("preset") or ("outfit_pose" if outfit["enabled"] and pose["enabled"] else "outfit_only" if outfit["enabled"] else "pose_only" if pose["enabled"] else "off")),
-        "outfit": outfit,
-        "pose": pose,
-    }
+    raw = value.model_dump() if hasattr(value, "model_dump") else value if isinstance(value, dict) else {}
+    data = ReferenceModulesSettings.model_validate(raw).model_dump()
+    if app_scope != "anima":
+        outfit = data.get("outfit") if isinstance(data.get("outfit"), dict) else {}
+        if outfit.get("preset") == "REGULAR - FLUX and SD3.5 only (high strength)":
+            outfit["preset"] = "PLUS (high strength)"
+            data["outfit"] = outfit
+    return data
 
 
 def _input_choices(info: dict[str, Any], class_name: str, input_name: str) -> list[str]:

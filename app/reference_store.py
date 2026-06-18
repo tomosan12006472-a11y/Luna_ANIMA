@@ -14,6 +14,7 @@ from PIL import Image, ImageOps
 
 from ._shared_utils import write_json_atomic
 from .config import ROOT_DIR
+from .schemas.reference import ReferenceAssistSettings
 
 
 REFERENCE_DIR = ROOT_DIR / "user_data" / "reference_inputs"
@@ -246,22 +247,8 @@ def reference_capabilities(info: dict[str, Any] | None, *, cache: dict[str, Any]
 
 
 def sanitize_reference_assist(value: Any, *, app_scope: str, default_strength: float) -> dict[str, Any]:
-    raw = value if isinstance(value, dict) else {}
-    mode = str(raw.get("mode") or "auto")
-    if mode not in {"auto", "controlnet", "img2img_reference"}:
-        mode = "auto"
-    return {
-        "enabled": bool(raw.get("enabled")),
-        "mode": mode,
-        "experimental": bool(raw.get("experimental")),
-        "app_scope": app_scope,
-        "image_id": str(raw.get("image_id") or ""),
-        "image_name": str(raw.get("image_name") or ""),
-        "controlnet_model": str(raw.get("controlnet_model") or ""),
-        "strength": clamp_float(raw.get("strength"), default_strength),
-        "start_percent": clamp_float(raw.get("start_percent"), 0.0),
-        "end_percent": clamp_float(raw.get("end_percent"), 0.75),
-        "resize_mode": str(raw.get("resize_mode") or "fit"),
-        "union_type": str(raw.get("union_type") or "auto"),
-        "comfyui_image": raw.get("comfyui_image") if isinstance(raw.get("comfyui_image"), dict) else {"name": None, "subfolder": "", "type": "input"},
-    }
+    raw = value.model_dump() if hasattr(value, "model_dump") else value if isinstance(value, dict) else {}
+    raw = {**raw, "app_scope": app_scope}
+    if "strength" not in raw:
+        raw["strength"] = default_strength
+    return ReferenceAssistSettings.model_validate(raw).model_dump()
