@@ -29,7 +29,7 @@ SMALL_THUMBNAIL_DIR = THUMBNAIL_DIR.parent / "thumbnails_small"
 SMALL_THUMBNAIL_SIZE = (320, 320)
 SMALL_THUMBNAIL_QUALITY = 76
 _HISTORY_LIST_CACHE_LOCK = Lock()
-_HISTORY_LIST_CACHE_SIGNATURE: tuple[int, int, int] | None = None
+_HISTORY_LIST_CACHE_SIGNATURE: str | None = None
 _HISTORY_LIST_CACHE_ITEMS: list[dict[str, Any]] = []
 _HISTORY_LIST_CACHE_WARNINGS: list[str] = []
 _HISTORY_ITEM_LOCKS_LOCK = Lock()
@@ -157,25 +157,23 @@ def save_history_item(item: dict[str, Any]) -> None:
         write_json_atomic(history_path(history_id), item)
 
 
-def _history_directory_signature() -> tuple[tuple[int, int, int], list[Path]]:
-    entries: list[tuple[Path, int, int]] = []
+def _history_directory_signature() -> tuple[str, list[Path]]:
+    entries: list[tuple[str, int, int, Path]] = []
     for path in HISTORY_DIR.glob("*.json"):
         try:
             stat = path.stat()
         except OSError:
             continue
-        entries.append((path, int(stat.st_mtime_ns), int(stat.st_size)))
-    signature = (
-        len(entries),
-        max((mtime_ns for _, mtime_ns, _ in entries), default=0),
-        sum(size for _, _, size in entries),
-    )
-    return signature, [path for path, _, _ in entries]
+        entries.append((path.name, int(stat.st_mtime_ns), int(stat.st_size), path))
+    entries.sort(key=lambda entry: entry[0])
+    signature_payload = [(name, mtime_ns, size) for name, mtime_ns, size, _path in entries]
+    signature = hashlib.sha256(json.dumps(signature_payload, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return signature, [path for _name, _mtime_ns, _size, path in entries]
 
 
 def history_collection_revision() -> str:
     signature, _ = _history_directory_signature()
-    return ":".join(str(part) for part in signature)
+    return signature
 
 
 def _load_visible_history_from_paths(paths: list[Path]) -> tuple[list[dict[str, Any]], list[str]]:
