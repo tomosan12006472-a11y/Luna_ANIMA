@@ -2114,11 +2114,23 @@
   }
 
   function collectWatermark() {
-    return { enabled: false };
+    const previous = state.appSettings?.watermark || {};
+    return {
+      ...previous,
+      enabled: checked("#watermarkEnabled"),
+      text: value("#watermarkText", "@Luna_AIart_"),
+      position: value("#watermarkPosition", "bottom_right"),
+      opacity: numberValue("#watermarkOpacity", 0.72),
+      size: numberValue("#watermarkSize", 36),
+    };
   }
 
-  function applyWatermark() {
-    state.appSettings = { ...state.appSettings, watermark: { enabled: false } };
+  function applyWatermark(watermark = {}) {
+    setChecked("#watermarkEnabled", watermark.enabled !== false);
+    setValue("#watermarkText", watermark.text || "@Luna_AIart_");
+    setValue("#watermarkPosition", watermark.position || "bottom_right");
+    setValue("#watermarkOpacity", watermark.opacity ?? 0.72);
+    setValue("#watermarkSize", watermark.size ?? 36);
   }
 
   function applySettingsToForm(settings = {}, defaults = state.defaults) {
@@ -2814,8 +2826,9 @@
     const data = await api(`/api/history/${escapePathSegment(state.detailItem.id)}/public-save`, {
       method: "POST",
       body: JSON.stringify({
-        apply_watermark: false,
-        watermark: { enabled: false },
+        apply_watermark: checked("#watermarkEnabled"),
+        watermark: collectWatermark(),
+        watermark_client: "current",
       }),
     });
     state.detailItem = data.item || state.detailItem;
@@ -3500,10 +3513,10 @@
       loras: collectLoras(),
       prompt_random_collect: collectPromptRandomCollect(),
       hires_fix: hiresFix,
-      watermark: { enabled: false },
+      watermark: collectWatermark(),
       public_save: {
         ...(next.public_save || {}),
-        apply_watermark: false,
+        apply_watermark: checked("#watermarkEnabled"),
       },
     });
     return next;
@@ -3963,10 +3976,16 @@
     });
 
     document.addEventListener("input", (event) => {
+      if (event.target.closest("#settingsSheet")) {
+        state.appSettings = { ...state.appSettings, watermark: collectWatermark() };
+      }
       if (event.target.closest("#exposeView") || event.target.closest("#exposeBar")) updateSummaries();
     });
 
     document.addEventListener("change", (event) => {
+      if (event.target.closest("#settingsSheet")) {
+        state.appSettings = { ...state.appSettings, watermark: collectWatermark() };
+      }
       if (event.target.closest("#exposeView") || event.target.closest("#exposeBar")) updateSummaries();
     });
   }

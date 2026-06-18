@@ -201,6 +201,23 @@ class SettingsRequest(BaseModel):
 class PublicSaveRequest(BaseModel):
     apply_watermark: bool = False
     watermark: dict[str, Any] = Field(default_factory=dict)
+    watermark_client: str = ""
+
+
+def resolve_public_save_watermark(data: PublicSaveRequest, settings: dict[str, Any] | None = None) -> dict[str, Any]:
+    if data.watermark_client == "current":
+        watermark = dict(data.watermark) if data.apply_watermark else {"enabled": False}
+        watermark["enabled"] = data.apply_watermark
+        return watermark
+    if data.apply_watermark:
+        watermark = dict(data.watermark)
+        watermark["enabled"] = True
+        return watermark
+    app_settings = settings if settings is not None else load_app_settings()
+    configured = dict(app_settings.get("watermark") or {})
+    public_save_settings = app_settings.get("public_save") if isinstance(app_settings.get("public_save"), dict) else {}
+    configured["enabled"] = bool(public_save_settings.get("apply_watermark", configured.get("enabled", False)))
+    return configured
 
 
 class HistoryFlagsRequest(BaseModel):
@@ -1763,7 +1780,8 @@ def public_save(history_id: str, data: PublicSaveRequest, anima_claude_session: 
     item = load_history_item(history_id)
     if not item:
         raise HTTPException(status_code=404, detail="history item not found")
-    public_info = copy_public_image(item, {"enabled": False})
+    watermark = resolve_public_save_watermark(data)
+    public_info = copy_public_image(item, watermark)
     updated = load_history_item(history_id) or item
     public_image_url = updated.get("public_image_url") or public_info.get("url")
     return {

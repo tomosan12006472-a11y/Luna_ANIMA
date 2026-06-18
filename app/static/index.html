@@ -495,7 +495,7 @@
       <div id="frameImageWrap"><img id="frameImage" alt="生成画像"></div>
       <div class="row">
         <button type="button" class="ghost" data-action="frame-favorite">★ お気に入り</button>
-        <button type="button" class="ghost" data-action="frame-public-save">公開用に保存</button>
+        <button type="button" class="ghost" data-action="frame-public-save">透かし付き保存</button>
         <button type="button" class="ghost" data-action="frame-share">共有</button>
         <button type="button" class="ghost" data-action="frame-reuse">この設定を再利用</button>
         <button type="button" class="ghost" data-action="frame-to-i2i">下絵にする</button>
@@ -516,6 +516,24 @@
     <article class="card" role="dialog" aria-modal="true" aria-label="設定">
       <div class="grab"></div>
       <div class="tray-head"><h2>設定</h2><span class="lbl" id="diagBadge">—</span></div>
+      <div class="tray">
+        <div class="tray-head"><h2>透かし / 公開保存</h2><span class="lbl">FIX</span></div>
+        <div class="switchline">
+          <input id="watermarkEnabled" type="checkbox" checked>
+          <span class="grow">公開保存時に透かしを焼き込む</span>
+        </div>
+        <div class="grid2">
+          <label class="field"><span class="lbl">TEXT</span><input id="watermarkText" type="text" value="@Luna_AIart_"></label>
+          <label class="field"><span class="lbl">POSITION</span>
+            <select id="watermarkPosition">
+              <option value="bottom_right">右下</option><option value="bottom_left">左下</option>
+              <option value="top_right">右上</option><option value="top_left">左上</option>
+            </select>
+          </label>
+          <label class="field"><span class="lbl">OPACITY</span><input id="watermarkOpacity" type="number" min="0" max="1" step="0.05" value="0.72"></label>
+          <label class="field"><span class="lbl">SIZE</span><input id="watermarkSize" type="number" min="10" max="160" value="36"></label>
+        </div>
+      </div>
       <div class="tray">
         <div class="tray-head"><h2>接続</h2><span class="lbl">BENCH</span></div>
         <table class="exif" id="connMeta"></table>
@@ -543,6 +561,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.19-luna-release-20260617"></script>
+  <script src="/static/app.js?v=v1.21-watermark-20260618"></script>
 </body>
 </html>
