@@ -20,7 +20,9 @@ CHARACTER_CATALOG_ROOT = Path(os.environ.get("LUNA_CHARACTER_CATALOG_ROOT", str(
 CHARACTER_CATALOG_WAI_PATH = ROOT_DIR / "config" / "wai_characters.csv"
 CHARACTER_CATALOG_ORIGINAL_PATH = ROOT_DIR / "config" / "original_character.json"
 COMFYUI_ADDR_DEFAULT = os.environ.get("COMFYUI_ADDR", "127.0.0.1:8188")
-APP_PIN = os.environ.get("LUNA_ANIMA_PIN", os.environ.get("ANIMA_CLAUDE_PIN", "2197"))
+APP_PIN_DEFAULT = "1234"
+APP_PIN = os.environ.get("LUNA_ANIMA_PIN", os.environ.get("ANIMA_CLAUDE_PIN", APP_PIN_DEFAULT))
+LUNA_ANIMA_HOST = os.environ.get("LUNA_ANIMA_HOST", "127.0.0.1")
 ANIMA_WORKFLOW_PATH = ROOT_DIR / "config" / "workflows" / "anima_base_api.json"
 ANIMA_MAPPING_PATH = ROOT_DIR / "config" / "anima_mapping.json"
 COMFYUI_LORA_DIRS = [
@@ -42,3 +44,12 @@ for path in (
     PUBLIC_DIR,
 ):
     path.mkdir(parents=True, exist_ok=True)
+
+
+def validate_startup_security() -> None:
+    host = str(LUNA_ANIMA_HOST or "127.0.0.1").strip()
+    if host in {"0.0.0.0", "::"} and APP_PIN == APP_PIN_DEFAULT:
+        raise RuntimeError(
+            "Refusing to start Luna ANIMA on a public host with the default PIN. "
+            "Set LUNA_ANIMA_PIN to a non-default value or use LUNA_ANIMA_HOST=127.0.0.1."
+        )

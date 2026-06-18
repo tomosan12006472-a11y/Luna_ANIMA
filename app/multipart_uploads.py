@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 
+# Deprecated: upload endpoints now use FastAPI UploadFile. This fallback parser is
+# kept temporarily so the module can be deleted in a later cleanup PR.
 def parse_multipart_file_upload(content_type: str, body: bytes) -> tuple[str, bytes]:
     marker = "boundary="
     if marker not in content_type:

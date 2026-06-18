@@ -20,6 +20,7 @@ REFERENCE_DIR = ROOT_DIR / "user_data" / "reference_inputs"
 THUMB_DIR = REFERENCE_DIR / "thumbs"
 MANIFEST_PATH = REFERENCE_DIR / "reference_inputs.json"
 MAX_REFERENCE_SIDE = 2048
+MAX_UPLOAD_BYTES = 30 * 1024 * 1024
 _MANIFEST_LOCK = Lock()
 
 REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
@@ -108,6 +109,8 @@ def safe_name(name: str) -> str:
 def save_reference_upload(filename: str, data: bytes, *, app_scope: str, module: str = "general") -> dict[str, Any]:
     if not data:
         raise ValueError("reference image is empty")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise ValueError("reference image is too large")
     digest = sha256(data).hexdigest()
     image_id = f"ref_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
     output_name = f"{image_id}_{safe_name(filename)}.png"
