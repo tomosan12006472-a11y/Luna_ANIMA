@@ -2421,6 +2421,16 @@
     return loadContact(true);
   }
 
+  async function refreshContact(options = {}) {
+    state.contactRevision = "";
+    state.contactPollFailures = 0;
+    state.contactLoaded = true;
+    text("#contactCount", "更新中...");
+    const data = await loadContact(true);
+    if (!options.silent) UI.toast("履歴を更新しました");
+    return data;
+  }
+
   function visibleContactItems(items) {
     if (state.contactFilter !== "active") return items;
     return items.filter(isActiveItem);
@@ -3816,6 +3826,7 @@
     if (action === "open-queue") return openQueue();
     if (action === "queue-refresh") return loadQueue(true);
     if (action === "queue-interrupt") return interruptQueue();
+    if (action === "history-refresh") return refreshContact();
     if (action === "load-more") return loadContact(false);
     if (action === "contact-search") return applyContactSearch();
     if (action === "contact-search-clear") return clearContactSearch();
@@ -4059,6 +4070,7 @@
         if (["save-defaults", "reset-defaults", "reload-models", "reload-ui"].includes(action)) text("#settingsStatus", errorMessage(error));
         if (["save-recipe", "open-recipes"].includes(action)) text("#recipeStatus", errorMessage(error));
         if (["open-queue", "queue-refresh", "queue-interrupt"].includes(action)) text("#queueStatus", errorMessage(error));
+        if (action === "history-refresh") text("#contactCount", "更新失敗");
       });
     });
 
