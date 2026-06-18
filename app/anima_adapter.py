@@ -63,6 +63,7 @@ class CharacterEntry:
     source: str = "saa_csv"
     trigger_words: list[str] | None = None
     positive_tags: list[str] | None = None
+    tags: list[str] | None = None
     identity_prompt: str = ""
     negative_guard: str = ""
     default_lora: str | None = None
@@ -79,10 +80,18 @@ class CharacterEntry:
                 self.source,
                 " ".join(self.trigger_words or []),
                 " ".join(self.positive_tags or []),
+                " ".join(self.tags or []),
                 self.identity_prompt,
             ]
         )
         return f"{self.display_name} {self.prompt_tag} {self.kind} {extra}".lower()
+
+
+def fate_search_aliases(prompt_tag: str) -> list[str]:
+    tag = prompt_tag.lower()
+    if "(fate" in tag or "fate/" in tag or "fgo" in tag or "grand order" in tag:
+        return ["fate", "fgo", "fate grand order"]
+    return []
 
 
 def load_settings() -> dict[str, Any]:
@@ -115,7 +124,7 @@ def load_wai_characters() -> list[CharacterEntry]:
             display_name = row[0].strip()
             prompt_tag = row[1].strip()
             if display_name and prompt_tag:
-                entries.append(CharacterEntry(display_name, prompt_tag, "wai", source=source))
+                entries.append(CharacterEntry(display_name, prompt_tag, "wai", source=source, tags=fate_search_aliases(prompt_tag)))
     return entries
 
 
@@ -150,6 +159,7 @@ def load_custom_characters(existing_prompt_tags: set[str]) -> list[CharacterEntr
                 kind="custom",
                 id=str(item.get("id") or prompt_tag),
                 source=str(item.get("source") or "custom_character_tags"),
+                tags=[str(tag).strip() for tag in item.get("tags") or [] if str(tag).strip()] + fate_search_aliases(prompt_tag),
                 post_count=post_count,
                 verified=bool(item.get("verified", False)),
                 notes=str(item.get("notes") or ""),
@@ -220,7 +230,12 @@ class AnimaCatalog:
         self.original_by_id = {entry.id: entry for entry in self.original if entry.id}
 
     def search(self, query: str = "", kind: str = "all", limit: int = 80) -> list[dict[str, Any]]:
+        return self.search_page(query, kind, limit, 0)["items"]
+
+    def search_page(self, query: str = "", kind: str = "all", limit: int = 80, offset: int = 0) -> dict[str, Any]:
         query = (query or "").strip().lower()
+        limit = max(1, int(limit or 80))
+        offset = max(0, int(offset or 0))
         pools: list[CharacterEntry] = []
         if kind in ("all", "original"):
             pools.extend(self.original)
@@ -229,11 +244,19 @@ class AnimaCatalog:
         if kind in ("all", "custom"):
             pools.extend(self.custom)
         if not query:
-            matched = pools[:limit]
+            matched = pools
         else:
             tokens = [token for token in query.split() if token]
-            matched = [entry for entry in pools if all(token in localized_search_text(entry) for token in tokens)][:limit]
-        return [character_entry_payload(entry) for entry in matched]
+            matched = [entry for entry in pools if all(token in localized_search_text(entry) for token in tokens)]
+        page = matched[offset : offset + limit]
+        total = len(matched)
+        return {
+            "items": [character_entry_payload(entry) for entry in page],
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "has_more": offset + limit < total,
+        }
 
     def resolve_character_entry(self, value: str, slot: int, seed: int, original: bool = False) -> tuple[str, str, CharacterEntry | None]:
         value = (value or "None").strip()

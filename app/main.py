@@ -523,9 +523,16 @@ def post_settings_reset(anima_claude_session: str | None = Cookie(default=None))
 
 
 @app.get("/api/catalog")
-def search_catalog(q: str = "", kind: str = "all", limit: int = 80, anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+def search_catalog(
+    q: str = "",
+    kind: str = "all",
+    limit: int = 80,
+    offset: int = 0,
+    anima_claude_session: str | None = Cookie(default=None),
+) -> dict[str, Any]:
     require_auth(anima_claude_session)
-    return {"ok": True, "items": catalog.search(q, kind, max(1, min(limit, 300)))}
+    page = catalog.search_page(q, kind, max(1, min(limit, 300)), max(0, offset))
+    return {"ok": True, **page}
 
 
 def original_character_lora_candidates(item: dict[str, Any]) -> list[dict[str, Any]]:

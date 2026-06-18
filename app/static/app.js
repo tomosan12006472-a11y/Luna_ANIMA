@@ -91,6 +91,7 @@
     pollHadActive: false,
     detailItem: null,
     characterSearchTimer: 0,
+    characterSearch: { query: "", items: [], total: 0, offset: 0, limit: 60, hasMore: false },
     promptSheetMode: "favorites",
     promptSheetItems: [],
     promptSheetEditingId: "",
@@ -1952,10 +1953,12 @@
     return true;
   }
 
-  function renderCharacterResults(items) {
+  function renderCharacterResults(items, meta = {}) {
     const root = $("#charResults");
     if (!root) return;
     root.replaceChildren();
+    const total = Number(meta.total ?? items.length);
+    const shown = Number(meta.shown ?? items.length);
     if (!items.length) {
       const empty = document.createElement("p");
       empty.className = "hint";
@@ -1963,6 +1966,10 @@
       root.appendChild(empty);
       return;
     }
+    const summary = document.createElement("p");
+    summary.className = "hint";
+    summary.textContent = total > shown ? `${shown} / ${total} 件を表示` : `${total} 件`;
+    root.appendChild(summary);
     for (const raw of items) {
       const item = normalizeCharacterItem(raw);
       const button = document.createElement("button");
@@ -1982,22 +1989,52 @@
       button.append(name, tag);
       root.appendChild(button);
     }
+    if (meta.hasMore) {
+      const more = document.createElement("button");
+      more.type = "button";
+      more.dataset.action = "load-more-characters";
+      more.textContent = `もっと見る (${Math.max(0, total - shown)}件)`;
+      root.appendChild(more);
+    }
   }
 
   function clearCharacterSearch() {
     setValue("#charSearch", "");
+    state.characterSearch = { query: "", items: [], total: 0, offset: 0, limit: 60, hasMore: false };
     $("#charResults")?.replaceChildren();
   }
 
-  async function searchCharacters() {
+  async function searchCharacters({ append = false } = {}) {
     const query = value("#charSearch", "").trim();
     if (!query) {
+      state.characterSearch = { query: "", items: [], total: 0, offset: 0, limit: 60, hasMore: false };
       $("#charResults")?.replaceChildren();
       return;
     }
-    const data = await api(`/api/catalog?q=${encodeURIComponent(query)}&kind=all&limit=60`);
+    const limit = state.characterSearch.limit || 60;
+    const offset = append && state.characterSearch.query === query ? state.characterSearch.items.length : 0;
+    const data = await api(`/api/catalog?q=${encodeURIComponent(query)}&kind=all&limit=${limit}&offset=${offset}`);
     if (value("#charSearch", "").trim() !== query) return;
-    renderCharacterResults(Array.isArray(data.items) ? data.items : []);
+    const newItems = Array.isArray(data.items) ? data.items : [];
+    const items = append && state.characterSearch.query === query ? [...state.characterSearch.items, ...newItems] : newItems;
+    state.characterSearch = {
+      query,
+      items,
+      total: Number(data.total ?? items.length),
+      offset: Number(data.offset ?? offset),
+      limit: Number(data.limit ?? limit),
+      hasMore: Boolean(data.has_more),
+    };
+    renderCharacterResults(items, {
+      total: state.characterSearch.total,
+      shown: items.length,
+      hasMore: state.characterSearch.hasMore,
+    });
+  }
+
+  async function loadMoreCharacters() {
+    if (!state.characterSearch.hasMore) return;
+    await searchCharacters({ append: true });
   }
 
   function scheduleCharacterSearch() {
@@ -3717,6 +3754,7 @@
     if (action === "random-slot") return setRandomSlot();
     if (action === "clear-slot") return clearSlot();
     if (action === "toggle-character-favorites") return toggleCharacterFavorites();
+    if (action === "load-more-characters") return loadMoreCharacters();
     if (action === "toggle-favorite-slot") return toggleFavoriteForArmedSlot();
     if (action === "add-lora") {
       if (!state.loraSelectable.length) await loadLoraCatalog().catch(() => {});

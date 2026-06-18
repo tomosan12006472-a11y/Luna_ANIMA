@@ -63,6 +63,21 @@ class CharacterNameLocalizationTest(unittest.TestCase):
         self.assertEqual(items[0]["prompt_tag"], "scathach (fate)")
         self.assertEqual(items[0]["display_name_ja"], "スカサハ（Fate）")
 
+    def test_catalog_search_page_reports_total_and_offset(self) -> None:
+        first = catalog.search_page("fgo", "all", 60, 0)
+        second = catalog.search_page("fgo", "all", 60, 60)
+        self.assertGreater(first["total"], 60)
+        self.assertTrue(first["has_more"])
+        self.assertEqual(len(first["items"]), 60)
+        self.assertEqual(second["offset"], 60)
+        self.assertNotEqual(first["items"][0]["prompt_tag"], second["items"][0]["prompt_tag"])
+
+    def test_expanded_fate_catalog_search_matches_added_tag(self) -> None:
+        items = catalog.search("kashin koji", "all", 5)
+        self.assertTrue(items)
+        self.assertEqual(items[0]["prompt_tag"], "kashin koji (fate)")
+        self.assertEqual(items[0]["kind"], "custom")
+
     def test_legacy_favorite_display_name_uses_current_catalog(self) -> None:
         data = normalize_favorites(
             {
