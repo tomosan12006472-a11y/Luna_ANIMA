@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 import base64
 import hashlib
 import json
 from pathlib import Path
 import shutil
-from threading import Lock
+from threading import Lock, RLock
 import time
 import uuid
 from typing import Any
@@ -31,6 +32,8 @@ _HISTORY_LIST_CACHE_LOCK = Lock()
 _HISTORY_LIST_CACHE_SIGNATURE: tuple[int, int, int] | None = None
 _HISTORY_LIST_CACHE_ITEMS: list[dict[str, Any]] = []
 _HISTORY_LIST_CACHE_WARNINGS: list[str] = []
+_HISTORY_ITEM_LOCKS_LOCK = Lock()
+_HISTORY_ITEM_LOCKS: dict[str, RLock] = {}
 
 SMALL_THUMBNAIL_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -45,6 +48,23 @@ def history_path(history_id: str) -> Path:
 
 def small_thumbnail_path(history_id: str) -> Path:
     return SMALL_THUMBNAIL_DIR / f"{history_id}.jpg"
+
+
+def _history_item_lock(history_id: Any) -> RLock:
+    key = str(history_id or "")
+    with _HISTORY_ITEM_LOCKS_LOCK:
+        lock = _HISTORY_ITEM_LOCKS.get(key)
+        if lock is None:
+            lock = RLock()
+            _HISTORY_ITEM_LOCKS[key] = lock
+        return lock
+
+
+@contextmanager
+def _locked_history_item(history_id: Any):
+    lock = _history_item_lock(history_id)
+    with lock:
+        yield
 
 
 def load_history_item(history_id: str) -> dict[str, Any] | None:
@@ -132,7 +152,9 @@ def normalize_history_item(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def save_history_item(item: dict[str, Any]) -> None:
-    write_json_atomic(history_path(item["id"]), item)
+    history_id = str(item["id"])
+    with _locked_history_item(history_id):
+        write_json_atomic(history_path(history_id), item)
 
 
 def _history_directory_signature() -> tuple[tuple[int, int, int], list[Path]]:
@@ -652,42 +674,46 @@ def create_pending_history_item(
 
 
 def complete_pending_history_item(history_id: str, result: Any) -> dict[str, Any] | None:
-    item = load_history_item(history_id)
-    if not item or not getattr(result, "image_data_url", None):
+    if not getattr(result, "image_data_url", None):
         return None
     image_path, thumb_path = save_generated_image(result.image_data_url, history_id)
-    now = now_iso()
-    item.update(
-        {
-            "status": "completed",
-            "updated_at": now,
-            "image_path": str(image_path),
-            "thumbnail_path": str(thumb_path),
-            "filename": image_path.name,
-            "prompt_id": getattr(result, "prompt_id", item.get("prompt_id")),
-        }
-    )
-    queue = item.get("queue") if isinstance(item.get("queue"), dict) else {}
-    queue.update({"status": "completed", "completed_at": now, "last_checked_at": now, "error": None})
-    item["queue"] = queue
-    save_history_item(item)
-    return normalize_history_item(item)
+    with _locked_history_item(history_id):
+        item = load_history_item(history_id)
+        if not item:
+            return None
+        now = now_iso()
+        item.update(
+            {
+                "status": "completed",
+                "updated_at": now,
+                "image_path": str(image_path),
+                "thumbnail_path": str(thumb_path),
+                "filename": image_path.name,
+                "prompt_id": getattr(result, "prompt_id", item.get("prompt_id")),
+            }
+        )
+        queue = item.get("queue") if isinstance(item.get("queue"), dict) else {}
+        queue.update({"status": "completed", "completed_at": now, "last_checked_at": now, "error": None})
+        item["queue"] = queue
+        save_history_item(item)
+        return normalize_history_item(item)
 
 
 def update_pending_history_status(history_id: str, status: str, error: str | None = None) -> dict[str, Any] | None:
-    item = load_history_item(history_id)
-    if not item:
-        return None
-    now = now_iso()
-    item["status"] = status
-    item["updated_at"] = now
-    queue = item.get("queue") if isinstance(item.get("queue"), dict) else {}
-    queue.update({"status": status, "last_checked_at": now})
-    if error is not None:
-        queue["error"] = error
-    item["queue"] = queue
-    save_history_item(item)
-    return normalize_history_item(item)
+    with _locked_history_item(history_id):
+        item = load_history_item(history_id)
+        if not item:
+            return None
+        now = now_iso()
+        item["status"] = status
+        item["updated_at"] = now
+        queue = item.get("queue") if isinstance(item.get("queue"), dict) else {}
+        queue.update({"status": status, "last_checked_at": now})
+        if error is not None:
+            queue["error"] = error
+        item["queue"] = queue
+        save_history_item(item)
+        return normalize_history_item(item)
 
 
 def public_save_settings_hash(source: Path, apply_watermark: bool, watermark: dict[str, Any] | None) -> str:
@@ -721,58 +747,62 @@ def public_image_dimensions(path: Path) -> dict[str, int]:
 
 
 def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = None) -> dict[str, Any]:
-    source = Path(item["image_path"])
-    if not source.exists():
-        raise FileNotFoundError("source image is missing")
-    apply_watermark = bool(watermark and watermark.get("enabled", False))
-    suffix = "_wm" if apply_watermark else "_public"
-    output = PUBLIC_DIR / f"{item['id']}{suffix}{source.suffix or '.png'}"
-    source_stat = source.stat()
-    settings_hash = public_save_settings_hash(source, apply_watermark, watermark)
-    existing = item.get("public_save") if isinstance(item.get("public_save"), dict) else {}
-    cached = (
-        output.exists()
-        and bool(existing.get("saved"))
-        and existing.get("settings_hash") == settings_hash
-        and existing.get("path") == str(output)
-    )
-    if not cached:
-        if apply_watermark:
-            with Image.open(source).convert("RGBA") as image:
-                watermarked = apply_text_watermark(image, watermark or {})
-                watermarked.save(output)
-        else:
-            shutil.copy2(source, output)
-    output_stat = output.stat()
-    public_save = {
-        "saved": True,
-        "path": str(output),
-        "url": f"/api/history/{item['id']}/public-image",
-        "filename": output.name,
-        "created_at": existing.get("created_at") if cached else now_iso(),
-        "updated_at": now_iso(),
-        "cached": cached,
-        "settings_hash": settings_hash,
-        "source_mtime_ns": source_stat.st_mtime_ns,
-        "source_size_bytes": source_stat.st_size,
-        "size_bytes": output_stat.st_size,
-        "watermark_text": (watermark or {}).get("text", ""),
-        "watermark_position": (watermark or {}).get("position", "bottom_right"),
-    }
-    public_save.update(public_image_dimensions(output))
-    item["public_save"] = public_save
-    if apply_watermark:
-        item["watermark"] = {
-            "applied": True,
-            "text": watermark.get("text", ""),
-            "position": watermark.get("position", "bottom_right"),
-            "opacity": watermark.get("opacity", 0.72),
-            "size": watermark.get("size", 36),
+    history_id = str(item.get("id") or "")
+    with _locked_history_item(history_id):
+        current = load_history_item(history_id) or dict(item)
+        source = Path(current["image_path"])
+        if not source.exists():
+            raise FileNotFoundError("source image is missing")
+        apply_watermark = bool(watermark and watermark.get("enabled", False))
+        suffix = "_wm" if apply_watermark else "_public"
+        output = PUBLIC_DIR / f"{history_id}{suffix}{source.suffix or '.png'}"
+        source_stat = source.stat()
+        settings_hash = public_save_settings_hash(source, apply_watermark, watermark)
+        existing = current.get("public_save") if isinstance(current.get("public_save"), dict) else {}
+        cached = (
+            output.exists()
+            and bool(existing.get("saved"))
+            and existing.get("settings_hash") == settings_hash
+            and existing.get("path") == str(output)
+        )
+        if not cached:
+            if apply_watermark:
+                with Image.open(source).convert("RGBA") as image:
+                    watermarked = apply_text_watermark(image, watermark or {})
+                    watermarked.save(output)
+            else:
+                shutil.copy2(source, output)
+        output_stat = output.stat()
+        public_save = {
+            "saved": True,
+            "path": str(output),
+            "url": f"/api/history/{history_id}/public-image",
+            "filename": output.name,
+            "created_at": existing.get("created_at") if cached else now_iso(),
+            "updated_at": now_iso(),
+            "cached": cached,
+            "settings_hash": settings_hash,
+            "source_mtime_ns": source_stat.st_mtime_ns,
+            "source_size_bytes": source_stat.st_size,
+            "size_bytes": output_stat.st_size,
+            "watermark_text": (watermark or {}).get("text", ""),
+            "watermark_position": (watermark or {}).get("position", "bottom_right"),
         }
-    else:
-        item["watermark"] = {"applied": False}
-    save_history_item(item)
-    return public_save
+        public_save.update(public_image_dimensions(output))
+        current["public_save"] = public_save
+        if apply_watermark:
+            current["watermark"] = {
+                "applied": True,
+                "text": watermark.get("text", ""),
+                "position": watermark.get("position", "bottom_right"),
+                "opacity": watermark.get("opacity", 0.72),
+                "size": watermark.get("size", 36),
+            }
+        else:
+            current["watermark"] = {"applied": False}
+        save_history_item(current)
+        item.update(current)
+        return public_save
 
 
 def apply_text_watermark(image: Image.Image, watermark: dict[str, Any]) -> Image.Image:
