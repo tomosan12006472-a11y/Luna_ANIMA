@@ -6,7 +6,7 @@ from typing import Any
 
 from ._shared_utils import clamp_float, clamp_strength, normalize_lora_strengths, read_json_with_retry, write_json_atomic
 from .config import SETTINGS_PATH
-from .face_detailer import DEFAULT_FACE_DETAILER_SETTINGS, sanitize_face_detailer_settings
+from .face_detailer import DEFAULT_FACE_DETAILER_SETTINGS, DEFAULT_HAND_DETAILER_SETTINGS, sanitize_face_detailer_settings, sanitize_hand_detailer_settings
 from .i2i_store import sanitize_image_to_image
 from .prompt_converter import DEFAULT_PROMPT_CONVERTER_SETTINGS, sanitize_prompt_converter_settings
 from .reference_modules import DEFAULT_REFERENCE_MODULES, sanitize_reference_modules
@@ -123,6 +123,7 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
         "allow_with_reference_assist": False,
     },
     "face_detailer": DEFAULT_FACE_DETAILER_SETTINGS,
+    "hand_detailer": DEFAULT_HAND_DETAILER_SETTINGS,
     "prompt_converter": DEFAULT_PROMPT_CONVERTER_SETTINGS,
     "ui": {
         "history_filter": "all",
@@ -231,6 +232,7 @@ def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     result["reference_modules"] = sanitize_reference_modules(result.get("reference_modules"), app_scope="anima")
     result["image_to_image"] = sanitize_image_to_image(result.get("image_to_image"), app_scope="anima")
     result["face_detailer"] = sanitize_face_detailer_settings(result.get("face_detailer"), mode="generation")
+    result["hand_detailer"] = sanitize_hand_detailer_settings(result.get("hand_detailer"), mode="generation")
     result["prompt_converter"] = sanitize_prompt_converter_settings(result.get("prompt_converter"))
     return result
 

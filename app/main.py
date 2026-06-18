@@ -169,6 +169,7 @@ class GenerateRequest(BaseModel):
     dynamic_prompt: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
     prompt_random_collect: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
     face_detailer: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
+    hand_detailer: dict[str, Any] = Field(default_factory=lambda: {"enabled": False})
     reset_comfy_cache: bool = False
     wait: bool = False
     count: int = 1
@@ -1227,6 +1228,7 @@ def payload_preview(data: GenerateRequest, anima_claude_session: str | None = Co
         "reference_modules": request_data.get("reference_modules", {}),
         "image_to_image": request_data.get("image_to_image", {"enabled": False}),
         "face_detailer": request_data.get("face_detailer", {"enabled": False}),
+        "hand_detailer": request_data.get("hand_detailer", {"enabled": False}),
         "prompt_random_collect": request_data.get("prompt_random_collect", {"enabled": False}),
         "anima_shift": shift_info,
         "shift": shift_info.get("shift"),
@@ -1354,6 +1356,7 @@ def generate(
                 "reference_assist": generation_request_dict(data).get("reference_assist", {"enabled": False}),
                 "reference_modules": generation_request_dict(data).get("reference_modules", {}),
                 "image_to_image": generation_request_dict(data).get("image_to_image", {"enabled": False}),
+                "hand_detailer": generation_request_dict(data).get("hand_detailer", {"enabled": False}),
                 "anima_shift": generation_request_dict(data).get("model_sampling", {}),
                 "shift": generation_request_dict(data).get("shift"),
             },
@@ -1430,6 +1433,7 @@ def generate(
             "official_loras": official_lora_summary(request_data),
             "reference_assist": request_data.get("reference_assist", {"enabled": False}),
             "image_to_image": request_data.get("image_to_image", {"enabled": False}),
+            "hand_detailer": request_data.get("hand_detailer", {"enabled": False}),
             "prompt_random_collect": request_data.get("prompt_random_collect", {"enabled": False}),
             "anima_shift": request_data.get("model_sampling", {}),
             "shift": request_data.get("shift"),

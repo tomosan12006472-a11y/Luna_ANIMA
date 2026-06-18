@@ -60,6 +60,7 @@ def infer_anima_generation_method(request: dict[str, Any]) -> str:
     hires = request.get("hires_fix") if isinstance(request.get("hires_fix"), dict) else {}
     official = request.get("official_loras") if isinstance(request.get("official_loras"), dict) else {}
     face_detailer = request.get("face_detailer") if isinstance(request.get("face_detailer"), dict) else {}
+    hand_detailer = request.get("hand_detailer") if isinstance(request.get("hand_detailer"), dict) else {}
     turbo = official.get("turbo") if isinstance(official.get("turbo"), dict) else {}
     reference_enabled = bool(ref.get("apply_to_payload"))
     outfit_enabled = bool((modules.get("outfit") or {}).get("apply_to_payload"))
@@ -68,8 +69,37 @@ def infer_anima_generation_method(request: dict[str, Any]) -> str:
     turbo_enabled = bool(turbo.get("enabled"))
     hires_enabled = bool(hires.get("enabled"))
     face_enabled = bool(face_detailer.get("enabled"))
+    hand_enabled = bool(hand_detailer.get("enabled"))
     hires_mode = str(hires.get("mode") or "latent").lower()
     hires_suffix = "hires_model" if hires_mode == "model" else "hires_latent"
+    if face_enabled and hand_enabled and i2i_enabled:
+        return "face_hand_detailer_i2i"
+    if face_enabled and hand_enabled and reference_enabled and hires_enabled:
+        return f"face_hand_detailer_reference_{hires_suffix}"
+    if face_enabled and hand_enabled and turbo_enabled and hires_enabled:
+        return f"face_hand_detailer_turbo_{hires_suffix}"
+    if face_enabled and hand_enabled and reference_enabled:
+        return "face_hand_detailer_reference"
+    if face_enabled and hand_enabled and turbo_enabled:
+        return "face_hand_detailer_turbo"
+    if face_enabled and hand_enabled and hires_enabled:
+        return f"face_hand_detailer_{hires_suffix}"
+    if face_enabled and hand_enabled:
+        return "face_hand_detailer"
+    if hand_enabled and i2i_enabled:
+        return "hand_detailer_i2i"
+    if hand_enabled and reference_enabled and hires_enabled:
+        return f"hand_detailer_reference_{hires_suffix}"
+    if hand_enabled and turbo_enabled and hires_enabled:
+        return f"hand_detailer_turbo_{hires_suffix}"
+    if hand_enabled and reference_enabled:
+        return "hand_detailer_reference"
+    if hand_enabled and turbo_enabled:
+        return "hand_detailer_turbo"
+    if hand_enabled and hires_enabled:
+        return f"hand_detailer_{hires_suffix}"
+    if hand_enabled:
+        return "hand_detailer"
     if face_enabled and i2i_enabled:
         return "face_detailer_i2i"
     if face_enabled and reference_enabled and hires_enabled:

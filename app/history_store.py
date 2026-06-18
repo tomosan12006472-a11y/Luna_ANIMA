@@ -355,6 +355,10 @@ def lite_history_item(item: dict[str, Any]) -> dict[str, Any]:
             "enabled": bool((item.get("face_detailer") or {}).get("enabled")),
             "mode": (item.get("face_detailer") or {}).get("mode"),
         },
+        "hand_detailer": {
+            "enabled": bool((item.get("hand_detailer") or {}).get("enabled")),
+            "mode": (item.get("hand_detailer") or {}).get("mode"),
+        },
         "operation": item.get("operation"),
         "parent_history_id": item.get("parent_history_id"),
     }
@@ -555,6 +559,7 @@ def create_history_item(
         **({"reference_modules": request_data.get("reference_modules")} if isinstance(request_data.get("reference_modules"), dict) and any(isinstance(value, dict) and value.get("enabled") for value in (request_data.get("reference_modules") or {}).values()) else {}),
         **({"image_to_image": request_data.get("image_to_image")} if isinstance(request_data.get("image_to_image"), dict) and (request_data.get("image_to_image") or {}).get("enabled") else {}),
         **({"face_detailer": request_data.get("face_detailer")} if isinstance(request_data.get("face_detailer"), dict) and (request_data.get("face_detailer") or {}).get("enabled") else {}),
+        **({"hand_detailer": request_data.get("hand_detailer")} if isinstance(request_data.get("hand_detailer"), dict) and (request_data.get("hand_detailer") or {}).get("enabled") else {}),
         **({"operation": request_data.get("operation")} if request_data.get("operation") else {}),
         **({"parent_history_id": request_data.get("parent_history_id")} if request_data.get("parent_history_id") else {}),
         **({"source_image": request_data.get("source_image")} if isinstance(request_data.get("source_image"), dict) else {}),
@@ -649,6 +654,7 @@ def create_pending_history_item(
         **({"reference_modules": request_data.get("reference_modules")} if isinstance(request_data.get("reference_modules"), dict) and any(isinstance(value, dict) and value.get("enabled") for value in (request_data.get("reference_modules") or {}).values()) else {}),
         **({"image_to_image": request_data.get("image_to_image")} if isinstance(request_data.get("image_to_image"), dict) and (request_data.get("image_to_image") or {}).get("enabled") else {}),
         **({"face_detailer": request_data.get("face_detailer")} if isinstance(request_data.get("face_detailer"), dict) and (request_data.get("face_detailer") or {}).get("enabled") else {}),
+        **({"hand_detailer": request_data.get("hand_detailer")} if isinstance(request_data.get("hand_detailer"), dict) and (request_data.get("hand_detailer") or {}).get("enabled") else {}),
         **({"operation": request_data.get("operation")} if request_data.get("operation") else {}),
         **({"parent_history_id": request_data.get("parent_history_id")} if request_data.get("parent_history_id") else {}),
         **({"source_image": request_data.get("source_image")} if isinstance(request_data.get("source_image"), dict) else {}),

@@ -15,6 +15,7 @@ from . import reference_store
 from .config import MOBILE_PAYLOAD_DIR
 from .face_detailer import face_detailer_capabilities
 from .face_detailer import sanitize_face_detailer_settings
+from .face_detailer import sanitize_hand_detailer_settings
 from .history_flags_store import attach_flags_to_items, filter_items_by_flags, flag_summary
 from .history_store import (
     complete_pending_history_item,
@@ -118,6 +119,7 @@ def generation_request_dict(data: Any) -> dict[str, Any]:
     request_data["reference_modules"] = sanitize_reference_modules(request_data.get("reference_modules"), app_scope="anima")
     request_data["image_to_image"] = i2i_store.sanitize_image_to_image(request_data.get("image_to_image"), app_scope="anima")
     request_data["face_detailer"] = sanitize_face_detailer_settings(request_data.get("face_detailer"), mode="generation")
+    request_data["hand_detailer"] = sanitize_hand_detailer_settings(request_data.get("hand_detailer"), mode="generation")
     return request_data
 
 

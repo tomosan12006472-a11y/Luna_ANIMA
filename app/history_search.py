@@ -34,6 +34,7 @@ TEXT_KEYS = {
     "reference_modules",
     "image_to_image",
     "face_detailer",
+    "hand_detailer",
     "operation",
     "parent_history_id",
     "prompt_id",

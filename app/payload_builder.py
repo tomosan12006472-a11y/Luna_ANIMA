@@ -19,7 +19,7 @@ from .config import (
     ROOT_DIR,
 )
 from .dynamic_prompt import expand_dynamic_prompt
-from .face_detailer import add_face_detailer_to_workflow, face_detailer_seed, sanitize_face_detailer_settings
+from .face_detailer import add_face_detailer_to_workflow, face_detailer_seed, sanitize_face_detailer_settings, sanitize_hand_detailer_settings
 from .output_organizer import build_output_prefix, infer_anima_generation_method
 from .prompt_random_collect import prompt_random_collect_tags
 from .reference_modules import apply_outfit_reference_to_workflow, apply_pose_reference_to_workflow
@@ -785,6 +785,7 @@ def build_workflow(request: dict[str, Any]) -> dict[str, Any]:
     apply_reference_assist(workflow, request)
     apply_reference_modules(workflow, request)
     apply_face_detailer(workflow, request, seed)
+    apply_hand_detailer(workflow, request, seed)
     return workflow
 
 
@@ -908,6 +909,118 @@ def apply_face_detailer(workflow: dict[str, Any], request: dict[str, Any], seed:
         settings=settings,
     )
     request["face_detailer"] = metadata
+
+
+def add_hand_lllite_mask_to_workflow(
+    workflow: dict[str, Any],
+    *,
+    image: list[Any],
+    model: list[Any],
+    settings: dict[str, Any],
+) -> tuple[list[Any], dict[str, Any]]:
+    metadata = {
+        "enabled": bool(settings.get("lllite_enabled")),
+        "model": settings.get("lllite_model"),
+        "strength": settings.get("lllite_strength"),
+        "start_percent": settings.get("lllite_start"),
+        "end_percent": settings.get("lllite_end"),
+        "warnings": [],
+    }
+    if not settings.get("lllite_enabled"):
+        metadata["applied"] = False
+        return model, metadata
+
+    detector_id = next_node_id(workflow, 9400)
+    segs_id = next_node_id(workflow, int(detector_id) + 1)
+    mask_id = next_node_id(workflow, int(segs_id) + 1)
+    lllite_id = next_node_id(workflow, int(mask_id) + 1)
+    workflow[detector_id] = {
+        "class_type": "UltralyticsDetectorProvider",
+        "inputs": {"model_name": settings.get("detector") or "bbox/hand_yolov8s.pt"},
+        "_meta": {"title": "Hand LLLite Detector"},
+    }
+    workflow[segs_id] = {
+        "class_type": "BboxDetectorSEGS",
+        "inputs": {
+            "bbox_detector": [detector_id, 0],
+            "image": image,
+            "threshold": settings["bbox_threshold"],
+            "dilation": settings["bbox_dilation"],
+            "crop_factor": settings["bbox_crop_factor"],
+            "drop_size": settings["drop_size"],
+            "labels": "hand",
+        },
+        "_meta": {"title": "Hand LLLite SEGS"},
+    }
+    workflow[mask_id] = {
+        "class_type": "SegsToCombinedMask",
+        "inputs": {"segs": [segs_id, 0]},
+        "_meta": {"title": "Hand LLLite Mask"},
+    }
+    workflow[lllite_id] = {
+        "class_type": "AnimaLLLiteApply",
+        "inputs": {
+            "model": model,
+            "lllite_name": settings["lllite_model"],
+            "image": image,
+            "strength": settings["lllite_strength"],
+            "start_percent": settings["lllite_start"],
+            "end_percent": settings["lllite_end"],
+            "preserve_wrapper": True,
+            "mask": [mask_id, 0],
+        },
+        "_meta": {"title": "Hand LLLite Inpainting"},
+    }
+    metadata.update(
+        {
+            "applied": True,
+            "detector_node_id": detector_id,
+            "segs_node_id": segs_id,
+            "mask_node_id": mask_id,
+            "node_id": lllite_id,
+        }
+    )
+    return [lllite_id, 0], metadata
+
+
+def apply_hand_detailer(workflow: dict[str, Any], request: dict[str, Any], seed: int) -> None:
+    settings = sanitize_hand_detailer_settings(request.get("hand_detailer"), mode="generation")
+    settings["mode"] = "generation"
+    hd_seed = face_detailer_seed(seed, index=int(request.get("queue_index") or 0), settings=settings)
+    if not settings.get("enabled"):
+        request["hand_detailer"] = {
+            "enabled": False,
+            "mode": "generation",
+            "detector": settings.get("detector"),
+            "lllite": {"enabled": bool(settings.get("lllite_enabled")), "applied": False},
+        }
+        return
+    image = workflow["1"]["inputs"].get("images") or ["8", 0]
+    sampler_inputs = workflow["19"]["inputs"]
+    model = sampler_inputs.get("model")
+    lllite_model, lllite_metadata = add_hand_lllite_mask_to_workflow(
+        workflow,
+        image=image,
+        model=model,
+        settings=settings,
+    )
+    metadata = add_face_detailer_to_workflow(
+        workflow,
+        image=image,
+        model=lllite_model,
+        clip=workflow["11"]["inputs"].get("clip", ["45", 0]),
+        vae=["15", 0],
+        positive=sampler_inputs.get("positive"),
+        negative=sampler_inputs.get("negative"),
+        output_node_id="1",
+        output_input_name="images",
+        seed=hd_seed,
+        settings=settings,
+        title_prefix="Hand Detailer",
+    )
+    metadata["target"] = "hand"
+    metadata["lllite"] = lllite_metadata
+    request["hand_detailer"] = metadata
 
 
 def apply_reference_assist(workflow: dict[str, Any], request: dict[str, Any]) -> None:

@@ -8,7 +8,9 @@ from ._shared_utils import next_node_id
 
 
 DEFAULT_DETECTOR = "bbox/face_yolov8m.pt"
+DEFAULT_HAND_DETECTOR = "bbox/hand_yolov8s.pt"
 DEFAULT_SAM_MODEL = "sam_vit_b_01ec64.pth"
+DEFAULT_ANIMA_LLLITE_INPAINTING = "anima-lllite-inpainting-v2.safetensors"
 
 
 DEFAULT_FACE_DETAILER_SETTINGS: dict[str, Any] = {
@@ -27,6 +29,30 @@ DEFAULT_FACE_DETAILER_SETTINGS: dict[str, Any] = {
     "sam_enabled": False,
     "seed_policy": "image_seed_plus_offset",
     "seed_offset": 100000,
+}
+
+
+DEFAULT_HAND_DETAILER_SETTINGS: dict[str, Any] = {
+    "enabled": False,
+    "mode": "generation",
+    "detector": DEFAULT_HAND_DETECTOR,
+    "steps": 14,
+    "cfg": 4.0,
+    "denoise": 0.45,
+    "guide_size": 512,
+    "max_size": 1024,
+    "bbox_threshold": 0.35,
+    "bbox_dilation": 16,
+    "bbox_crop_factor": 2.5,
+    "drop_size": 24,
+    "sam_enabled": False,
+    "seed_policy": "image_seed_plus_offset",
+    "seed_offset": 200000,
+    "lllite_enabled": True,
+    "lllite_model": DEFAULT_ANIMA_LLLITE_INPAINTING,
+    "lllite_strength": 0.85,
+    "lllite_start": 0.0,
+    "lllite_end": 1.0,
 }
 
 
@@ -71,6 +97,36 @@ def sanitize_face_detailer_settings(value: Any, *, mode: str = "generation") -> 
     return settings
 
 
+def sanitize_hand_detailer_settings(value: Any, *, mode: str = "generation") -> dict[str, Any]:
+    raw = value if isinstance(value, dict) else {}
+    settings = deepcopy(DEFAULT_HAND_DETAILER_SETTINGS)
+    settings.update(raw)
+    settings["enabled"] = bool(settings.get("enabled"))
+    settings["mode"] = "generation" if str(mode or settings.get("mode") or "") != "postprocess" else "postprocess"
+    settings["detector"] = str(settings.get("detector") or DEFAULT_HAND_DETECTOR)
+    settings["steps"] = _int(settings.get("steps"), 14, 1, 60)
+    settings["cfg"] = _float(settings.get("cfg"), 4.0, 0.0, 30.0)
+    settings["denoise"] = _float(settings.get("denoise"), 0.45, 0.0, 1.0)
+    settings["guide_size"] = _int(settings.get("guide_size"), 512, 64, 2048)
+    settings["max_size"] = _int(settings.get("max_size"), 1024, 128, 4096)
+    settings["bbox_threshold"] = _float(settings.get("bbox_threshold"), 0.35, 0.0, 1.0)
+    settings["bbox_dilation"] = _int(settings.get("bbox_dilation"), 16, -512, 512)
+    settings["bbox_crop_factor"] = _float(settings.get("bbox_crop_factor"), 2.5, 1.0, 10.0)
+    settings["drop_size"] = _int(settings.get("drop_size"), 24, 4, 512)
+    settings["sam_enabled"] = bool(settings.get("sam_enabled"))
+    settings["seed_offset"] = _int(settings.get("seed_offset"), 200000, 0, 2147483647)
+    settings["lllite_enabled"] = bool(settings.get("lllite_enabled", True))
+    settings["lllite_model"] = str(settings.get("lllite_model") or DEFAULT_ANIMA_LLLITE_INPAINTING)
+    settings["lllite_strength"] = _float(settings.get("lllite_strength"), 0.85, 0.0, 10.0)
+    settings["lllite_start"] = _float(settings.get("lllite_start"), 0.0, 0.0, 1.0)
+    settings["lllite_end"] = _float(settings.get("lllite_end"), 1.0, 0.0, 1.0)
+    if settings["lllite_end"] < settings["lllite_start"]:
+        settings["lllite_end"] = settings["lllite_start"]
+    if "seed" in settings and settings.get("seed") not in (None, ""):
+        settings["seed"] = _int(settings.get("seed"), -1, -1, 4294967295)
+    return settings
+
+
 def face_detailer_seed(base_seed: Any, *, index: int = 0, settings: dict[str, Any] | None = None) -> int:
     settings = settings or {}
     explicit = settings.get("seed")
@@ -104,9 +160,13 @@ def face_detailer_capabilities(info: dict[str, Any] | None) -> dict[str, Any]:
         "FaceDetailer": "FaceDetailer" in info,
         "UltralyticsDetectorProvider": "UltralyticsDetectorProvider" in info,
         "SAMLoader": "SAMLoader" in info,
+        "BboxDetectorSEGS": "BboxDetectorSEGS" in info,
+        "SegsToCombinedMask": "SegsToCombinedMask" in info,
+        "AnimaLLLiteApply": "AnimaLLLiteApply" in info,
     }
     detectors = _node_models(info, "UltralyticsDetectorProvider", "model_name")
     sams = _node_models(info, "SAMLoader", "model_name")
+    lllite_models = _node_models(info, "AnimaLLLiteApply", "lllite_name")
     warnings: list[str] = []
     if not nodes["FaceDetailer"]:
         warnings.append("FaceDetailer node is not available.")
@@ -114,17 +174,45 @@ def face_detailer_capabilities(info: dict[str, Any] | None) -> dict[str, Any]:
         warnings.append("UltralyticsDetectorProvider node is not available.")
     if DEFAULT_DETECTOR not in detectors:
         warnings.append(f"Detector model is not available: {DEFAULT_DETECTOR}")
+    hand_warnings: list[str] = []
+    for node_name in ("FaceDetailer", "UltralyticsDetectorProvider", "BboxDetectorSEGS", "SegsToCombinedMask", "AnimaLLLiteApply"):
+        if not nodes[node_name]:
+            hand_warnings.append(f"{node_name} node is not available.")
+    if DEFAULT_HAND_DETECTOR not in detectors:
+        hand_warnings.append(f"Detector model is not available: {DEFAULT_HAND_DETECTOR}")
+    if DEFAULT_ANIMA_LLLITE_INPAINTING not in lllite_models:
+        hand_warnings.append(f"Anima LLLite model is not available: {DEFAULT_ANIMA_LLLITE_INPAINTING}")
+    hand_supported = (
+        nodes["FaceDetailer"]
+        and nodes["UltralyticsDetectorProvider"]
+        and nodes["BboxDetectorSEGS"]
+        and nodes["SegsToCombinedMask"]
+        and nodes["AnimaLLLiteApply"]
+        and DEFAULT_HAND_DETECTOR in detectors
+        and DEFAULT_ANIMA_LLLITE_INPAINTING in lllite_models
+    )
     return {
         "supported": nodes["FaceDetailer"] and nodes["UltralyticsDetectorProvider"] and DEFAULT_DETECTOR in detectors,
         "nodes": nodes,
         "models": {
             DEFAULT_DETECTOR: DEFAULT_DETECTOR in detectors,
+            DEFAULT_HAND_DETECTOR: DEFAULT_HAND_DETECTOR in detectors,
             DEFAULT_SAM_MODEL: DEFAULT_SAM_MODEL in sams,
+            DEFAULT_ANIMA_LLLITE_INPAINTING: DEFAULT_ANIMA_LLLITE_INPAINTING in lllite_models,
         },
         "detectors": detectors,
         "sam_models": sams,
+        "lllite_models": lllite_models,
         "postprocess_supported": nodes["FaceDetailer"] and nodes["UltralyticsDetectorProvider"] and DEFAULT_DETECTOR in detectors,
         "defaults": deepcopy(DEFAULT_FACE_DETAILER_SETTINGS),
+        "hand_supported": hand_supported,
+        "hand_detailer": {
+            "supported": hand_supported,
+            "defaults": deepcopy(DEFAULT_HAND_DETAILER_SETTINGS),
+            "detector": DEFAULT_HAND_DETECTOR,
+            "lllite_model": DEFAULT_ANIMA_LLLITE_INPAINTING,
+            "warnings": hand_warnings,
+        },
         "warnings": warnings,
     }
 
@@ -142,6 +230,7 @@ def add_face_detailer_to_workflow(
     output_input_name: str,
     seed: int,
     settings: dict[str, Any],
+    title_prefix: str = "Face Detailer",
 ) -> dict[str, Any]:
     settings = sanitize_face_detailer_settings(settings, mode=str(settings.get("mode") or "generation"))
     metadata = {
@@ -167,7 +256,7 @@ def add_face_detailer_to_workflow(
     workflow[detector_id] = {
         "class_type": "UltralyticsDetectorProvider",
         "inputs": {"model_name": settings.get("detector") or DEFAULT_DETECTOR},
-        "_meta": {"title": "Face Detailer Detector"},
+        "_meta": {"title": f"{title_prefix} Detector"},
     }
     start = int(detector_id) + 1
     face_id = next_node_id(workflow, start)
@@ -209,14 +298,14 @@ def add_face_detailer_to_workflow(
         workflow[sam_id] = {
             "class_type": "SAMLoader",
             "inputs": {"model_name": DEFAULT_SAM_MODEL, "device_mode": "AUTO"},
-            "_meta": {"title": "Face Detailer SAM"},
+            "_meta": {"title": f"{title_prefix} SAM"},
         }
         inputs["sam_model_opt"] = [sam_id, 0]
         metadata["sam_node_id"] = sam_id
     workflow[face_id] = {
         "class_type": "FaceDetailer",
         "inputs": inputs,
-        "_meta": {"title": "Face Detailer"},
+        "_meta": {"title": title_prefix},
     }
     workflow[str(output_node_id)]["inputs"][output_input_name] = [face_id, 0]
     metadata["node_id"] = face_id

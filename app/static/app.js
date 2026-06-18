@@ -657,6 +657,7 @@
         allow_with_reference_assist: false,
       },
       face_detailer: collectFaceDetailerSettings(checked("#fdEnabled"), "generation"),
+      hand_detailer: collectHandDetailerSettings(checked("#hdEnabled"), "generation"),
       reference_modules: {
         enabled: true,
         preset: outfitEnabled && poseEnabled ? "outfit_pose" : outfitEnabled ? "outfit_only" : poseEnabled ? "pose_only" : "off",
@@ -1946,6 +1947,31 @@
     };
   }
 
+  function collectHandDetailerSettings(enabled = checked("#hdEnabled"), mode = "generation") {
+    return {
+      enabled: Boolean(enabled),
+      mode,
+      detector: "bbox/hand_yolov8s.pt",
+      steps: Math.trunc(numberValue("#hdSteps", 14)),
+      cfg: numberValue("#hdCfg", 4.0),
+      denoise: numberValue("#hdDenoise", 0.45),
+      guide_size: 512,
+      max_size: 1024,
+      bbox_threshold: numberValue("#hdBbox", 0.35),
+      bbox_dilation: 16,
+      bbox_crop_factor: 2.5,
+      drop_size: 24,
+      sam_enabled: false,
+      seed_policy: "image_seed_plus_offset",
+      seed_offset: 200000,
+      lllite_enabled: true,
+      lllite_model: "anima-lllite-inpainting-v2.safetensors",
+      lllite_strength: numberValue("#hdLlliteStrength", 0.85),
+      lllite_start: 0,
+      lllite_end: 1,
+    };
+  }
+
   async function queueFrameFaceDetailer() {
     if (!state.detailItem?.id) return;
     text("#frameActionStatus", "顔補正をキュー投入中...");
@@ -2302,6 +2328,7 @@
     if (checked("#poseEnabled")) refParts.push("POSE");
     text("#refModSummary", refParts.length ? refParts.join("+") : "OFF");
     text("#fdSummary", checked("#fdEnabled") ? `ON · ${Number(req.face_detailer.denoise).toFixed(2)}` : "OFF");
+    text("#hdSummary", checked("#hdEnabled") ? `ON · ${Number(req.hand_detailer.denoise).toFixed(2)} · L${Number(req.hand_detailer.lllite_strength).toFixed(2)}` : "OFF");
     updateSizeChips();
   }
 
@@ -3051,6 +3078,33 @@
     };
   }
 
+  function historyHandDetailerRequest(item = {}) {
+    const hand = item.hand_detailer && typeof item.hand_detailer === "object" ? item.hand_detailer : {};
+    const lllite = hand.lllite && typeof hand.lllite === "object" ? hand.lllite : {};
+    return {
+      enabled: Boolean(hand.enabled),
+      mode: String(hand.mode || "generation"),
+      detector: String(hand.detector || "bbox/hand_yolov8s.pt"),
+      steps: intFrom(hand.steps, 14),
+      cfg: numberFrom(hand.cfg, 4.0),
+      denoise: numberFrom(hand.denoise, 0.45),
+      guide_size: intFrom(hand.guide_size, 512),
+      max_size: intFrom(hand.max_size, 1024),
+      bbox_threshold: numberFrom(hand.bbox_threshold, 0.35),
+      bbox_dilation: intFrom(hand.bbox_dilation, 16),
+      bbox_crop_factor: numberFrom(hand.bbox_crop_factor, 2.5),
+      drop_size: intFrom(hand.drop_size, 24),
+      sam_enabled: Boolean(hand.sam_enabled),
+      seed_policy: String(hand.seed_policy || "image_seed_plus_offset"),
+      seed_offset: intFrom(hand.seed_offset, 200000),
+      lllite_enabled: hand.lllite_enabled !== false && lllite.enabled !== false,
+      lllite_model: String(hand.lllite_model || lllite.model || "anima-lllite-inpainting-v2.safetensors"),
+      lllite_strength: numberFrom(hand.lllite_strength ?? lllite.strength, 0.85),
+      lllite_start: numberFrom(hand.lllite_start ?? lllite.start_percent, 0),
+      lllite_end: numberFrom(hand.lllite_end ?? lllite.end_percent, 1),
+    };
+  }
+
   const HISTORY_QUALITY_PROMPTS = QUALITY_PROMPTS;
   const HISTORY_RATING_TAGS = RATING_PROMPTS;
   function promptTerms(textValue) {
@@ -3285,6 +3339,7 @@
       image_to_image: historyImageToImageRequest(item),
       reference_modules: historyReferenceModulesRequest(item),
       face_detailer: historyFaceDetailerRequest(item),
+      hand_detailer: historyHandDetailerRequest(item),
       source_item: item,
     };
   }
@@ -3370,6 +3425,13 @@
     setValue("#fdCfg", face.cfg ?? 4.0);
     setValue("#fdDenoise", face.denoise ?? 0.3);
     setValue("#fdBbox", face.bbox_threshold ?? 0.5);
+    const hand = data.hand_detailer || {};
+    setChecked("#hdEnabled", Boolean(hand.enabled));
+    setValue("#hdSteps", hand.steps ?? 14);
+    setValue("#hdCfg", hand.cfg ?? 4.0);
+    setValue("#hdDenoise", hand.denoise ?? 0.45);
+    setValue("#hdBbox", hand.bbox_threshold ?? 0.35);
+    setValue("#hdLlliteStrength", hand.lllite_strength ?? hand.lllite?.strength ?? 0.85);
     updateSummaries();
   }
 
@@ -3457,6 +3519,7 @@
       image_to_image: historyImageToImageRequest({ image_to_image: req.image_to_image }),
       reference_modules: historyReferenceModulesRequest({ reference_modules: req.reference_modules }),
       face_detailer: historyFaceDetailerRequest({ face_detailer: req.face_detailer }),
+      hand_detailer: historyHandDetailerRequest({ hand_detailer: req.hand_detailer }),
       source_item: req,
     };
   }
@@ -3518,6 +3581,7 @@
       reference_assist: { enabled: false },
       image_to_image: historyImageToImageRequest(item),
       face_detailer: historyFaceDetailerRequest(item),
+      hand_detailer: historyHandDetailerRequest(item),
       reference_modules: historyReferenceModulesRequest(item),
     };
   }
@@ -3595,6 +3659,8 @@
       loras: collectLoras(),
       prompt_random_collect: collectPromptRandomCollect(),
       hires_fix: hiresFix,
+      face_detailer: collectFaceDetailerSettings(checked("#fdEnabled"), "generation"),
+      hand_detailer: collectHandDetailerSettings(checked("#hdEnabled"), "generation"),
       watermark: collectWatermark(),
       public_save: {
         ...(next.public_save || {}),

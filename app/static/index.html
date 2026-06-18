@@ -386,6 +386,23 @@
         </div>
         <p id="fdStatus" class="hint" aria-live="polite"></p>
       </details>
+
+      <details class="tray" data-fold="handdetailer">
+        <summary><h2>Hand Detailer</h2><span class="lbl" id="hdSummary">OFF</span></summary>
+        <p class="hint">生成後に手を自動検出し、Anima LLLite inpaintingで描き直します。</p>
+        <div class="switchline">
+          <input id="hdEnabled" type="checkbox">
+          <span class="grow">生成時に手を補正する</span>
+        </div>
+        <div class="grid2">
+          <label class="field"><span class="lbl">DENOISE</span><input id="hdDenoise" type="number" min="0" max="1" step="0.01" value="0.45"></label>
+          <label class="field"><span class="lbl">STEPS</span><input id="hdSteps" type="number" min="1" max="60" value="14"></label>
+          <label class="field"><span class="lbl">CFG</span><input id="hdCfg" type="number" min="0" max="30" step="0.1" value="4.0"></label>
+          <label class="field"><span class="lbl">BBOX THRESHOLD</span><input id="hdBbox" type="number" min="0" max="1" step="0.01" value="0.35"></label>
+          <label class="field"><span class="lbl">LLLITE</span><input id="hdLlliteStrength" type="number" min="0" max="2" step="0.05" value="0.85"></label>
+        </div>
+        <p id="hdStatus" class="hint" aria-live="polite"></p>
+      </details>
     </section>
 
     <!-- 密着(見る) -->
@@ -569,6 +586,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.23-fate-catalog-20260618"></script>
+  <script src="/static/app.js?v=v1.24-hand-detailer-20260618"></script>
 </body>
 </html>

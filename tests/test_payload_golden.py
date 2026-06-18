@@ -90,6 +90,7 @@ def base_request() -> dict[str, object]:
         "reference_modules": {"enabled": True, "outfit": {"enabled": False}, "pose": {"enabled": False}},
         "image_to_image": {"enabled": False, "apply_to_payload": False},
         "face_detailer": {"enabled": False},
+        "hand_detailer": {"enabled": False},
     }
 
 
@@ -300,6 +301,34 @@ class PayloadGoldenTests(unittest.TestCase):
         }
         payload = payload_builder.build_face_detailer_postprocess_payload(request, "golden-client", "golden/source.png")
         assert_matches_golden(self, "build_face_detailer_postprocess_payload", payload)
+
+    def test_build_prompt_payload_hand_detailer_uses_lllite_mask(self) -> None:
+        request = deepcopy(base_request())
+        request["hand_detailer"] = {
+            "enabled": True,
+            "steps": 8,
+            "cfg": 4.0,
+            "denoise": 0.42,
+            "bbox_threshold": 0.36,
+            "lllite_strength": 0.9,
+        }
+        payload = payload_builder.build_prompt_payload(request, "golden-client")
+        workflow = payload["prompt"]
+        nodes = {node["class_type"]: node for node in workflow.values()}
+        hand_nodes = [node for node in workflow.values() if node.get("_meta", {}).get("title") == "Hand Detailer"]
+        lllite_node = nodes.get("AnimaLLLiteApply")
+        segs_node = nodes.get("BboxDetectorSEGS")
+        mask_node = nodes.get("SegsToCombinedMask")
+        self.assertIsNotNone(lllite_node)
+        self.assertIsNotNone(segs_node)
+        self.assertIsNotNone(mask_node)
+        self.assertEqual(lllite_node["inputs"]["lllite_name"], "anima-lllite-inpainting-v2.safetensors")
+        self.assertEqual(lllite_node["inputs"]["mask"], [request["hand_detailer"]["lllite"]["mask_node_id"], 0])
+        self.assertEqual(segs_node["inputs"]["labels"], "hand")
+        self.assertEqual(hand_nodes[0]["inputs"]["bbox_detector"], [request["hand_detailer"]["detector_node_id"], 0])
+        self.assertEqual(workflow["1"]["inputs"]["filename_prefix"], "20990101/anima/hand_detailer/Anima")
+        self.assertTrue(request["hand_detailer"]["applied"])
+        self.assertTrue(request["hand_detailer"]["lllite"]["applied"])
 
 
 if __name__ == "__main__":
