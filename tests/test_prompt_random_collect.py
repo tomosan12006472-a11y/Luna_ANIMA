@@ -39,6 +39,13 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertFalse(payload["character_context_enabled"])
         self.assertIn("intentionally omitted", payload["character_context_rule"])
 
+    def test_user_prompt_random_mode_requests_bolder_variation(self) -> None:
+        feature = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "mode": "random", "strength": "standard"})
+        payload = json.loads(prompt_random_collect._user_prompt(feature, [{"index": 0, "existing_positive": "1girl, white bikini"}], "anima"))
+
+        self.assertIn("Push outfit", payload["strength_hint"])
+        self.assertIn("Creative variance is desirable", prompt_random_collect._system_prompt("anima", "random"))
+
     def test_character_context_disabled_removes_character_tags_from_existing_positive_context(self) -> None:
         request = {
             "character1": "scathach (fate)",
@@ -112,6 +119,45 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertNotIn("8k", tags)
         self.assertLessEqual(len(tags), prompt_random_collect.MAX_RANDOM_TAG_CHARS)
         self.assertLessEqual(len(tags.split(",")), prompt_random_collect.MAX_RANDOM_TAGS)
+
+    def test_random_mode_preserves_reference_level_tag_span(self) -> None:
+        reference_tags = (
+            "golden halo floating above head, translucent blue energy cloak, holding a glowing crystal orb, "
+            "kneeling on stone steps, dramatic backlighting, lens flare, intricate metal armor details, "
+            "focused intense gaze, particles swirling around, ethereal atmosphere, cool color palette, wide angle shot"
+        )
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "",
+                "prompt_random_collect_mode": "random",
+                "prompt_random_collect_strength": "standard",
+            }
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items({"items": [{"index": 0, "tags": reference_tags}]}, contexts)
+
+        self.assertEqual(result[0]["tags"], reference_tags)
+        self.assertGreater(len(result[0]["tags"]), prompt_random_collect.MAX_POSITIVE_COMPLETION_TAG_CHARS)
+        self.assertLessEqual(len(result[0]["tags"]), prompt_random_collect.MAX_RANDOM_TAG_CHARS)
+
+    def test_positive_completion_keeps_tighter_tag_span(self) -> None:
+        reference_tags = (
+            "golden halo floating above head, translucent blue energy cloak, holding a glowing crystal orb, "
+            "kneeling on stone steps, dramatic backlighting, lens flare, intricate metal armor details, "
+            "focused intense gaze, particles swirling around, ethereal atmosphere, cool color palette, wide angle shot"
+        )
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "",
+                "prompt_random_collect_mode": "positive_completion",
+                "prompt_random_collect_strength": "standard",
+            }
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items({"items": [{"index": 0, "tags": reference_tags}]}, contexts)
+
+        self.assertLessEqual(len(result[0]["tags"]), prompt_random_collect.MAX_POSITIVE_COMPLETION_TAG_CHARS)
+        self.assertLess(len(result[0]["tags"]), len(reference_tags))
 
     def test_normalize_items_requires_one_item_per_context(self) -> None:
         contexts = [{"index": 0}, {"index": 1}]

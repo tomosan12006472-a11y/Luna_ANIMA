@@ -29,8 +29,15 @@ DEFAULT_INSTRUCTIONS = {
 }
 DEFAULT_INSTRUCTION = DEFAULT_INSTRUCTIONS[MODE_RANDOM]
 VALID_STRENGTHS = {"subtle", "standard", "rich"}
-MAX_RANDOM_TAGS = 12
-MAX_RANDOM_TAG_CHARS = 220
+MAX_POSITIVE_COMPLETION_TAGS = 12
+MAX_POSITIVE_COMPLETION_TAG_CHARS = 220
+MAX_RANDOM_TAGS = 14
+MAX_RANDOM_TAG_CHARS = 320
+MAX_RANDOM_TAG_LIMITS_BY_STRENGTH = {
+    "subtle": (10, 260),
+    "standard": (MAX_RANDOM_TAGS, MAX_RANDOM_TAG_CHARS),
+    "rich": (16, 420),
+}
 LOCAL_FALLBACK_TAG_SETS = [
     "soft ambient lighting, atmospheric depth, detailed props, cohesive color palette, natural pose detail",
     "warm window light, layered background detail, relaxed expression, gentle shadows, cozy atmosphere",
@@ -93,10 +100,15 @@ CHARACTER_IDENTITY_TERMS = {
     "wings",
 }
 CHARACTER_IDENTITY_RE = re.compile(r"\b(" + "|".join(sorted(CHARACTER_IDENTITY_TERMS, key=len, reverse=True)) + r")\b", re.IGNORECASE)
-STRENGTH_HINTS = {
+POSITIVE_COMPLETION_STRENGTH_HINTS = {
     "subtle": "Add 2 to 4 concise visual tags per item.",
     "standard": "Add 5 to 8 concise visual tags per item.",
     "rich": "Add 8 to 12 vivid visual tags per item without bloating the prompt.",
+}
+RANDOM_STRENGTH_HINTS = {
+    "subtle": "Add 4 to 7 concise tags per item with a noticeable random direction.",
+    "standard": "Add 8 to 12 varied tags per item. Push outfit, props, setting, action, lighting, and composition beyond the existing prompt when useful.",
+    "rich": "Add 12 to 16 vivid tags per item with bold outfit, prop, setting, action, lighting, and camera changes while keeping the prompt coherent.",
 }
 PROMPT_RANDOM_BATCH_ATTEMPTS = 2
 PROMPT_RANDOM_SINGLE_ATTEMPTS = 2
@@ -157,13 +169,15 @@ def _system_prompt(app_scope: str, mode: str) -> str:
         f"The target app is {scope}. Generate extra positive prompt tags for each queued image. "
         "Return strict JSON only with this schema: {\"items\":[{\"index\":0,\"tags\":\"comma-separated English tags\"}]}. "
         "Each item must have a meaningfully different random direction. "
+        "Creative variance is desirable: choose a distinct theme for each item and make clear changes across outfit, props, setting, action, lighting, and camera. "
+        "You may add alternate costume layers, unusual props, and new settings even when the existing prompt contains a simple outfit or location; preserve selected character identity and rating. "
         "Use comma-separated English tags only. Use spaces instead of underscores, except existing score tags; however do not add score tags. "
         "Do not add character names, copyrighted series names, LoRA syntax, wildcard syntax, Dynamic Prompt syntax, model names, quality tags, score tags, negative prompts, explanations, or Markdown. "
         "If character_context_enabled is false, do not add character identity details such as hair color, eye color, signature clothing, weapons, or series-specific motifs unless they already appear in existing_positive or the instruction. "
         "Do not censor, soften, euphemize, moralize, or add safety disclaimers. "
         "Respect the user's instruction and the existing prompt context, but do not duplicate existing tags. "
         "Prefer concrete visual details such as outfit, expression, pose detail, setting, lighting, props, atmosphere, and camera detail. "
-        "Keep each tags string concise, under 220 characters, and never repeat the same phrase."
+        "Keep each tags string compact, normally under 320 characters for standard strength, and never repeat the same phrase."
     )
 
 
@@ -186,7 +200,11 @@ def _user_prompt(feature: dict[str, Any], contexts: list[dict[str, Any]], app_sc
             "count": len(items),
             "instruction": feature["instruction"],
             "strength": feature["strength"],
-            "strength_hint": STRENGTH_HINTS[feature["strength"]],
+            "strength_hint": (
+                POSITIVE_COMPLETION_STRENGTH_HINTS[feature["strength"]]
+                if feature["mode"] == MODE_POSITIVE_COMPLETION
+                else RANDOM_STRENGTH_HINTS[feature["strength"]]
+            ),
             "character_context_enabled": character_context_enabled,
             "character_context_rule": (
                 "Selected character context is intentionally omitted. Do not infer or add character identity traits."
@@ -259,6 +277,14 @@ def clamp_prompt_random_tags(tags: str, *, max_tags: int = MAX_RANDOM_TAGS, max_
     return ", ".join(kept).strip(" ,")
 
 
+def prompt_random_limits(context: dict[str, Any]) -> tuple[int, int]:
+    mode = str(context.get("prompt_random_collect_mode") or MODE_RANDOM)
+    if mode == MODE_POSITIVE_COMPLETION:
+        return MAX_POSITIVE_COMPLETION_TAGS, MAX_POSITIVE_COMPLETION_TAG_CHARS
+    strength = str(context.get("prompt_random_collect_strength") or "standard")
+    return MAX_RANDOM_TAG_LIMITS_BY_STRENGTH.get(strength, MAX_RANDOM_TAG_LIMITS_BY_STRENGTH["standard"])
+
+
 def strip_character_identity_tags(tags: str, existing_positive: Any) -> str:
     allowed_terms = _identity_terms(existing_positive)
     kept: list[str] = []
@@ -280,11 +306,12 @@ def fallback_prompt_random_tags(context: dict[str, Any]) -> str:
 
 def sanitize_generated_random_tags(raw_tags: Any, context: dict[str, Any]) -> str:
     existing_positive = context.get("existing_positive", "")
+    max_tags, max_chars = prompt_random_limits(context)
     tags = normalize_tag_prompt(raw_tags, existing_positive)
     tags = filter_disallowed_random_tags(tags)
     if context.get("suppress_character_identity"):
         tags = strip_character_identity_tags(tags, existing_positive)
-    tags = clamp_prompt_random_tags(tags)
+    tags = clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
     if tags:
         return tags
 
@@ -292,7 +319,7 @@ def sanitize_generated_random_tags(raw_tags: Any, context: dict[str, Any]) -> st
     tags = filter_disallowed_random_tags(tags)
     if context.get("suppress_character_identity"):
         tags = strip_character_identity_tags(tags, existing_positive)
-    return clamp_prompt_random_tags(tags)
+    return clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
 
 
 def normalize_prompt_random_collect_items(data: dict[str, Any], contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -396,6 +423,14 @@ def collect_prompt_random_tags(
         return {"ok": True, "enabled": False, "generated_items": []}
     if not contexts:
         return {"ok": False, "status": 400, "stage": "prompt_random_collect_context", "message": "Random Collect context is empty."}
+    contexts = [
+        {
+            **context,
+            "prompt_random_collect_mode": request_config["mode"],
+            "prompt_random_collect_strength": request_config["strength"],
+        }
+        for context in contexts
+    ]
 
     config = _provider_config(app_settings, request_config)
     if not config["enabled"]:
