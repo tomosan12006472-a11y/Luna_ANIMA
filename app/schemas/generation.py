@@ -191,7 +191,7 @@ class PromptRandomCollectSettings(CompatSettingsModel):
     @classmethod
     def _normalize_strength(cls, value: Any) -> str:
         strength = str(value or "standard").strip().lower()
-        return strength if strength in {"subtle", "standard", "reference_568", "rich"} else "standard"
+        return strength if strength in {"subtle", "standard", "reference_568", "legacy_568", "rich"} else "standard"
 
     @model_validator(mode="after")
     def _normalize_instruction(self) -> "PromptRandomCollectSettings":

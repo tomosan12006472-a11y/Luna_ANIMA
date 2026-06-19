@@ -34,6 +34,11 @@ class PromptRandomCollectTests(unittest.TestCase):
 
         self.assertEqual(result["strength"], "reference_568")
 
+    def test_sanitize_request_accepts_legacy_568_strength(self) -> None:
+        result = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "strength": "legacy_568"})
+
+        self.assertEqual(result["strength"], "legacy_568")
+
     def test_sanitize_request_can_disable_character_context(self) -> None:
         result = prompt_random_collect.sanitize_prompt_random_collect_request(
             {"enabled": True, "include_characters": False, "use_character_motifs": True}
@@ -78,6 +83,46 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertIn("white Bikini", payload["reference_568_conditions"]["existing_positive"])
         self.assertNotIn("generated_tags", payload["reference_568_conditions"])
         self.assertIn("not a fixed visual theme", " ".join(payload["reference_568_conditions"]["behavior_to_copy"]))
+
+    def test_legacy_568_prompt_recreates_old_qwen_request_shape(self) -> None:
+        feature = prompt_random_collect.sanitize_prompt_random_collect_request(
+            {
+                "enabled": True,
+                "mode": "random",
+                "instruction": "this should be ignored for legacy",
+                "strength": "legacy_568",
+                "include_characters": True,
+                "use_character_motifs": True,
+            }
+        )
+        payload = json.loads(
+            prompt_random_collect._user_prompt(
+                feature,
+                [{"index": 0, "seed": 568, "characters": ["Jeanne"], "existing_positive": "current positive only"}],
+                "anima",
+            )
+        )
+
+        self.assertEqual(payload["mode"], "random")
+        self.assertEqual(payload["instruction"], prompt_random_collect.DEFAULT_INSTRUCTIONS["random"])
+        self.assertEqual(payload["strength"], "standard")
+        self.assertEqual(
+            payload["strength_hint"],
+            "Add 8 to 12 varied tags per item. Push outfit, props, setting, action, lighting, and composition beyond the existing prompt when useful.",
+        )
+        self.assertEqual(payload["items"][0]["existing_positive"], "current positive only")
+        self.assertNotIn("character_motifs_enabled", payload)
+        self.assertNotIn("character_motif_rule", payload)
+        self.assertNotIn("batch_diversity_rule", payload)
+        self.assertNotIn("reference_568_conditions", payload)
+
+    def test_legacy_568_system_prompt_recreates_old_random_prompt(self) -> None:
+        system_prompt = prompt_random_collect._system_prompt("anima", "random", "legacy_568")
+
+        self.assertIn("Keep each tags string compact, normally under 320 characters for standard strength", system_prompt)
+        self.assertIn("You may add alternate costume layers, unusual props, and new settings", system_prompt)
+        self.assertNotIn("character_motifs_enabled", system_prompt)
+        self.assertNotIn("For subtle and standard strength", system_prompt)
 
     def test_character_context_disabled_removes_character_tags_from_existing_positive_context(self) -> None:
         request = {
@@ -418,6 +463,56 @@ class PromptRandomCollectTests(unittest.TestCase):
         )
 
         self.assertEqual(result[0]["tags"], "ribbon hair accessory, holding a miniature wooden horse, sunset sky")
+
+    def test_legacy_568_strength_uses_old_limits_and_filters_only_old_safety_set(self) -> None:
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "@gpt-image-2, white Bikini",
+                "characters": [{"prompt_tag": "jeanne d'arc (fate)", "prompt_safe_name": "Jeanne D'arc from Fate"}],
+                "prompt_random_collect_mode": "random",
+                "prompt_random_collect_strength": "legacy_568",
+                "prompt_random_collect_use_character_motifs": False,
+            }
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {
+                "items": [
+                    {
+                        "index": 0,
+                        "tags": "masterpiece, pink two-piece swimsuit, jeanne d'arc, silver sword, golden armor, blue hair, sunset sky",
+                    }
+                ]
+            },
+            contexts,
+        )
+
+        self.assertEqual(
+            result[0]["tags"],
+            "pink two-piece swimsuit, jeanne d'arc, silver sword, golden armor, blue hair, sunset sky",
+        )
+        self.assertEqual(
+            prompt_random_collect.prompt_random_limits(contexts[0]),
+            (prompt_random_collect.MAX_LEGACY_568_RANDOM_TAGS, prompt_random_collect.MAX_LEGACY_568_RANDOM_TAG_CHARS),
+        )
+
+    def test_legacy_568_strength_keeps_repeated_tags_across_batch(self) -> None:
+        contexts = [
+            {"index": 0, "prompt_random_collect_mode": "random", "prompt_random_collect_strength": "legacy_568"},
+            {"index": 1, "prompt_random_collect_mode": "random", "prompt_random_collect_strength": "legacy_568"},
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {
+                "items": [
+                    {"index": 0, "tags": "golden halo, sunset sky, playful smile"},
+                    {"index": 1, "tags": "golden halo, snowy cathedral, playful smile, soft rim lighting"},
+                ]
+            },
+            contexts,
+        )
+
+        self.assertEqual(result[0]["tags"], "golden halo, sunset sky, playful smile")
+        self.assertEqual(result[1]["tags"], "golden halo, snowy cathedral, playful smile, soft rim lighting")
 
     def test_positive_completion_keeps_tighter_tag_span(self) -> None:
         reference_tags = (

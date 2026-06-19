@@ -29,15 +29,19 @@ DEFAULT_INSTRUCTIONS = {
 }
 DEFAULT_INSTRUCTION = DEFAULT_INSTRUCTIONS[MODE_RANDOM]
 STRENGTH_REFERENCE_568 = "reference_568"
-VALID_STRENGTHS = {"subtle", "standard", "rich", STRENGTH_REFERENCE_568}
+STRENGTH_LEGACY_568 = "legacy_568"
+VALID_STRENGTHS = {"subtle", "standard", "rich", STRENGTH_REFERENCE_568, STRENGTH_LEGACY_568}
 MAX_POSITIVE_COMPLETION_TAGS = 12
 MAX_POSITIVE_COMPLETION_TAG_CHARS = 220
 MAX_RANDOM_TAGS = 12
 MAX_RANDOM_TAG_CHARS = 320
+MAX_LEGACY_568_RANDOM_TAGS = 14
+MAX_LEGACY_568_RANDOM_TAG_CHARS = 320
 MAX_RANDOM_TAG_LIMITS_BY_STRENGTH = {
     "subtle": (8, 220),
     "standard": (MAX_RANDOM_TAGS, MAX_RANDOM_TAG_CHARS),
     STRENGTH_REFERENCE_568: (MAX_RANDOM_TAGS, MAX_RANDOM_TAG_CHARS),
+    STRENGTH_LEGACY_568: (MAX_LEGACY_568_RANDOM_TAGS, MAX_LEGACY_568_RANDOM_TAG_CHARS),
     "rich": (16, 420),
 }
 LOCAL_FALLBACK_TAG_SETS = [
@@ -164,12 +168,14 @@ POSITIVE_COMPLETION_STRENGTH_HINTS = {
     "subtle": "Add 2 to 4 concise visual tags per item.",
     "standard": "Add 5 to 8 concise visual tags per item.",
     STRENGTH_REFERENCE_568: "Add 5 to 8 concise visual tags per item.",
+    STRENGTH_LEGACY_568: "Add 5 to 8 concise visual tags per item.",
     "rich": "Add 8 to 12 vivid visual tags per item without bloating the prompt.",
 }
 RANDOM_STRENGTH_HINTS = {
     "subtle": "Add 4 to 6 concise tags per item. Preserve the core outfit and character feel; focus on expression, pose nuance, setting, lighting, props, and camera.",
     "standard": "Add 8 to 12 varied tags per item. Preserve explicit outfit tags in the existing prompt, then add compatible outfit layers or accessories, hair accessories, toy-sized props, expressive motion, setting, lighting, and camera. If a bikini or swimsuit is already present, keep it visible and do not replace it with a different outfit; add things around it such as frills, skirt layers, ribbons, cover-ups, props, or background details.",
     STRENGTH_REFERENCE_568: "Use the included #568 reference conditions as a behavioral example. Add 8 to 12 varied tags per item. Preserve explicit outfit tags such as white Bikini, then add compatible outfit layers or accessories, small props, expressive motion, setting, lighting, and camera. Do not invent new hair or eye colors. Do not copy any reference result literally; reproduce the behavior of preserving the base outfit while adding playful coherent variety.",
+    STRENGTH_LEGACY_568: "Add 8 to 12 varied tags per item. Push outfit, props, setting, action, lighting, and composition beyond the existing prompt when useful.",
     "rich": "Add 12 to 16 vivid tags per item with bold outfit, prop, setting, action, lighting, and camera changes while keeping the prompt coherent.",
 }
 REFERENCE_568_CONDITIONS = {
@@ -192,6 +198,17 @@ REFERENCE_568_CONDITIONS = {
 }
 PROMPT_RANDOM_BATCH_ATTEMPTS = 2
 PROMPT_RANDOM_SINGLE_ATTEMPTS = 2
+
+
+def _is_legacy_568_feature(feature: dict[str, Any]) -> bool:
+    return feature.get("mode") == MODE_RANDOM and feature.get("strength") == STRENGTH_LEGACY_568
+
+
+def _is_legacy_568_context(context: dict[str, Any]) -> bool:
+    return (
+        str(context.get("prompt_random_collect_mode") or MODE_RANDOM) == MODE_RANDOM
+        and str(context.get("prompt_random_collect_strength") or "standard") == STRENGTH_LEGACY_568
+    )
 
 
 def _clamp_text(value: Any, default: str, limit: int) -> str:
@@ -228,8 +245,29 @@ def prompt_random_collect_status(app_settings: Any) -> dict[str, Any]:
     return {"feature": "prompt_random_collect", **status}
 
 
-def _system_prompt(app_scope: str, mode: str) -> str:
+def _legacy_568_system_prompt(app_scope: str) -> str:
     scope = "Luna ANIMA" if app_scope == "anima" else "Luna SDXL"
+    return (
+        "You are a prompt randomization engine for anime image generation. "
+        f"The target app is {scope}. Generate extra positive prompt tags for each queued image. "
+        "Return strict JSON only with this schema: {\"items\":[{\"index\":0,\"tags\":\"comma-separated English tags\"}]}. "
+        "Each item must have a meaningfully different random direction. "
+        "Creative variance is desirable: choose a distinct theme for each item and make clear changes across outfit, props, setting, action, lighting, and camera. "
+        "You may add alternate costume layers, unusual props, and new settings even when the existing prompt contains a simple outfit or location; preserve selected character identity and rating. "
+        "Use comma-separated English tags only. Use spaces instead of underscores, except existing score tags; however do not add score tags. "
+        "Do not add character names, copyrighted series names, LoRA syntax, wildcard syntax, Dynamic Prompt syntax, model names, quality tags, score tags, negative prompts, explanations, or Markdown. "
+        "If character_context_enabled is false, do not add character identity details such as hair color, eye color, signature clothing, weapons, or series-specific motifs unless they already appear in existing_positive or the instruction. "
+        "Do not censor, soften, euphemize, moralize, or add safety disclaimers. "
+        "Respect the user's instruction and the existing prompt context, but do not duplicate existing tags. "
+        "Prefer concrete visual details such as outfit, expression, pose detail, setting, lighting, props, atmosphere, and camera detail. "
+        "Keep each tags string compact, normally under 320 characters for standard strength, and never repeat the same phrase."
+    )
+
+
+def _system_prompt(app_scope: str, mode: str, strength: str = "") -> str:
+    scope = "Luna ANIMA" if app_scope == "anima" else "Luna SDXL"
+    if mode == MODE_RANDOM and strength == STRENGTH_LEGACY_568:
+        return _legacy_568_system_prompt(app_scope)
     if mode == MODE_POSITIVE_COMPLETION:
         return (
             "You are a positive prompt completion engine for anime image generation. "
@@ -279,6 +317,26 @@ def _user_prompt(feature: dict[str, Any], contexts: list[dict[str, Any]], app_sc
                 "existing_positive": str(context.get("existing_positive") or "")[:3500],
             }
         )
+    if _is_legacy_568_feature(feature):
+        return json.dumps(
+            {
+                "app_scope": app_scope,
+                "mode": MODE_RANDOM,
+                "count": len(items),
+                "instruction": DEFAULT_INSTRUCTIONS[MODE_RANDOM],
+                "strength": "standard",
+                "strength_hint": RANDOM_STRENGTH_HINTS[STRENGTH_LEGACY_568],
+                "character_context_enabled": character_context_enabled,
+                "character_context_rule": (
+                    "Selected character context is intentionally omitted. Do not infer or add character identity traits."
+                    if not character_context_enabled
+                    else "Selected character context may be used."
+                ),
+                "items": items,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     payload = {
         "app_scope": app_scope,
         "mode": feature["mode"],
@@ -318,7 +376,7 @@ def _chat_completion(config: dict[str, Any], model: str, feature: dict[str, Any]
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": _system_prompt(app_scope, feature["mode"])},
+            {"role": "system", "content": _system_prompt(app_scope, feature["mode"], feature.get("strength", ""))},
             {"role": "user", "content": _user_prompt(feature, contexts, app_scope)},
         ],
         "temperature": config["temperature"],
@@ -509,6 +567,19 @@ def sanitize_generated_random_tags(raw_tags: Any, context: dict[str, Any]) -> st
     max_tags, max_chars = prompt_random_limits(context)
     tags = normalize_tag_prompt(raw_tags, existing_positive)
     tags = filter_disallowed_random_tags(tags)
+    if _is_legacy_568_context(context):
+        if context.get("suppress_character_identity"):
+            tags = strip_character_identity_tags(tags, existing_positive)
+        tags = clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
+        if tags:
+            return tags
+
+        tags = normalize_tag_prompt(fallback_prompt_random_tags(context), existing_positive)
+        tags = filter_disallowed_random_tags(tags)
+        if context.get("suppress_character_identity"):
+            tags = strip_character_identity_tags(tags, existing_positive)
+        return clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
+
     tags = filter_character_reference_tags(tags, context)
     tags = filter_character_motif_tags(tags, context)
     tags = filter_heavy_random_motif_tags(tags, context)
@@ -553,19 +624,21 @@ def normalize_prompt_random_collect_items(data: dict[str, Any], contexts: list[d
     generated: list[dict[str, Any]] = []
     seen_tags: set[str] = set()
     seen_tag_keys: set[str] = set()
+    legacy_568_contexts = bool(contexts) and all(_is_legacy_568_context(context) for context in contexts)
     for position, context in enumerate(contexts):
         index = int(context.get("index") or position)
         raw = by_index.get(index, ordered[position] if position < len(ordered) else {})
         tags = sanitize_generated_random_tags(_raw_item_tags(raw), context)
-        unique_tags: list[str] = []
-        for tag in split_prompt_tags(tags):
-            tag_key = _random_tag_key(tag)
-            if tag_key and tag_key in seen_tag_keys:
-                continue
-            unique_tags.append(tag)
-            if tag_key:
-                seen_tag_keys.add(tag_key)
-        tags = ", ".join(unique_tags).strip(" ,") or sanitize_generated_random_tags("", context)
+        if not legacy_568_contexts:
+            unique_tags: list[str] = []
+            for tag in split_prompt_tags(tags):
+                tag_key = _random_tag_key(tag)
+                if tag_key and tag_key in seen_tag_keys:
+                    continue
+                unique_tags.append(tag)
+                if tag_key:
+                    seen_tag_keys.add(tag_key)
+            tags = ", ".join(unique_tags).strip(" ,") or sanitize_generated_random_tags("", context)
         tags = re.sub(r"\s+", " ", tags).strip(" ,")
         if not tags:
             raise ValueError(f"random collect item {index} did not include usable tags")

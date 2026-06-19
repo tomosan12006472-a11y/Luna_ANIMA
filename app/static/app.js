@@ -396,11 +396,12 @@
     random: "衣装、表情、背景、小物をランダムに足す",
     positive_completion: "既存Positiveの意図を保ったまま、不足している描写を英語タグで補う",
   };
-  const PROMPT_RANDOM_STRENGTHS = new Set(["subtle", "standard", "reference_568", "rich"]);
+  const PROMPT_RANDOM_STRENGTHS = new Set(["subtle", "standard", "reference_568", "legacy_568", "rich"]);
   const PROMPT_RANDOM_STRENGTH_LABELS = {
     subtle: "控えめ",
     standard: "標準",
     reference_568: "#568基準",
+    legacy_568: "#568再現",
     rich: "大胆",
   };
 
