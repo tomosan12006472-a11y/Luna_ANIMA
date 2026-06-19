@@ -9,10 +9,12 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
+from app import _shared_utils
 from app import lora_catalog
 from app.api import loras as lora_api
 from app.config import APP_PIN
 from app.main import app
+from app.storage.json_store import JsonStoreReadError
 
 catalog_module = importlib.import_module("app.lora.catalog")
 diagnostics_module = importlib.import_module("app.lora.diagnostics")
@@ -78,6 +80,7 @@ class LoraCatalogModuleTests(unittest.TestCase):
                     "category": "style",
                     "status": "available",
                     "max_strength": 0.8,
+                    "custom_meta": {"kept": True},
                 },
                 {
                     "lora_id": "other_local_hidden",
@@ -140,8 +143,22 @@ class LoraCatalogModuleTests(unittest.TestCase):
         self.assertEqual(payload["app_scope"], "anima")
         self.assertEqual(len(payload["items"]), 2)
         self.assertEqual(payload["items"][0]["max_strength"], 1.0)
+        self.assertEqual(payload["items"][0]["custom_meta"], {"kept": True})
         self.assertEqual([item["lora_id"] for item in selectable], ["anima_local_style_example_safetensors"])
         self.assertTrue(selectable[0]["favorite"] is False)
+
+    def test_catalog_json_store_normalizes_invalid_payload_shape(self) -> None:
+        self.catalog_path.write_text(
+            json.dumps({"schema_version": 1, "app_scope": "anima", "items": "bad", "extra": "keep"}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        payload = lora_catalog.load_catalog()
+
+        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(payload["app_scope"], "anima")
+        self.assertEqual(payload["items"], [])
+        self.assertEqual(payload["extra"], "keep")
 
     def test_refresh_catalog_scans_local_loras_and_preserves_shape(self) -> None:
         anima_dir = self.lora_dir / "anima"
@@ -157,6 +174,16 @@ class LoraCatalogModuleTests(unittest.TestCase):
         self.assertEqual(len(payload["items"]), 1)
         self.assertEqual(payload["items"][0]["status"], "available")
         self.assertEqual(payload["items"][0]["relative_path"], "anima/anima-sample.safetensors")
+
+    def test_corrupted_catalog_refresh_does_not_overwrite(self) -> None:
+        self.catalog_path.write_text("{", encoding="utf-8")
+        original = self.catalog_path.read_text(encoding="utf-8")
+
+        with mock.patch.object(_shared_utils.time, "sleep", lambda _: None):
+            with self.assertRaises(JsonStoreReadError):
+                lora_catalog.refresh_catalog()
+
+        self.assertEqual(self.catalog_path.read_text(encoding="utf-8"), original)
 
     def test_catalog_with_favorites_and_list_shape(self) -> None:
         self.write_catalog()
@@ -192,6 +219,48 @@ class LoraCatalogModuleTests(unittest.TestCase):
         self.assertTrue(removed["ok"])
         self.assertFalse(removed["favorite"])
 
+    def test_set_lora_favorite_preserves_existing_added_at(self) -> None:
+        self.write_catalog()
+        existing_added_at = "2026-06-19T12:34:56"
+        self.favorites_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "app_scope": "anima",
+                    "favorites": {
+                        "anima_local_style_example_safetensors": {
+                            "lora_id": "anima_local_style_example_safetensors",
+                            "relative_path": "style/example.safetensors",
+                            "file_name": "style_example.safetensors",
+                            "display_name": "Style Example",
+                            "app_scope": "anima",
+                            "added_at": existing_added_at,
+                        }
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = lora_catalog.set_lora_favorite({"lora_id": "anima_local_style_example_safetensors"}, True)
+        stored = json.loads(self.favorites_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(response["favorite"])
+        self.assertEqual(response["item"]["added_at"], existing_added_at)
+        self.assertEqual(stored["favorites"]["anima_local_style_example_safetensors"]["added_at"], existing_added_at)
+
+    def test_corrupted_lora_favorites_update_does_not_overwrite(self) -> None:
+        self.write_catalog()
+        self.favorites_path.write_text("{", encoding="utf-8")
+        original = self.favorites_path.read_text(encoding="utf-8")
+
+        with mock.patch.object(_shared_utils.time, "sleep", lambda _: None):
+            with self.assertRaises(JsonStoreReadError):
+                lora_catalog.set_lora_favorite({"lora_id": "anima_local_style_example_safetensors"}, True)
+
+        self.assertEqual(self.favorites_path.read_text(encoding="utf-8"), original)
+
     def test_discovery_file_and_review_shape(self) -> None:
         characters_path = self.discovery_dir / "fate_characters.json"
         characters_path.write_text(json.dumps({"characters": [{"id": "char_1"}]}, ensure_ascii=False), encoding="utf-8")
@@ -209,6 +278,38 @@ class LoraCatalogModuleTests(unittest.TestCase):
         self.assertTrue(review["ok"])
         self.assertEqual(review["review"]["candidate_id"], "candidate-1")
         self.assertEqual(stored["items"][0]["review_status"], "approved_anima")
+
+    def test_discovery_review_preserves_unknown_item_keys(self) -> None:
+        review_path = self.discovery_dir / "fate_review_queue.json"
+        review_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "scope": "fate",
+                    "items": [{"candidate_id": "candidate-1", "extra": {"kept": True}}],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        review = lora_catalog.review_candidate("candidate-1", "approved_anima", "anima", "ok")
+        stored = json.loads(review_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(review["review"]["extra"], {"kept": True})
+        self.assertEqual(stored["items"][0]["extra"], {"kept": True})
+        self.assertEqual(stored["items"][0]["review_status"], "approved_anima")
+
+    def test_corrupted_discovery_review_update_does_not_overwrite(self) -> None:
+        review_path = self.discovery_dir / "fate_review_queue.json"
+        review_path.write_text("{", encoding="utf-8")
+        original = review_path.read_text(encoding="utf-8")
+
+        with mock.patch.object(_shared_utils.time, "sleep", lambda _: None):
+            with self.assertRaises(JsonStoreReadError):
+                lora_catalog.review_candidate("candidate-1", "approved_anima", "anima", "ok")
+
+        self.assertEqual(review_path.read_text(encoding="utf-8"), original)
 
     def test_api_lora_endpoints_smoke(self) -> None:
         self.write_catalog()

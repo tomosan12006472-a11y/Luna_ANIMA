@@ -2,18 +2,17 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
-import json
-from threading import Lock
-import time
+from threading import RLock
 from typing import Any
 
-from .._shared_utils import clamp_strength, write_json_atomic
+from .._shared_utils import clamp_strength
+from ..storage.json_store import JsonStore
 from .favorites import _favorite_match_keys, favorite_key_set, load_lora_favorites
 from .paths import APP_SCOPE, CATALOG_PATH, slug
 from .scan import scan_local_loras
 
 
-_CATALOG_LOCK = Lock()
+_CATALOG_LOCK = RLock()
 
 SLOT_DEFAULTS: dict[str, dict[str, Any]] = {
     "character": {"enabled": False, "lora_id": "none", "model_strength": 0.70, "clip_strength": 0.70, "max_strength": 1.0},
@@ -32,22 +31,7 @@ def default_catalog() -> dict[str, Any]:
     }
 
 
-def load_catalog() -> dict[str, Any]:
-    with _CATALOG_LOCK:
-        return _load_catalog_unlocked()
-
-
-def _load_catalog_unlocked() -> dict[str, Any]:
-    if not CATALOG_PATH.exists():
-        return default_catalog()
-    try:
-        data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        time.sleep(0.05)
-        try:
-            data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-        except Exception as second_error:
-            raise RuntimeError("lora catalog is temporarily unreadable") from second_error
+def _normalize_catalog_payload(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         return default_catalog()
     items = data.get("items")
@@ -62,11 +46,28 @@ def _load_catalog_unlocked() -> dict[str, Any]:
     return data
 
 
-def refresh_catalog() -> dict[str, Any]:
-    catalog = default_catalog()
+def _catalog_store() -> JsonStore:
+    return JsonStore(
+        CATALOG_PATH,
+        default_factory=default_catalog,
+        label="lora catalog",
+        lock=_CATALOG_LOCK,
+        validator=_normalize_catalog_payload,
+    )
+
+
+def load_catalog() -> dict[str, Any]:
     with _CATALOG_LOCK:
-        write_json_atomic(CATALOG_PATH, catalog)
-    return catalog
+        return _load_catalog_unlocked()
+
+
+def _load_catalog_unlocked() -> dict[str, Any]:
+    return _catalog_store().read(strict=True)
+
+
+def refresh_catalog() -> dict[str, Any]:
+    with _CATALOG_LOCK:
+        return _catalog_store().update(lambda _current: default_catalog(), strict=True)
 
 
 def catalog_with_favorites(catalog: dict[str, Any] | None = None) -> dict[str, Any]:
