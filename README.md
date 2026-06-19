@@ -57,6 +57,18 @@ Startup is refused when `LUNA_ANIMA_HOST` is `0.0.0.0` or `::` and the default P
 - Shared static/file response helpers live in `app/responses.py`.
 - ComfyUI payload generation remains in `app/payload_builder.py`.
 
+## Development Checks
+
+Use Python 3.11 or newer. Local setup can be created with `setup_venv.bat`.
+
+```bat
+python -m unittest discover -s tests
+python -m compileall app tests
+git diff --check
+```
+
+The CI test suite does not require ComfyUI, LM Studio, Ollama, or llama.cpp to be running.
+
 ## Notes
 
 - Generated images, history, recipes, favorites, uploaded references, and settings are stored under `user_data`.
