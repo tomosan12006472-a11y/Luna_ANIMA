@@ -137,6 +137,16 @@
           <label class="field"><span class="lbl">AI指示</span>
             <textarea id="promptRandomInstruction" rows="2">衣装、表情、背景、小物をランダムに足す</textarea>
           </label>
+          <label class="field"><span class="lbl">AI指示お気に入り <span id="promptRandomFavoriteCount">0件</span></span>
+            <select id="promptRandomFavoriteSelect">
+              <option value="">お気に入りを選択</option>
+            </select>
+          </label>
+          <div class="row">
+            <button type="button" class="ghost" data-action="prompt-random-favorite-apply">適用</button>
+            <button type="button" class="ghost" data-action="prompt-random-favorite-save">現在の指示を保存</button>
+            <button type="button" class="ghost" data-action="prompt-random-favorite-delete">削除</button>
+          </div>
           <label class="field"><span class="lbl">強さ</span>
             <select id="promptRandomStrength">
               <option value="subtle">控えめ</option>

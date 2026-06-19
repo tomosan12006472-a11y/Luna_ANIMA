@@ -125,6 +125,7 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
     "face_detailer": DEFAULT_FACE_DETAILER_SETTINGS,
     "hand_detailer": DEFAULT_HAND_DETAILER_SETTINGS,
     "prompt_converter": DEFAULT_PROMPT_CONVERTER_SETTINGS,
+    "prompt_random_instruction_favorites": [],
     "ui": {
         "history_filter": "all",
     },
@@ -132,6 +133,9 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
 
 RATING_PROMPT_KEYS = {"safe", "sensitive", "nsfw", "explicit"}
 QUALITY_PROMPT_KEYS = {"standard", "high", "character_check"}
+PROMPT_RANDOM_FAVORITE_MODES = {"random", "positive_completion"}
+PROMPT_RANDOM_FAVORITE_STRENGTHS = {"subtle", "standard", "reference_568", "legacy_568", "rich"}
+PROMPT_RANDOM_FAVORITES_LIMIT = 80
 
 
 KNOWN_UPSCALE_MODELS = ["4x-AnimeSharp.pth", "4x-UltraSharp.pth", "4x_foolhardy_Remacri.pth"]
@@ -156,6 +160,43 @@ def sanitize_lora_list(items: Any) -> list[dict[str, Any]]:
         if not isinstance(raw, dict):
             continue
         result.append(normalize_lora_strengths(dict(raw), 0.0))
+    return result
+
+
+def sanitize_prompt_random_instruction_favorites(items: Any) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    result: list[dict[str, Any]] = []
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+        instruction = str(raw.get("instruction") or "").strip()
+        if not instruction:
+            continue
+        mode = str(raw.get("mode") or "random").strip().lower()
+        if mode not in PROMPT_RANDOM_FAVORITE_MODES:
+            mode = "random"
+        strength = str(raw.get("strength") or "standard").strip().lower()
+        if strength not in PROMPT_RANDOM_FAVORITE_STRENGTHS:
+            strength = "standard"
+        label = str(raw.get("label") or raw.get("title") or instruction[:32]).strip()[:80]
+        if not label:
+            label = instruction[:32]
+        favorite_id = str(raw.get("id") or f"favorite_{len(result) + 1}").strip()[:80]
+        include_characters = raw.get("include_characters") is not False
+        result.append(
+            {
+                "id": favorite_id,
+                "label": label,
+                "instruction": instruction[:500],
+                "mode": mode,
+                "strength": strength,
+                "include_characters": include_characters,
+                "use_character_motifs": bool(include_characters and raw.get("use_character_motifs", True) is not False),
+            }
+        )
+        if len(result) >= PROMPT_RANDOM_FAVORITES_LIMIT:
+            break
     return result
 
 
@@ -234,6 +275,9 @@ def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     result["face_detailer"] = sanitize_face_detailer_settings(result.get("face_detailer"), mode="generation")
     result["hand_detailer"] = sanitize_hand_detailer_settings(result.get("hand_detailer"), mode="generation")
     result["prompt_converter"] = sanitize_prompt_converter_settings(result.get("prompt_converter"))
+    result["prompt_random_instruction_favorites"] = sanitize_prompt_random_instruction_favorites(
+        result.get("prompt_random_instruction_favorites")
+    )
     return result
 
 

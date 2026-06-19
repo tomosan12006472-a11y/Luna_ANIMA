@@ -404,6 +404,7 @@
     legacy_568: "#568再現",
     rich: "大胆",
   };
+  const PROMPT_RANDOM_FAVORITES_LIMIT = 80;
 
   function normalizePromptRandomMode(mode) {
     const normalized = String(mode || "random").trim().toLowerCase();
@@ -473,6 +474,164 @@
       setValue("#promptRandomInstruction", promptRandomDefaultInstruction(mode));
     }
     updateSummaries();
+  }
+
+  function promptRandomModeLabel(mode) {
+    return normalizePromptRandomMode(mode) === "positive_completion" ? "Positive補完" : "ランダム追加";
+  }
+
+  function normalizePromptRandomInstructionFavorite(raw, index = 0) {
+    if (!raw || typeof raw !== "object") return null;
+    const instruction = String(raw.instruction || "").trim();
+    if (!instruction) return null;
+    const mode = normalizePromptRandomMode(raw.mode);
+    const strength = normalizePromptRandomStrength(raw.strength);
+    const includeCharacters = raw.include_characters !== false;
+    const label = String(raw.label || raw.title || instruction.slice(0, 32)).trim().slice(0, 80);
+    return {
+      id: String(raw.id || `favorite_${index + 1}`).trim().slice(0, 80),
+      label: label || instruction.slice(0, 32),
+      instruction: instruction.slice(0, 500),
+      mode,
+      strength,
+      include_characters: includeCharacters,
+      use_character_motifs: Boolean(includeCharacters && raw.use_character_motifs !== false),
+    };
+  }
+
+  function promptRandomInstructionFavorites(settings = state.appSettings) {
+    const raw = Array.isArray(settings?.prompt_random_instruction_favorites)
+      ? settings.prompt_random_instruction_favorites
+      : [];
+    return raw
+      .map((item, index) => normalizePromptRandomInstructionFavorite(item, index))
+      .filter(Boolean)
+      .slice(0, PROMPT_RANDOM_FAVORITES_LIMIT);
+  }
+
+  function promptRandomFavoriteTitle(favorite) {
+    const strength = PROMPT_RANDOM_STRENGTH_LABELS[favorite.strength] || "標準";
+    const char = favorite.include_characters ? "CHAR" : "NO CHAR";
+    const motif = favorite.include_characters && favorite.use_character_motifs ? "MOTIF" : "NO MOTIF";
+    return `${favorite.label} / ${promptRandomModeLabel(favorite.mode)} / ${strength} / ${char} / ${motif}`;
+  }
+
+  function updatePromptRandomFavoriteControls() {
+    const hasSelection = Boolean(value("#promptRandomFavoriteSelect", ""));
+    $("[data-action='prompt-random-favorite-apply']")?.toggleAttribute("disabled", !hasSelection);
+    $("[data-action='prompt-random-favorite-delete']")?.toggleAttribute("disabled", !hasSelection);
+  }
+
+  function renderPromptRandomInstructionFavorites(settings = state.appSettings) {
+    const favorites = promptRandomInstructionFavorites(settings);
+    const select = $("#promptRandomFavoriteSelect");
+    if (select) {
+      const current = select.value;
+      select.replaceChildren();
+      const empty = document.createElement("option");
+      empty.value = "";
+      empty.textContent = favorites.length ? "お気に入りを選択" : "お気に入りなし";
+      select.appendChild(empty);
+      for (const favorite of favorites) {
+        const option = document.createElement("option");
+        option.value = favorite.id;
+        option.textContent = promptRandomFavoriteTitle(favorite);
+        option.title = favorite.instruction;
+        select.appendChild(option);
+      }
+      if (favorites.some((favorite) => favorite.id === current)) select.value = current;
+    }
+    text("#promptRandomFavoriteCount", `${favorites.length}件`);
+    updatePromptRandomFavoriteControls();
+  }
+
+  function selectedPromptRandomInstructionFavorite() {
+    const selectedId = value("#promptRandomFavoriteSelect", "");
+    if (!selectedId) return null;
+    return promptRandomInstructionFavorites().find((favorite) => favorite.id === selectedId) || null;
+  }
+
+  async function savePromptRandomInstructionFavorites(favorites, { status = "保存しました", selectedId = "" } = {}) {
+    const settings = {
+      ...clone(state.appSettings),
+      prompt_random_instruction_favorites: favorites.slice(0, PROMPT_RANDOM_FAVORITES_LIMIT),
+    };
+    const data = await api("/api/settings", {
+      method: "POST",
+      body: JSON.stringify({
+        settings,
+        mode: "current",
+        reason: "prompt_random_instruction_favorites",
+      }),
+    });
+    state.appSettings = data.settings;
+    renderPromptRandomInstructionFavorites(state.appSettings);
+    if (selectedId) {
+      setValue("#promptRandomFavoriteSelect", selectedId);
+      updatePromptRandomFavoriteControls();
+    }
+    text("#promptRandomStatus", status);
+    return data.settings;
+  }
+
+  async function saveCurrentPromptRandomInstructionFavorite() {
+    const config = collectPromptRandomCollect();
+    const instruction = String(config.instruction || "").trim();
+    if (!instruction) {
+      UI.toast("AI指示が空です", "error");
+      return;
+    }
+    const defaultLabel = instruction.replace(/\s+/g, " ").slice(0, 32);
+    const input = window.prompt("お気に入り名", defaultLabel);
+    if (input === null) return;
+    const label = String(input || defaultLabel).trim().slice(0, 80) || defaultLabel;
+    const id = `prc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const favorite = {
+      id,
+      label,
+      instruction,
+      mode: config.mode,
+      strength: config.strength,
+      include_characters: config.include_characters,
+      use_character_motifs: config.use_character_motifs,
+    };
+    const favorites = [favorite, ...promptRandomInstructionFavorites().filter((item) => item.id !== id)]
+      .slice(0, PROMPT_RANDOM_FAVORITES_LIMIT);
+    await savePromptRandomInstructionFavorites(favorites, { status: "AI指示お気に入りを保存しました", selectedId: id });
+    UI.toast("AI指示お気に入りを保存しました");
+  }
+
+  function applyPromptRandomInstructionFavorite() {
+    const favorite = selectedPromptRandomInstructionFavorite();
+    if (!favorite) {
+      UI.toast("AI指示お気に入りを選択してください", "error");
+      return;
+    }
+    setValue("#promptRandomMode", favorite.mode);
+    setValue("#promptRandomInstruction", favorite.instruction);
+    setValue("#promptRandomStrength", favorite.strength);
+    setChecked("#promptRandomIncludeCharacters", favorite.include_characters);
+    setChecked("#promptRandomUseCharacterMotifs", Boolean(favorite.include_characters && favorite.use_character_motifs));
+    updateSummaries();
+    text("#promptRandomStatus", `${favorite.label} を適用しました`);
+    UI.toast("AI指示お気に入りを適用しました");
+  }
+
+  async function deletePromptRandomInstructionFavorite() {
+    const favorite = selectedPromptRandomInstructionFavorite();
+    if (!favorite) {
+      UI.toast("AI指示お気に入りを選択してください", "error");
+      return;
+    }
+    const ok = await confirmDanger({
+      title: "削除しますか?",
+      message: `${favorite.label}\n${favorite.instruction.slice(0, 120)}`,
+      label: "削除する",
+    });
+    if (!ok) return;
+    const favorites = promptRandomInstructionFavorites().filter((item) => item.id !== favorite.id);
+    await savePromptRandomInstructionFavorites(favorites, { status: "AI指示お気に入りを削除しました" });
+    UI.toast("AI指示お気に入りを削除しました");
   }
 
   function selectedQualityPreset() {
@@ -2337,6 +2496,7 @@
     setChecked("#officialTurboEnabled", official.turbo?.enabled);
     setValue("#officialTurboStrength", official.turbo?.strength ?? 0.6);
     applyPromptRandomCollectToForm(settings.prompt_random_collect || {});
+    renderPromptRandomInstructionFavorites(settings);
     applyWatermark(settings.watermark || {});
     applyHiresFixToForm(settings.hires_fix || {});
 
@@ -3958,6 +4118,9 @@
     if (action === "prompt-convert") return convertPromptFromJapanese();
     if (action === "prompt-converter-status") return loadPromptConverterStatus(true);
     if (action === "prompt-random-status") return loadPromptRandomStatus(true);
+    if (action === "prompt-random-favorite-apply") return applyPromptRandomInstructionFavorite();
+    if (action === "prompt-random-favorite-save") return saveCurrentPromptRandomInstructionFavorite();
+    if (action === "prompt-random-favorite-delete") return deletePromptRandomInstructionFavorite();
     if (action === "save-positive-fav") return savePositiveFavorite();
     if (action === "open-positive-favs") return openPositiveFavorites();
     if (action === "open-templates") return openPositiveTemplates();
@@ -4039,6 +4202,7 @@
     $("#promptRandomMode")?.addEventListener("change", updatePromptRandomMode);
     $("#promptRandomInstruction")?.addEventListener("input", updateSummaries);
     $("#promptRandomStrength")?.addEventListener("change", updateSummaries);
+    $("#promptRandomFavoriteSelect")?.addEventListener("change", updatePromptRandomFavoriteControls);
     $("#ratingPrompt")?.addEventListener("input", updateRatingPromptDraft);
     $("#qualityPrompt")?.addEventListener("input", updateQualityPromptDraft);
 
