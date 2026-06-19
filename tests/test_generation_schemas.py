@@ -5,6 +5,7 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
+from app import payload_builder
 from app.api import generation as generation_api
 from app.config import APP_PIN
 from app.generation_prepare import generation_request_dict
@@ -110,10 +111,16 @@ class GenerationSchemaTests(unittest.TestCase):
             "dynamic_prompt": {"enabled": False},
             "prompt_random_collect": {"enabled": False},
         }
+        lora_paths = {
+            payload_builder.ANIMA_HIGHRES_LORA_NAME: "D:/test/lora/highres.safetensors",
+            payload_builder.ANIMA_TURBO_LORA_V01_NAME: "D:/test/lora/turbo_v01.safetensors",
+            payload_builder.ANIMA_TURBO_LORA_V02_NAME: "D:/test/lora/turbo_v02.safetensors",
+        }
         with (
             mock.patch.object(generation_api, "prepare_reference_request", side_effect=lambda request_data, addr, upload: request_data),
             mock.patch.object(generation_api, "prepare_reference_modules_request", side_effect=lambda request_data, addr, upload: request_data),
             mock.patch.object(generation_api, "prepare_i2i_request", side_effect=lambda request_data, addr, upload: request_data),
+            mock.patch.object(payload_builder, "find_lora_file", side_effect=lambda name: lora_paths.get(name, "")),
         ):
             response = client.post("/api/payload/preview", json=request)
 
