@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 import secrets
-from threading import Lock
+from threading import RLock
 from typing import Any
 
-from ._shared_utils import read_json_with_retry, write_json_atomic
 from .config import ROOT_DIR
+from .storage.json_store import JsonStore
 
 
 APP_SCOPE = "anima"
 RECIPES_PATH = ROOT_DIR / "user_data" / "recipes_anima.json"
-_RECIPES_LOCK = Lock()
+_RECIPES_LOCK = RLock()
 MAX_NAME_LENGTH = 60
 MAX_SUMMARY_LENGTH = 120
 
@@ -55,10 +55,7 @@ def _load_payload() -> dict[str, Any]:
         return _load_payload_unlocked()
 
 
-def _load_payload_unlocked() -> dict[str, Any]:
-    if not RECIPES_PATH.exists():
-        return _empty_payload()
-    data = read_json_with_retry(RECIPES_PATH, label="recipes")
+def _normalize_payload(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         return _empty_payload()
     items = data.get("items")
@@ -68,18 +65,28 @@ def _load_payload_unlocked() -> dict[str, Any]:
     return {"version": 1, "app_scope": APP_SCOPE, "items": normalized}
 
 
+def _recipes_store() -> JsonStore:
+    return JsonStore(
+        RECIPES_PATH,
+        default_factory=_empty_payload,
+        label="recipes",
+        lock=_RECIPES_LOCK,
+        validator=_normalize_payload,
+    )
+
+
+def _load_payload_unlocked() -> dict[str, Any]:
+    return _recipes_store().read(strict=True)
+
+
 def _save_payload(payload: dict[str, Any]) -> dict[str, Any]:
     with _RECIPES_LOCK:
         return _save_payload_unlocked(payload)
 
 
 def _save_payload_unlocked(payload: dict[str, Any]) -> dict[str, Any]:
-    normalized = {
-        "version": 1,
-        "app_scope": APP_SCOPE,
-        "items": [_normalize_item(item) for item in payload.get("items", []) if isinstance(item, dict)],
-    }
-    write_json_atomic(RECIPES_PATH, normalized)
+    normalized = _normalize_payload(payload)
+    _recipes_store().write(normalized)
     return normalized
 
 

@@ -54,6 +54,38 @@ class JsonStoreTests(unittest.TestCase):
         self.assertEqual(result, {"count": 2})
         self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"count": 2})
 
+    def test_update_validates_before_write(self) -> None:
+        path = self.root / "payload.json"
+        path.write_text(json.dumps({"items": []}), encoding="utf-8")
+
+        def validate(data: object) -> dict[str, object]:
+            if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+                raise ValueError("items required")
+            return {"items": data["items"], "validated": True}
+
+        store = JsonStore(path, default_factory=dict, label="payload", validator=validate)
+
+        result = store.update(lambda data: {"items": [*data["items"], "blue"]})
+
+        self.assertEqual(result, {"items": ["blue"], "validated": True})
+        self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"items": ["blue"], "validated": True})
+
+    def test_update_validation_failure_does_not_overwrite_json(self) -> None:
+        path = self.root / "payload.json"
+        path.write_text(json.dumps({"items": []}), encoding="utf-8")
+
+        def validate(data: object) -> dict[str, object]:
+            if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+                raise ValueError("items required")
+            return data
+
+        store = JsonStore(path, default_factory=dict, label="payload", validator=validate)
+
+        with self.assertRaises(JsonStoreReadError):
+            store.update(lambda data: {"items": "bad"})
+
+        self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"items": []})
+
     def test_update_does_not_overwrite_unreadable_json(self) -> None:
         path = self.root / "payload.json"
         path.write_text("{", encoding="utf-8")

@@ -69,9 +69,10 @@ class JsonStore:
         with self._guard():
             self._write_unlocked(data)
 
-    def update(self, fn: Callable[[Any], Any], *, strict: bool = True) -> Any:
+    def update(self, fn: Callable[[Any], Any], *, strict: bool = True, validate_write: bool = True) -> Any:
         with self._guard():
             current = self._read_unlocked(strict=strict)
             updated = fn(current)
-            self._write_unlocked(updated)
-            return updated
+            validated = self._validate(updated, strict=True) if validate_write else updated
+            self._write_unlocked(validated)
+            return validated

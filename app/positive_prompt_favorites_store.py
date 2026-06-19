@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-import json
 import secrets
-from threading import Lock
-import time
+from threading import RLock
 from typing import Any
 
-from ._shared_utils import write_json_atomic
 from .config import ROOT_DIR
+from .storage.json_store import JsonStore
 
 
 APP_SCOPE = "anima"
 FAVORITES_PATH = ROOT_DIR / "user_data" / "positive_prompt_favorites_anima.json"
-_FAVORITES_LOCK = Lock()
+_FAVORITES_LOCK = RLock()
 MAX_PROMPT_LENGTH = 12000
 MAX_TITLE_LENGTH = 120
 MAX_NOTE_LENGTH = 1000
@@ -89,17 +87,7 @@ def _load_payload() -> dict[str, Any]:
         return _load_payload_unlocked()
 
 
-def _load_payload_unlocked() -> dict[str, Any]:
-    if not FAVORITES_PATH.exists():
-        return _empty_payload()
-    try:
-        data = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        time.sleep(0.05)
-        try:
-            data = json.loads(FAVORITES_PATH.read_text(encoding="utf-8"))
-        except Exception as second_error:
-            raise RuntimeError("positive prompt favorites are temporarily unreadable") from second_error
+def _normalize_payload(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         return _empty_payload()
     items = data.get("items")
@@ -109,18 +97,28 @@ def _load_payload_unlocked() -> dict[str, Any]:
     return {"version": 1, "app_scope": APP_SCOPE, "items": normalized}
 
 
+def _payload_store() -> JsonStore:
+    return JsonStore(
+        FAVORITES_PATH,
+        default_factory=_empty_payload,
+        label="positive prompt favorites",
+        lock=_FAVORITES_LOCK,
+        validator=_normalize_payload,
+    )
+
+
+def _load_payload_unlocked() -> dict[str, Any]:
+    return _payload_store().read(strict=True)
+
+
 def _save_payload(payload: dict[str, Any]) -> dict[str, Any]:
     with _FAVORITES_LOCK:
         return _save_payload_unlocked(payload)
 
 
 def _save_payload_unlocked(payload: dict[str, Any]) -> dict[str, Any]:
-    normalized = {
-        "version": 1,
-        "app_scope": APP_SCOPE,
-        "items": [_normalize_item(item) for item in payload.get("items", []) if isinstance(item, dict)],
-    }
-    write_json_atomic(FAVORITES_PATH, normalized)
+    normalized = _normalize_payload(payload)
+    _payload_store().write(normalized)
     return normalized
 
 

@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from app import _shared_utils
 from app import positive_prompt_favorites_store as store
 
 
@@ -39,7 +40,7 @@ class PositivePromptFavoritesStoreTests(unittest.TestCase):
             calls += 1
             return original_read_text(path, *args, **kwargs)
 
-        with mock.patch.object(store.time, "sleep", lambda _: None), mock.patch.object(Path, "read_text", flaky_read_text):
+        with mock.patch.object(_shared_utils.time, "sleep", lambda _: None), mock.patch.object(Path, "read_text", flaky_read_text):
             payload = store.list_positive_prompt_favorites()
 
         self.assertEqual(payload["items"][0]["id"], "fav_1")
@@ -50,7 +51,7 @@ class PositivePromptFavoritesStoreTests(unittest.TestCase):
         self.path.write_text("{", encoding="utf-8")
         original_text = self.path.read_text(encoding="utf-8")
 
-        with mock.patch.object(store.time, "sleep", lambda _: None):
+        with mock.patch.object(_shared_utils.time, "sleep", lambda _: None):
             with self.assertRaises(RuntimeError):
                 store.add_positive_prompt_favorite({"prompt": "new prompt"})
 
