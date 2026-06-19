@@ -14,11 +14,11 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
-from ._shared_utils import JsonStoreReadError, read_json_with_retry, write_json_atomic
 from .anima_adapter import catalog
 from .config import HISTORY_DIR, IMAGE_DIR, PUBLIC_DIR, THUMBNAIL_DIR
 from .output_organizer import infer_anima_generation_method, organization_metadata
 from .payload_builder import compute_hires_size, official_lora_summary
+from .storage.json_store import JsonStore, JsonStoreReadError
 
 ACTIVE_STATUSES = {"queued", "running", "stale", "missing"}
 PENDING_STATUSES = {"queued", "running", "stale", "missing"}
@@ -67,19 +67,32 @@ def _locked_history_item(history_id: Any):
         yield
 
 
+def _validate_history_item_json(data: Any) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        raise ValueError("history item must be a JSON object")
+    return data
+
+
+def _history_item_store_for_path(path: Path) -> JsonStore:
+    return JsonStore(
+        path,
+        default_factory=lambda: None,
+        label=f"history item {path.stem}",
+        lock=_history_item_lock(path.stem),
+        validator=_validate_history_item_json,
+    )
+
+
+def _history_item_store(history_id: str) -> JsonStore:
+    return _history_item_store_for_path(history_path(history_id))
+
+
 def load_history_item(history_id: str, *, strict: bool = False) -> dict[str, Any] | None:
-    path = history_path(history_id)
-    if not path.exists():
+    store = _history_item_store(history_id)
+    if not store.path.exists():
         return None
-    try:
-        item = read_json_with_retry(path, label=f"history item {history_id}")
-    except JsonStoreReadError:
-        if strict:
-            raise
-        return None
-    if not isinstance(item, dict):
-        if strict:
-            raise JsonStoreReadError(f"history item {history_id} is not a JSON object")
+    item = store.read(strict=strict)
+    if item is None:
         return None
     return normalize_history_item(item)
 
@@ -153,8 +166,7 @@ def normalize_history_item(item: dict[str, Any]) -> dict[str, Any]:
 
 def save_history_item(item: dict[str, Any]) -> None:
     history_id = str(item["id"])
-    with _locked_history_item(history_id):
-        write_json_atomic(history_path(history_id), item)
+    _history_item_store(history_id).write(_validate_history_item_json(item))
 
 
 def _history_directory_signature() -> tuple[str, list[Path]]:
@@ -687,43 +699,51 @@ def complete_pending_history_item(history_id: str, result: Any) -> dict[str, Any
     if not getattr(result, "image_data_url", None):
         return None
     image_path, thumb_path = save_generated_image(result.image_data_url, history_id)
+    store = _history_item_store(history_id)
     with _locked_history_item(history_id):
-        item = load_history_item(history_id, strict=True)
-        if not item:
+        if not store.path.exists():
             return None
-        now = now_iso()
-        item.update(
-            {
-                "status": "completed",
-                "updated_at": now,
-                "image_path": str(image_path),
-                "thumbnail_path": str(thumb_path),
-                "filename": image_path.name,
-                "prompt_id": getattr(result, "prompt_id", item.get("prompt_id")),
-            }
-        )
-        queue = item.get("queue") if isinstance(item.get("queue"), dict) else {}
-        queue.update({"status": "completed", "completed_at": now, "last_checked_at": now, "error": None})
-        item["queue"] = queue
-        save_history_item(item)
-        return normalize_history_item(item)
+
+        def complete(item: dict[str, Any]) -> dict[str, Any]:
+            item = normalize_history_item(item)
+            now = now_iso()
+            item.update(
+                {
+                    "status": "completed",
+                    "updated_at": now,
+                    "image_path": str(image_path),
+                    "thumbnail_path": str(thumb_path),
+                    "filename": image_path.name,
+                    "prompt_id": getattr(result, "prompt_id", item.get("prompt_id")),
+                }
+            )
+            queue = item.get("queue") if isinstance(item.get("queue"), dict) else {}
+            queue.update({"status": "completed", "completed_at": now, "last_checked_at": now, "error": None})
+            item["queue"] = queue
+            return item
+
+        return normalize_history_item(store.update(complete, strict=True))
 
 
 def update_pending_history_status(history_id: str, status: str, error: str | None = None) -> dict[str, Any] | None:
+    store = _history_item_store(history_id)
     with _locked_history_item(history_id):
-        item = load_history_item(history_id, strict=True)
-        if not item:
+        if not store.path.exists():
             return None
-        now = now_iso()
-        item["status"] = status
-        item["updated_at"] = now
-        queue = item.get("queue") if isinstance(item.get("queue"), dict) else {}
-        queue.update({"status": status, "last_checked_at": now})
-        if error is not None:
-            queue["error"] = error
-        item["queue"] = queue
-        save_history_item(item)
-        return normalize_history_item(item)
+
+        def update_status(item: dict[str, Any]) -> dict[str, Any]:
+            item = normalize_history_item(item)
+            now = now_iso()
+            item["status"] = status
+            item["updated_at"] = now
+            queue = item.get("queue") if isinstance(item.get("queue"), dict) else {}
+            queue.update({"status": status, "last_checked_at": now})
+            if error is not None:
+                queue["error"] = error
+            item["queue"] = queue
+            return item
+
+        return normalize_history_item(store.update(update_status, strict=True))
 
 
 def public_save_settings_hash(source: Path, apply_watermark: bool, watermark: dict[str, Any] | None) -> str:
@@ -758,8 +778,13 @@ def public_image_dimensions(path: Path) -> dict[str, int]:
 
 def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = None) -> dict[str, Any]:
     history_id = str(item.get("id") or "")
-    with _locked_history_item(history_id):
-        current = load_history_item(history_id, strict=True) or dict(item)
+    store = _history_item_store(history_id)
+    public_save: dict[str, Any] = {}
+
+    def apply_public_save(current: dict[str, Any], *, normalize_current: bool = True) -> dict[str, Any]:
+        nonlocal public_save
+        if normalize_current:
+            current = normalize_history_item(current)
         source = Path(current["image_path"])
         if not source.exists():
             raise FileNotFoundError("source image is missing")
@@ -810,7 +835,14 @@ def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = N
             }
         else:
             current["watermark"] = {"applied": False}
-        save_history_item(current)
+        return current
+
+    with _locked_history_item(history_id):
+        if store.path.exists():
+            current = store.update(apply_public_save, strict=True)
+        else:
+            current = apply_public_save(dict(item), normalize_current=False)
+            store.write(_validate_history_item_json(current))
         item.update(current)
         return public_save
 
