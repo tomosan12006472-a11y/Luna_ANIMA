@@ -1,6 +1,6 @@
-import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.27-static-modules-20260620";
-import { dispatchAction } from "./actions.js?v=v1.27-static-modules-20260620";
-import { onDomReady } from "./bootstrap.js?v=v1.27-static-modules-20260620";
+import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.28-prompt-random-module-20260620";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.28-prompt-random-module-20260620";
+import { onDomReady } from "./bootstrap.js?v=v1.28-prompt-random-module-20260620";
 import {
   $,
   $$,
@@ -18,8 +18,9 @@ import {
   text,
   unique,
   value,
-} from "./dom.js?v=v1.27-static-modules-20260620";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } from "./state.js?v=v1.27-static-modules-20260620";
+} from "./dom.js?v=v1.28-prompt-random-module-20260620";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.28-prompt-random-module-20260620";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } from "./state.js?v=v1.28-prompt-random-module-20260620";
 
 (() => {
   "use strict";
@@ -65,6 +66,14 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
   }
 
   const { api, fetchWithAuthHandling } = createApiClient({ onUnauthorized: exitToLogin });
+  const promptRandom = createPromptRandomUi({
+    api,
+    state,
+    UI,
+    updateSummaries: () => updateSummaries(),
+    confirmDanger: (options) => confirmDanger(options),
+    errorMessage,
+  });
 
   function fillSelect(selector, options, selected) {
     const select = typeof selector === "string" ? $(selector) : selector;
@@ -172,249 +181,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     const item = state.slots[slotName];
     if (item?.value) return item.value;
     return "None";
-  }
-
-  const PROMPT_RANDOM_MODES = new Set(["random", "positive_completion"]);
-  const PROMPT_RANDOM_DEFAULT_INSTRUCTIONS = {
-    random: "衣装、表情、背景、小物をランダムに足す",
-    positive_completion: "既存Positiveの意図を保ったまま、不足している描写を英語タグで補う",
-  };
-  const PROMPT_RANDOM_STRENGTHS = new Set(["subtle", "standard", "reference_568", "legacy_568", "rich"]);
-  const PROMPT_RANDOM_STRENGTH_LABELS = {
-    subtle: "控えめ",
-    standard: "標準",
-    reference_568: "#568基準",
-    legacy_568: "#568再現",
-    rich: "大胆",
-  };
-  const PROMPT_RANDOM_FAVORITES_LIMIT = 80;
-
-  function normalizePromptRandomMode(mode) {
-    const normalized = String(mode || "random").trim().toLowerCase();
-    return PROMPT_RANDOM_MODES.has(normalized) ? normalized : "random";
-  }
-
-  function promptRandomDefaultInstruction(mode = "random") {
-    return PROMPT_RANDOM_DEFAULT_INSTRUCTIONS[normalizePromptRandomMode(mode)] || PROMPT_RANDOM_DEFAULT_INSTRUCTIONS.random;
-  }
-
-  function normalizePromptRandomStrength(strength) {
-    const normalized = String(strength || "standard").trim().toLowerCase();
-    return PROMPT_RANDOM_STRENGTHS.has(normalized) ? normalized : "standard";
-  }
-
-  function defaultPromptRandomCollect(mode = "random") {
-    const normalizedMode = normalizePromptRandomMode(mode);
-    return {
-      enabled: false,
-      mode: normalizedMode,
-      instruction: promptRandomDefaultInstruction(normalizedMode),
-      strength: "standard",
-      include_characters: true,
-      use_character_motifs: true,
-    };
-  }
-
-  function collectPromptRandomCollect() {
-    const mode = normalizePromptRandomMode(value("#promptRandomMode", "random"));
-    const includeCharacters = checked("#promptRandomIncludeCharacters");
-    return {
-      enabled: checked("#promptRandomEnabled"),
-      mode,
-      instruction: value("#promptRandomInstruction", promptRandomDefaultInstruction(mode)),
-      strength: normalizePromptRandomStrength(value("#promptRandomStrength", "standard")),
-      include_characters: includeCharacters,
-      use_character_motifs: includeCharacters && checked("#promptRandomUseCharacterMotifs"),
-    };
-  }
-
-  function promptRandomOnSummary() {
-    const mode = normalizePromptRandomMode(value("#promptRandomMode", "random"));
-    const modeLabel = mode === "positive_completion" ? "補完" : "RANDOM";
-    const strength = normalizePromptRandomStrength(value("#promptRandomStrength", "standard"));
-    const strengthLabel = PROMPT_RANDOM_STRENGTH_LABELS[strength] || "標準";
-    const charLabel = checked("#promptRandomIncludeCharacters") ? "CHAR" : "NO CHAR";
-    const motifLabel = checked("#promptRandomIncludeCharacters") && checked("#promptRandomUseCharacterMotifs") ? "MOTIF" : "NO MOTIF";
-    return `ON / ${modeLabel} / ${strengthLabel} / ${charLabel} / ${motifLabel}`;
-  }
-
-  function applyPromptRandomCollectToForm(config = {}) {
-    const mode = normalizePromptRandomMode(config.mode);
-    const defaults = defaultPromptRandomCollect(mode);
-    setChecked("#promptRandomEnabled", Boolean(config.enabled));
-    setValue("#promptRandomMode", mode);
-    setValue("#promptRandomInstruction", config.instruction || defaults.instruction);
-    setValue("#promptRandomStrength", normalizePromptRandomStrength(config.strength || defaults.strength));
-    setChecked("#promptRandomIncludeCharacters", config.include_characters !== false);
-    setChecked("#promptRandomUseCharacterMotifs", Boolean(config.include_characters !== false && config.use_character_motifs !== false));
-  }
-
-  function updatePromptRandomMode() {
-    const mode = normalizePromptRandomMode(value("#promptRandomMode", "random"));
-    const current = value("#promptRandomInstruction", "").trim();
-    const knownDefaults = Object.values(PROMPT_RANDOM_DEFAULT_INSTRUCTIONS);
-    if (!current || knownDefaults.includes(current)) {
-      setValue("#promptRandomInstruction", promptRandomDefaultInstruction(mode));
-    }
-    updateSummaries();
-  }
-
-  function promptRandomModeLabel(mode) {
-    return normalizePromptRandomMode(mode) === "positive_completion" ? "Positive補完" : "ランダム追加";
-  }
-
-  function normalizePromptRandomInstructionFavorite(raw, index = 0) {
-    if (!raw || typeof raw !== "object") return null;
-    const instruction = String(raw.instruction || "").trim();
-    if (!instruction) return null;
-    const mode = normalizePromptRandomMode(raw.mode);
-    const strength = normalizePromptRandomStrength(raw.strength);
-    const includeCharacters = raw.include_characters !== false;
-    const label = String(raw.label || raw.title || instruction.slice(0, 32)).trim().slice(0, 80);
-    return {
-      id: String(raw.id || `favorite_${index + 1}`).trim().slice(0, 80),
-      label: label || instruction.slice(0, 32),
-      instruction: instruction.slice(0, 500),
-      mode,
-      strength,
-      include_characters: includeCharacters,
-      use_character_motifs: Boolean(includeCharacters && raw.use_character_motifs !== false),
-    };
-  }
-
-  function promptRandomInstructionFavorites(settings = state.appSettings) {
-    const raw = Array.isArray(settings?.prompt_random_instruction_favorites)
-      ? settings.prompt_random_instruction_favorites
-      : [];
-    return raw
-      .map((item, index) => normalizePromptRandomInstructionFavorite(item, index))
-      .filter(Boolean)
-      .slice(0, PROMPT_RANDOM_FAVORITES_LIMIT);
-  }
-
-  function promptRandomFavoriteTitle(favorite) {
-    const strength = PROMPT_RANDOM_STRENGTH_LABELS[favorite.strength] || "標準";
-    const char = favorite.include_characters ? "CHAR" : "NO CHAR";
-    const motif = favorite.include_characters && favorite.use_character_motifs ? "MOTIF" : "NO MOTIF";
-    return `${favorite.label} / ${promptRandomModeLabel(favorite.mode)} / ${strength} / ${char} / ${motif}`;
-  }
-
-  function updatePromptRandomFavoriteControls() {
-    const hasSelection = Boolean(value("#promptRandomFavoriteSelect", ""));
-    $("[data-action='prompt-random-favorite-apply']")?.toggleAttribute("disabled", !hasSelection);
-    $("[data-action='prompt-random-favorite-delete']")?.toggleAttribute("disabled", !hasSelection);
-  }
-
-  function renderPromptRandomInstructionFavorites(settings = state.appSettings) {
-    const favorites = promptRandomInstructionFavorites(settings);
-    const select = $("#promptRandomFavoriteSelect");
-    if (select) {
-      const current = select.value;
-      select.replaceChildren();
-      const empty = document.createElement("option");
-      empty.value = "";
-      empty.textContent = favorites.length ? "お気に入りを選択" : "お気に入りなし";
-      select.appendChild(empty);
-      for (const favorite of favorites) {
-        const option = document.createElement("option");
-        option.value = favorite.id;
-        option.textContent = promptRandomFavoriteTitle(favorite);
-        option.title = favorite.instruction;
-        select.appendChild(option);
-      }
-      if (favorites.some((favorite) => favorite.id === current)) select.value = current;
-    }
-    text("#promptRandomFavoriteCount", `${favorites.length}件`);
-    updatePromptRandomFavoriteControls();
-  }
-
-  function selectedPromptRandomInstructionFavorite() {
-    const selectedId = value("#promptRandomFavoriteSelect", "");
-    if (!selectedId) return null;
-    return promptRandomInstructionFavorites().find((favorite) => favorite.id === selectedId) || null;
-  }
-
-  async function savePromptRandomInstructionFavorites(favorites, { status = "保存しました", selectedId = "" } = {}) {
-    const settings = {
-      ...clone(state.appSettings),
-      prompt_random_instruction_favorites: favorites.slice(0, PROMPT_RANDOM_FAVORITES_LIMIT),
-    };
-    const data = await api("/api/settings", {
-      method: "POST",
-      body: JSON.stringify({
-        settings,
-        mode: "current",
-        reason: "prompt_random_instruction_favorites",
-      }),
-    });
-    state.appSettings = data.settings;
-    renderPromptRandomInstructionFavorites(state.appSettings);
-    if (selectedId) {
-      setValue("#promptRandomFavoriteSelect", selectedId);
-      updatePromptRandomFavoriteControls();
-    }
-    text("#promptRandomStatus", status);
-    return data.settings;
-  }
-
-  async function saveCurrentPromptRandomInstructionFavorite() {
-    const config = collectPromptRandomCollect();
-    const instruction = String(config.instruction || "").trim();
-    if (!instruction) {
-      UI.toast("AI指示が空です", "error");
-      return;
-    }
-    const defaultLabel = instruction.replace(/\s+/g, " ").slice(0, 32);
-    const input = window.prompt("お気に入り名", defaultLabel);
-    if (input === null) return;
-    const label = String(input || defaultLabel).trim().slice(0, 80) || defaultLabel;
-    const id = `prc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-    const favorite = {
-      id,
-      label,
-      instruction,
-      mode: config.mode,
-      strength: config.strength,
-      include_characters: config.include_characters,
-      use_character_motifs: config.use_character_motifs,
-    };
-    const favorites = [favorite, ...promptRandomInstructionFavorites().filter((item) => item.id !== id)]
-      .slice(0, PROMPT_RANDOM_FAVORITES_LIMIT);
-    await savePromptRandomInstructionFavorites(favorites, { status: "AI指示お気に入りを保存しました", selectedId: id });
-    UI.toast("AI指示お気に入りを保存しました");
-  }
-
-  function applyPromptRandomInstructionFavorite() {
-    const favorite = selectedPromptRandomInstructionFavorite();
-    if (!favorite) {
-      UI.toast("AI指示お気に入りを選択してください", "error");
-      return;
-    }
-    setValue("#promptRandomMode", favorite.mode);
-    setValue("#promptRandomInstruction", favorite.instruction);
-    setValue("#promptRandomStrength", favorite.strength);
-    setChecked("#promptRandomIncludeCharacters", favorite.include_characters);
-    setChecked("#promptRandomUseCharacterMotifs", Boolean(favorite.include_characters && favorite.use_character_motifs));
-    updateSummaries();
-    text("#promptRandomStatus", `${favorite.label} を適用しました`);
-    UI.toast("AI指示お気に入りを適用しました");
-  }
-
-  async function deletePromptRandomInstructionFavorite() {
-    const favorite = selectedPromptRandomInstructionFavorite();
-    if (!favorite) {
-      UI.toast("AI指示お気に入りを選択してください", "error");
-      return;
-    }
-    const ok = await confirmDanger({
-      title: "削除しますか?",
-      message: `${favorite.label}\n${favorite.instruction.slice(0, 120)}`,
-      label: "削除する",
-    });
-    if (!ok) return;
-    const favorites = promptRandomInstructionFavorites().filter((item) => item.id !== favorite.id);
-    await savePromptRandomInstructionFavorites(favorites, { status: "AI指示お気に入りを削除しました" });
-    UI.toast("AI指示お気に入りを削除しました");
   }
 
   function selectedQualityPreset() {
@@ -608,7 +374,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       count: selectedQueueCount(),
       wait: false,
       dynamic_prompt: { enabled: checked("#dynamicEnabled") },
-      prompt_random_collect: collectPromptRandomCollect(),
+      prompt_random_collect: promptRandom.collect(),
       hires_fix: hiresFix,
       reference_assist: { enabled: false },
       image_to_image: {
@@ -1639,36 +1405,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     }
   }
 
-  function setPromptRandomStatus(data = {}) {
-    if (data.enabled === false) {
-      text("#promptRandomSummary", "DISABLED");
-      text("#promptRandomStatus", "Random Collect APIは設定で無効です。");
-      return;
-    }
-    if (data.reachable) {
-      const model = data.active_model || data.model || "auto";
-      text("#promptRandomSummary", checked("#promptRandomEnabled") ? promptRandomOnSummary() : "READY");
-      text("#promptRandomStatus", `${data.provider || "provider"} / ${model}`);
-      return;
-    }
-    text("#promptRandomSummary", checked("#promptRandomEnabled") ? "OFFLINE" : "OFF");
-    text("#promptRandomStatus", data.message || "ローカルRandom Collect APIに接続できません。LM StudioなどのLocal Serverを起動してください。");
-  }
-
-  async function loadPromptRandomStatus(force = false) {
-    if (state.promptRandomStatusLoaded && !force) return null;
-    state.promptRandomStatusLoaded = true;
-    try {
-      const data = await api("/api/prompt-random-collect/status");
-      setPromptRandomStatus(data);
-      return data;
-    } catch (error) {
-      state.promptRandomStatusLoaded = false;
-      text("#promptRandomStatus", errorMessage(error));
-      throw error;
-    }
-  }
-
   function renderPromptConverterResult(data = {}) {
     const root = $("#promptConvertResult");
     if (!root) return;
@@ -2278,8 +2014,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     setValue("#officialHighresStrength", official.highres?.strength ?? 0.6);
     setChecked("#officialTurboEnabled", official.turbo?.enabled);
     setValue("#officialTurboStrength", official.turbo?.strength ?? 0.6);
-    applyPromptRandomCollectToForm(settings.prompt_random_collect || {});
-    renderPromptRandomInstructionFavorites(settings);
+    promptRandom.applyToForm(settings.prompt_random_collect || {});
+    promptRandom.renderInstructionFavorites(settings);
     applyWatermark(settings.watermark || {});
     applyHiresFixToForm(settings.hires_fix || {});
 
@@ -2333,10 +2069,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     const custom = req.negative_prompt ? "+custom" : "no custom";
     text("#negativeSummary", `${req.negative_preset} · ${negMode} · ${custom}`);
     text("#dynamicSummary", req.dynamic_prompt.enabled ? "ON" : "OFF");
-    text(
-      "#promptRandomSummary",
-      req.prompt_random_collect.enabled ? promptRandomOnSummary() : "OFF",
-    );
+    promptRandom.renderSummary(req.prompt_random_collect.enabled);
     text("#hiresSummary", req.hires_fix.enabled ? `ON · ×${Number(req.hires_fix.upscale_factor || 1.5)} · ${req.hires_fix.mode || "latent"}` : "OFF");
     text("#i2iSummary", checked("#i2iEnabled") ? `ON · ${req.image_to_image.denoise}` : "OFF");
     const refParts = [];
@@ -2350,12 +2083,12 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
 
   async function previewPayload() {
     const request = collectRequest();
-    if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "AIタグ生成中...");
+    if (request.prompt_random_collect?.enabled) promptRandom.setStatus("AIタグ生成中...");
     const data = await api("/api/payload/preview", {
       method: "POST",
       body: JSON.stringify(request),
     });
-    if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "AIタグをPreviewに反映しました");
+    if (request.prompt_random_collect?.enabled) promptRandom.setStatus("AIタグをPreviewに反映しました");
     const preview = $("#payloadPreview");
     if (preview) {
       preview.textContent = JSON.stringify(data, null, 2);
@@ -2790,14 +2523,14 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     try {
       const request = collectRequest();
       if (request.prompt_random_collect?.enabled) {
-        text("#promptRandomStatus", "AIタグ生成中...");
+        promptRandom.setStatus("AIタグ生成中...");
         UI.safelight("developing", "RANDOM COLLECT");
       }
       const data = await api("/api/generate", {
         method: "POST",
         body: JSON.stringify(request),
       });
-      if (request.prompt_random_collect?.enabled) text("#promptRandomStatus", "AIタグを反映して投入しました");
+      if (request.prompt_random_collect?.enabled) promptRandom.setStatus("AIタグを反映して投入しました");
       assertGenerateQueued(data);
       await finishGenerateQueued(data, request);
     } catch (error) {
@@ -3350,7 +3083,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       official_loras: historyOfficialLoras(item.official_loras || {}),
       loras: historyLoras(item.loras || []),
       dynamic_prompt: { enabled: false },
-      prompt_random_collect: { ...historyPromptRandomCollect(item.prompt_random_collect), enabled: false },
+      prompt_random_collect: { ...promptRandom.historyCollect(item.prompt_random_collect), enabled: false },
       hires_fix: historyHiresFixRequest(item),
       image_to_image: historyImageToImageRequest(item),
       reference_modules: historyReferenceModulesRequest(item),
@@ -3405,7 +3138,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     $("#loraSlots")?.replaceChildren();
     for (const lora of data.loras || []) addLoraRow(lora);
     setChecked("#dynamicEnabled", Boolean(data.dynamic_prompt?.enabled));
-    applyPromptRandomCollectToForm(data.prompt_random_collect || {});
+    promptRandom.applyToForm(data.prompt_random_collect || {});
     applyHiresFixToForm(data.hires_fix || {});
 
     const i2i = data.image_to_image || {};
@@ -3475,20 +3208,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     };
   }
 
-  function historyPromptRandomCollect(raw = {}) {
-    const data = raw && typeof raw === "object" ? raw : {};
-    const mode = normalizePromptRandomMode(data.mode);
-    const defaults = defaultPromptRandomCollect(mode);
-    return {
-      enabled: Boolean(data.enabled),
-      mode,
-      instruction: data.instruction || defaults.instruction,
-      strength: data.strength || defaults.strength,
-      include_characters: data.include_characters !== false,
-      use_character_motifs: Boolean(data.include_characters !== false && data.use_character_motifs !== false),
-    };
-  }
-
   function reuseDataFromRequest(request = {}) {
     const req = request && typeof request === "object" ? request : {};
     const defaultPositive = state.appSettings.default_positive_prompt ?? state.defaults.positive_prompt ?? "";
@@ -3531,7 +3250,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       official_loras: historyOfficialLoras(req.official_loras || {}),
       loras: historyLoras(req.loras || []),
       dynamic_prompt: req.dynamic_prompt && typeof req.dynamic_prompt === "object" ? req.dynamic_prompt : { enabled: false },
-      prompt_random_collect: historyPromptRandomCollect(req.prompt_random_collect),
+      prompt_random_collect: promptRandom.historyCollect(req.prompt_random_collect),
       hires_fix: historyHiresFixRequest({ hires_fix: req.hires_fix }),
       image_to_image: historyImageToImageRequest({ image_to_image: req.image_to_image }),
       reference_modules: historyReferenceModulesRequest({ reference_modules: req.reference_modules }),
@@ -3593,7 +3312,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       count: 1,
       wait: false,
       dynamic_prompt: { enabled: false },
-      prompt_random_collect: historyPromptRandomCollect(data.prompt_random_collect),
+      prompt_random_collect: promptRandom.historyCollect(data.prompt_random_collect),
       hires_fix: data.hires_fix,
       reference_assist: { enabled: false },
       image_to_image: historyImageToImageRequest(item),
@@ -3674,7 +3393,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       natural_description: value("#naturalDescription", ""),
       official_loras: collectOfficialLoras(),
       loras: collectLoras(),
-      prompt_random_collect: collectPromptRandomCollect(),
+      prompt_random_collect: promptRandom.collect(),
       hires_fix: hiresFix,
       face_detailer: collectFaceDetailerSettings(checked("#fdEnabled"), "generation"),
       hand_detailer: collectHandDetailerSettings(checked("#hdEnabled"), "generation"),
@@ -3877,67 +3596,63 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     }
   }
 
-  async function handleAction(action, target) {
-    if (action === "login") return login();
-    if (action === "random-slot") return setRandomSlot();
-    if (action === "clear-slot") return clearSlot();
-    if (action === "toggle-character-favorites") return toggleCharacterFavorites();
-    if (action === "load-more-characters") return loadMoreCharacters();
-    if (action === "toggle-favorite-slot") return toggleFavoriteForArmedSlot();
-    if (action === "add-lora") {
-      if (!state.loraSelectable.length) await loadLoraCatalog().catch(() => {});
-      addLoraRow();
-      return;
-    }
-    if (action === "remove-lora") {
-      target.closest("[data-lora-row]")?.remove();
-      updateSummaries();
-      return;
-    }
-    if (action === "preview") return previewPayload();
-    if (action === "generate") return generate();
-    if (action === "dynamic-wildcards") return loadDynamicWildcards();
-    if (action === "dynamic-preview") return previewDynamicPrompt();
-    if (action === "prompt-convert") return convertPromptFromJapanese();
-    if (action === "prompt-converter-status") return loadPromptConverterStatus(true);
-    if (action === "prompt-random-status") return loadPromptRandomStatus(true);
-    if (action === "prompt-random-favorite-apply") return applyPromptRandomInstructionFavorite();
-    if (action === "prompt-random-favorite-save") return saveCurrentPromptRandomInstructionFavorite();
-    if (action === "prompt-random-favorite-delete") return deletePromptRandomInstructionFavorite();
-    if (action === "save-positive-fav") return savePositiveFavorite();
-    if (action === "open-positive-favs") return openPositiveFavorites();
-    if (action === "open-templates") return openPositiveTemplates();
-    if (action === "save-recipe") return saveRecipe();
-    if (action === "open-recipes") return openRecipes();
-    if (action === "open-queue") return openQueue();
-    if (action === "queue-refresh") return loadQueue(true);
-    if (action === "queue-interrupt") return interruptQueue();
-    if (action === "history-refresh") return refreshContact();
-    if (action === "load-more") return loadContact(false);
-    if (action === "contact-search") return applyContactSearch();
-    if (action === "contact-search-clear") return clearContactSearch();
-    if (action === "frame-favorite") return toggleFrameFavorite();
-    if (action === "frame-public-save") return savePublicImage();
-    if (action === "frame-share") return shareFrame();
-    if (action === "frame-variations") return generateFrameVariations();
-    if (action === "frame-reuse") {
-      if (state.detailItem) applyHistoryToForm(state.detailItem);
-      return;
-    }
-    if (action === "frame-to-i2i") return setFrameAsI2iSource();
-    if (action === "frame-face-detail") return queueFrameFaceDetailer();
-    if (action === "frame-hand-detail") return queueFrameHandDetailer();
-    if (action === "i2i-upload") return uploadI2iImage();
-    if (action === "i2i-clear") return clearI2iImage();
-    if (action === "outfit-upload") return uploadRefmodImage("outfit");
-    if (action === "outfit-clear") return clearRefmodImage("outfit");
-    if (action === "pose-upload") return uploadRefmodImage("pose");
-    if (action === "pose-clear") return clearRefmodImage("pose");
-    if (action === "save-auto-prompts") return saveAutoPrompts();
-    if (action === "save-defaults") return saveDefaults();
-    if (action === "reset-defaults") return resetDefaults();
-    if (action === "reload-models") return reloadModels();
-    if (action === "reload-ui") return reloadUi();
+  function registerMainActions() {
+    registerActions({
+      login: () => login(),
+      "random-slot": () => setRandomSlot(),
+      "clear-slot": () => clearSlot(),
+      "toggle-character-favorites": () => toggleCharacterFavorites(),
+      "load-more-characters": () => loadMoreCharacters(),
+      "toggle-favorite-slot": () => toggleFavoriteForArmedSlot(),
+      "add-lora": async () => {
+        if (!state.loraSelectable.length) await loadLoraCatalog().catch(() => {});
+        addLoraRow();
+      },
+      "remove-lora": (target) => {
+        target.closest("[data-lora-row]")?.remove();
+        updateSummaries();
+      },
+      preview: () => previewPayload(),
+      generate: () => generate(),
+      "dynamic-wildcards": () => loadDynamicWildcards(),
+      "dynamic-preview": () => previewDynamicPrompt(),
+      "prompt-convert": () => convertPromptFromJapanese(),
+      "prompt-converter-status": () => loadPromptConverterStatus(true),
+      "save-positive-fav": () => savePositiveFavorite(),
+      "open-positive-favs": () => openPositiveFavorites(),
+      "open-templates": () => openPositiveTemplates(),
+      "save-recipe": () => saveRecipe(),
+      "open-recipes": () => openRecipes(),
+      "open-queue": () => openQueue(),
+      "queue-refresh": () => loadQueue(true),
+      "queue-interrupt": () => interruptQueue(),
+      "history-refresh": () => refreshContact(),
+      "load-more": () => loadContact(false),
+      "contact-search": () => applyContactSearch(),
+      "contact-search-clear": () => clearContactSearch(),
+      "frame-favorite": () => toggleFrameFavorite(),
+      "frame-public-save": () => savePublicImage(),
+      "frame-share": () => shareFrame(),
+      "frame-variations": () => generateFrameVariations(),
+      "frame-reuse": () => {
+        if (state.detailItem) applyHistoryToForm(state.detailItem);
+      },
+      "frame-to-i2i": () => setFrameAsI2iSource(),
+      "frame-face-detail": () => queueFrameFaceDetailer(),
+      "frame-hand-detail": () => queueFrameHandDetailer(),
+      "i2i-upload": () => uploadI2iImage(),
+      "i2i-clear": () => clearI2iImage(),
+      "outfit-upload": () => uploadRefmodImage("outfit"),
+      "outfit-clear": () => clearRefmodImage("outfit"),
+      "pose-upload": () => uploadRefmodImage("pose"),
+      "pose-clear": () => clearRefmodImage("pose"),
+      "save-auto-prompts": () => saveAutoPrompts(),
+      "save-defaults": () => saveDefaults(),
+      "reset-defaults": () => resetDefaults(),
+      "reload-models": () => reloadModels(),
+      "reload-ui": () => reloadUi(),
+    });
+    registerActions(promptRandom.actions);
   }
 
   function bindEvents() {
@@ -3973,19 +3688,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       }
     });
 
-    $("details[data-fold='prompt-random']")?.addEventListener("toggle", (event) => {
-      if (event.target.open) {
-        loadPromptRandomStatus().catch((error) => UI.toast(errorMessage(error), "error"));
-      }
-    });
-
-    $("#promptRandomEnabled")?.addEventListener("change", updateSummaries);
-    $("#promptRandomIncludeCharacters")?.addEventListener("change", updateSummaries);
-    $("#promptRandomUseCharacterMotifs")?.addEventListener("change", updateSummaries);
-    $("#promptRandomMode")?.addEventListener("change", updatePromptRandomMode);
-    $("#promptRandomInstruction")?.addEventListener("input", updateSummaries);
-    $("#promptRandomStrength")?.addEventListener("change", updateSummaries);
-    $("#promptRandomFavoriteSelect")?.addEventListener("change", updatePromptRandomFavoriteControls);
+    promptRandom.bindEvents();
     $("#ratingPrompt")?.addEventListener("input", updateRatingPromptDraft);
     $("#qualityPrompt")?.addEventListener("input", updateQualityPromptDraft);
 
@@ -4158,7 +3861,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
         stopQueuePolling();
         return;
       }
-      dispatchAction(handleAction, action, actionTarget).catch((error) => {
+      dispatchAction(action, actionTarget).catch((error) => {
         UI.toast(errorMessage(error), "error");
         if (action?.startsWith("frame-")) text("#frameActionStatus", errorMessage(error));
         if (action?.startsWith("i2i-")) text("#i2iStatus", errorMessage(error));
@@ -4193,6 +3896,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
   }
 
   function init() {
+    registerMainActions();
     bindEvents();
     clearCharacterSearch();
     renderI2iPreview();
