@@ -174,7 +174,7 @@ class PromptRandomCollectSettings(CompatSettingsModel):
     instruction: str = ""
     strength: str = "standard"
     include_characters: bool = True
-    use_character_motifs: bool = False
+    use_character_motifs: bool = True
 
     @field_validator("enabled", "include_characters", "use_character_motifs", mode="before")
     @classmethod

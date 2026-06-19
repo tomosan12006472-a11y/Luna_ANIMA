@@ -450,7 +450,7 @@ def _prompt_random_collect_summary(request_data: dict[str, Any]) -> dict[str, An
         "strength": str(data.get("strength") or ""),
         "include_characters": data.get("include_characters", True) is not False,
         "use_character_motifs": bool(
-            data.get("include_characters", True) is not False and data.get("use_character_motifs", False)
+            data.get("include_characters", True) is not False and data.get("use_character_motifs", True)
         ),
         "generated_tags": generated_tags,
     }

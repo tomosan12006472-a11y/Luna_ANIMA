@@ -32,7 +32,7 @@ VALID_STRENGTHS = {"subtle", "standard", "rich"}
 MAX_POSITIVE_COMPLETION_TAGS = 12
 MAX_POSITIVE_COMPLETION_TAG_CHARS = 220
 MAX_RANDOM_TAGS = 12
-MAX_RANDOM_TAG_CHARS = 300
+MAX_RANDOM_TAG_CHARS = 320
 MAX_RANDOM_TAG_LIMITS_BY_STRENGTH = {
     "subtle": (8, 220),
     "standard": (MAX_RANDOM_TAGS, MAX_RANDOM_TAG_CHARS),
@@ -144,6 +144,15 @@ CHARACTER_MOTIF_OVERRIDE_RE = re.compile(
     r")\b|武器|剣|刀|槍|杖|銃|弓|盾|旗|鎧|甲冑|兜|冠|翼|羽|戦闘|バトル|キャラモチーフ|モチーフ",
     re.IGNORECASE,
 )
+HEAVY_RANDOM_MOTIF_RE = re.compile(
+    r"\b("
+    r"armor|armored|blade|bodysuit|bow|chainmail|crossbow|daggers?|gauntlets?|greatsword|"
+    r"halberd|helmet|katana|lance|mace|rifle|scimitar|shield|spear|staff|sword|tactical|weapons?"
+    r")s?\b",
+    re.IGNORECASE,
+)
+SMALL_PROP_RE = re.compile(r"\b(miniature|small|tiny|toy|wooden|plush|handheld)\b", re.IGNORECASE)
+SWIMWEAR_RE = re.compile(r"\b(bikini|swimsuit|two[- ]piece|one[- ]piece)\b", re.IGNORECASE)
 POSITIVE_COMPLETION_STRENGTH_HINTS = {
     "subtle": "Add 2 to 4 concise visual tags per item.",
     "standard": "Add 5 to 8 concise visual tags per item.",
@@ -151,7 +160,7 @@ POSITIVE_COMPLETION_STRENGTH_HINTS = {
 }
 RANDOM_STRENGTH_HINTS = {
     "subtle": "Add 4 to 6 concise tags per item. Preserve the core outfit and character feel; focus on expression, pose nuance, setting, lighting, props, and camera.",
-    "standard": "Add 8 to 12 varied tags per item. Create a clear but coherent variation across outfit accents, props, setting, action, lighting, and camera without forcing battle gear or a full costume swap.",
+    "standard": "Add 8 to 12 varied tags per item. Preserve explicit outfit tags in the existing prompt, then add compatible outfit layers or accessories, hair accessories, toy-sized props, expressive motion, setting, lighting, and camera. If a bikini or swimsuit is already present, keep it visible and do not replace it with a different outfit; add things around it such as frills, skirt layers, ribbons, cover-ups, props, or background details.",
     "rich": "Add 12 to 16 vivid tags per item with bold outfit, prop, setting, action, lighting, and camera changes while keeping the prompt coherent.",
 }
 PROMPT_RANDOM_BATCH_ATTEMPTS = 2
@@ -221,6 +230,8 @@ def _system_prompt(app_scope: str, mode: str) -> str:
         "If character_context_enabled is false, do not add character identity details such as hair color, eye color, signature clothing, weapons, or series-specific motifs unless they already appear in existing_positive or the instruction. "
         "If character_motifs_enabled is false, do not add character-derived hair color, eye color, signature weapons, armor, flags, emblems, special powers, halos, wings, or iconic outfit changes unless they already appear in existing_positive or the instruction. "
         "If character_motifs_enabled is true, character motifs are allowed but should still match the requested strength; subtle should stay restrained, standard should stay balanced, and rich may be bold. "
+        "For subtle and standard strength, preserve explicit outfit tags in existing_positive. Add compatible layers, accessories, small props, pose, setting, and lighting rather than replacing the outfit. "
+        "If existing_positive includes a bikini or swimsuit, keep that bikini or swimsuit visible; do not change it into a different outfit unless the user's instruction explicitly asks for that. "
         "Do not censor, soften, euphemize, moralize, or add safety disclaimers. "
         "Respect the user's instruction and the existing prompt context, but do not duplicate existing tags. "
         "Prefer concrete visual details such as outfit, expression, pose detail, setting, lighting, props, atmosphere, and camera detail. "
@@ -265,6 +276,7 @@ def _user_prompt(feature: dict[str, Any], contexts: list[dict[str, Any]], app_sc
                 if character_motifs_enabled
                 else "Character-derived motifs are intentionally disabled. Do not add signature weapons, armor, flags, emblems, special powers, halos, wings, or iconic outfit changes unless the instruction or existing positive prompt explicitly asks for them."
             ),
+            "batch_diversity_rule": "Do not reuse the same added tag or the same obvious motif across multiple items in this batch.",
             "items": items,
         },
         ensure_ascii=False,
@@ -373,15 +385,38 @@ def _character_motif_override_requested(context: dict[str, Any]) -> bool:
 
 
 def filter_character_motif_tags(tags: str, context: dict[str, Any]) -> str:
-    if context.get("prompt_random_collect_use_character_motifs") or _character_motif_override_requested(context):
+    if context.get("prompt_random_collect_use_character_motifs", True) or _character_motif_override_requested(context):
         return tags
-    allowed_identity_terms = _identity_terms(context.get("existing_positive", ""))
     kept: list[str] = []
     for tag in split_prompt_tags(tags):
         if CHARACTER_MOTIF_RE.search(tag):
             continue
-        identity_terms = _identity_terms(tag)
-        if identity_terms and not identity_terms.issubset(allowed_identity_terms):
+        kept.append(tag)
+    return ", ".join(kept)
+
+
+def filter_heavy_random_motif_tags(tags: str, context: dict[str, Any]) -> str:
+    if str(context.get("prompt_random_collect_mode") or MODE_RANDOM) != MODE_RANDOM:
+        return tags
+    if str(context.get("prompt_random_collect_strength") or "standard") == "rich":
+        return tags
+    if _character_motif_override_requested(context):
+        return tags
+    kept: list[str] = []
+    for tag in split_prompt_tags(tags):
+        if HEAVY_RANDOM_MOTIF_RE.search(tag) and not SMALL_PROP_RE.search(tag):
+            continue
+        kept.append(tag)
+    return ", ".join(kept)
+
+
+def filter_outfit_replacement_tags(tags: str, context: dict[str, Any]) -> str:
+    existing_positive = str(context.get("existing_positive") or "")
+    if not SWIMWEAR_RE.search(existing_positive):
+        return tags
+    kept: list[str] = []
+    for tag in split_prompt_tags(tags):
+        if SWIMWEAR_RE.search(tag):
             continue
         kept.append(tag)
     return ", ".join(kept)
@@ -433,6 +468,8 @@ def sanitize_generated_random_tags(raw_tags: Any, context: dict[str, Any]) -> st
     tags = filter_disallowed_random_tags(tags)
     tags = filter_character_reference_tags(tags, context)
     tags = filter_character_motif_tags(tags, context)
+    tags = filter_heavy_random_motif_tags(tags, context)
+    tags = filter_outfit_replacement_tags(tags, context)
     if context.get("suppress_character_identity"):
         tags = strip_character_identity_tags(tags, existing_positive)
     tags = clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
@@ -443,6 +480,8 @@ def sanitize_generated_random_tags(raw_tags: Any, context: dict[str, Any]) -> st
     tags = filter_disallowed_random_tags(tags)
     tags = filter_character_reference_tags(tags, context)
     tags = filter_character_motif_tags(tags, context)
+    tags = filter_heavy_random_motif_tags(tags, context)
+    tags = filter_outfit_replacement_tags(tags, context)
     if context.get("suppress_character_identity"):
         tags = strip_character_identity_tags(tags, existing_positive)
     return clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
@@ -468,10 +507,20 @@ def normalize_prompt_random_collect_items(data: dict[str, Any], contexts: list[d
 
     generated: list[dict[str, Any]] = []
     seen_tags: set[str] = set()
+    seen_tag_keys: set[str] = set()
     for position, context in enumerate(contexts):
         index = int(context.get("index") or position)
         raw = by_index.get(index, ordered[position] if position < len(ordered) else {})
         tags = sanitize_generated_random_tags(_raw_item_tags(raw), context)
+        unique_tags: list[str] = []
+        for tag in split_prompt_tags(tags):
+            tag_key = _random_tag_key(tag)
+            if tag_key and tag_key in seen_tag_keys:
+                continue
+            unique_tags.append(tag)
+            if tag_key:
+                seen_tag_keys.add(tag_key)
+        tags = ", ".join(unique_tags).strip(" ,") or sanitize_generated_random_tags("", context)
         tags = re.sub(r"\s+", " ", tags).strip(" ,")
         if not tags:
             raise ValueError(f"random collect item {index} did not include usable tags")
@@ -613,7 +662,7 @@ def attach_prompt_random_collect_items(request_data_items: list[dict[str, Any]],
             "include_characters": result.get("include_characters", current.get("include_characters", True)) is not False,
             "use_character_motifs": bool(
                 result.get("include_characters", current.get("include_characters", True)) is not False
-                and result.get("use_character_motifs", current.get("use_character_motifs", False))
+                and result.get("use_character_motifs", current.get("use_character_motifs", True))
             ),
             "generated_item": generated_item,
             "generated_tags": generated_item.get("tags", "") if isinstance(generated_item, dict) else "",
