@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from threading import Lock
+from threading import RLock
 from typing import Any
 
-from ._shared_utils import clamp_float, clamp_strength, normalize_lora_strengths, read_json_with_retry, write_json_atomic
+from ._shared_utils import clamp_float, clamp_strength, normalize_lora_strengths
 from .config import SETTINGS_PATH
 from .face_detailer import DEFAULT_FACE_DETAILER_SETTINGS, DEFAULT_HAND_DETAILER_SETTINGS, sanitize_face_detailer_settings, sanitize_hand_detailer_settings
 from .i2i_store import sanitize_image_to_image
 from .prompt_converter import DEFAULT_PROMPT_CONVERTER_SETTINGS, sanitize_prompt_converter_settings
 from .reference_modules import DEFAULT_REFERENCE_MODULES, sanitize_reference_modules
+from .storage.json_store import JsonStore
 
 
-_SETTINGS_LOCK = Lock()
+_SETTINGS_LOCK = RLock()
 
 
 DEFAULT_APP_SETTINGS: dict[str, Any] = {
@@ -286,26 +287,41 @@ def load_app_settings() -> dict[str, Any]:
         return _load_app_settings_unlocked()
 
 
+def _settings_default() -> dict[str, Any]:
+    return deepcopy(DEFAULT_APP_SETTINGS)
+
+
+def _validate_settings_payload(data: Any) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return _settings_default()
+    return sanitize_app_settings(data)
+
+
+def _settings_store() -> JsonStore:
+    return JsonStore(
+        SETTINGS_PATH,
+        default_factory=_settings_default,
+        label="settings",
+        lock=_SETTINGS_LOCK,
+        validator=_validate_settings_payload,
+    )
+
+
 def _load_app_settings_unlocked() -> dict[str, Any]:
-    if not SETTINGS_PATH.exists():
-        return deepcopy(DEFAULT_APP_SETTINGS)
-    raw = read_json_with_retry(SETTINGS_PATH, label="settings")
-    if not isinstance(raw, dict):
-        return deepcopy(DEFAULT_APP_SETTINGS)
-    return sanitize_app_settings(raw)
+    return _settings_store().read(strict=True)
 
 
 def save_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     merged = sanitize_app_settings(settings)
     with _SETTINGS_LOCK:
         if SETTINGS_PATH.exists():
-            read_json_with_retry(SETTINGS_PATH, label="settings")
-        write_json_atomic(SETTINGS_PATH, merged)
+            _settings_store().read(strict=True)
+        _settings_store().write(merged)
     return merged
 
 
 def reset_app_settings() -> dict[str, Any]:
-    settings = deepcopy(DEFAULT_APP_SETTINGS)
+    settings = _settings_default()
     with _SETTINGS_LOCK:
-        write_json_atomic(SETTINGS_PATH, settings)
+        _settings_store().write(settings)
     return settings
