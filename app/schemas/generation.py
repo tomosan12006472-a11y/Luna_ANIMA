@@ -174,8 +174,9 @@ class PromptRandomCollectSettings(CompatSettingsModel):
     instruction: str = ""
     strength: str = "standard"
     include_characters: bool = True
+    use_character_motifs: bool = False
 
-    @field_validator("enabled", "include_characters", mode="before")
+    @field_validator("enabled", "include_characters", "use_character_motifs", mode="before")
     @classmethod
     def _normalize_bool(cls, value: Any) -> bool:
         return _bool_value(value)
@@ -199,6 +200,8 @@ class PromptRandomCollectSettings(CompatSettingsModel):
             "positive_completion": "既存Positiveの意図を保ったまま、不足している描写を英語タグで補う",
         }
         self.instruction = _clamp_text(self.instruction, defaults.get(self.mode, defaults["random"]), 1000)
+        if not self.include_characters:
+            self.use_character_motifs = False
         return self
 
 

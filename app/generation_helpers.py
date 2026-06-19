@@ -158,6 +158,7 @@ def apply_prompt_random_collect_or_error(request_data_items: list[dict[str, Any]
                 "index": int(request_data.get("queue_index") or position),
                 "seed": prompts.get("seed", request_data.get("seed")),
                 "characters": prompts.get("characters", []) if include_characters else [],
+                "character_metadata": prompts.get("character_metadata", []) if include_characters else [],
                 "existing_positive": prompts.get("positive", ""),
                 "suppress_character_identity": not include_characters,
             }

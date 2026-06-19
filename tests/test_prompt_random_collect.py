@@ -19,6 +19,7 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertEqual(result["instruction"], prompt_random_collect.DEFAULT_INSTRUCTION)
         self.assertEqual(result["strength"], "standard")
         self.assertTrue(result["include_characters"])
+        self.assertFalse(result["use_character_motifs"])
 
     def test_sanitize_request_accepts_positive_completion_mode(self) -> None:
         result = prompt_random_collect.sanitize_prompt_random_collect_request(
@@ -29,21 +30,34 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertEqual(result["instruction"], prompt_random_collect.DEFAULT_INSTRUCTIONS["positive_completion"])
 
     def test_sanitize_request_can_disable_character_context(self) -> None:
-        result = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "include_characters": False})
+        result = prompt_random_collect.sanitize_prompt_random_collect_request(
+            {"enabled": True, "include_characters": False, "use_character_motifs": True}
+        )
         self.assertFalse(result["include_characters"])
+        self.assertFalse(result["use_character_motifs"])
+
+    def test_sanitize_request_can_enable_character_motifs_with_character_context(self) -> None:
+        result = prompt_random_collect.sanitize_prompt_random_collect_request(
+            {"enabled": True, "include_characters": True, "use_character_motifs": True}
+        )
+        self.assertTrue(result["include_characters"])
+        self.assertTrue(result["use_character_motifs"])
 
     def test_user_prompt_marks_character_context_as_intentionally_omitted(self) -> None:
         feature = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "include_characters": False})
         payload = json.loads(prompt_random_collect._user_prompt(feature, [{"index": 0, "existing_positive": "1girl"}], "anima"))
 
         self.assertFalse(payload["character_context_enabled"])
+        self.assertFalse(payload["character_motifs_enabled"])
         self.assertIn("intentionally omitted", payload["character_context_rule"])
 
-    def test_user_prompt_random_mode_requests_bolder_variation(self) -> None:
+    def test_user_prompt_random_mode_exposes_strength_and_motif_rules(self) -> None:
         feature = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "mode": "random", "strength": "standard"})
         payload = json.loads(prompt_random_collect._user_prompt(feature, [{"index": 0, "existing_positive": "1girl, white bikini"}], "anima"))
 
-        self.assertIn("Push outfit", payload["strength_hint"])
+        self.assertIn("coherent variation", payload["strength_hint"])
+        self.assertFalse(payload["character_motifs_enabled"])
+        self.assertIn("intentionally disabled", payload["character_motif_rule"])
         self.assertIn("Creative variance is desirable", prompt_random_collect._system_prompt("anima", "random"))
 
     def test_character_context_disabled_removes_character_tags_from_existing_positive_context(self) -> None:
@@ -94,6 +108,122 @@ class PromptRandomCollectTests(unittest.TestCase):
         )
         self.assertEqual(result[0]["tags"], "long hair, loose ponytail, red apron")
 
+    def test_normalize_items_strips_character_motifs_when_disabled(self) -> None:
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "1girl, white bikini",
+                "prompt_random_collect_mode": "random",
+                "prompt_random_collect_strength": "standard",
+                "prompt_random_collect_use_character_motifs": False,
+                "prompt_random_collect_instruction": "衣装、表情、背景、小物をランダムに足す",
+            }
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {
+                "items": [
+                    {
+                        "index": 0,
+                        "tags": "blue hair, golden eyes, golden halo, silver armor, standing on a beach, soft rim lighting, glass of lemonade",
+                    }
+                ]
+            },
+            contexts,
+        )
+
+        self.assertEqual(result[0]["tags"], "standing on a beach, soft rim lighting, glass of lemonade")
+
+    def test_normalize_items_keeps_character_motifs_when_enabled(self) -> None:
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "1girl, white bikini",
+                "prompt_random_collect_mode": "random",
+                "prompt_random_collect_strength": "standard",
+                "prompt_random_collect_use_character_motifs": True,
+            }
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {"items": [{"index": 0, "tags": "golden halo, silver armor, standing on a beach"}]},
+            contexts,
+        )
+
+        self.assertEqual(result[0]["tags"], "golden halo, silver armor, standing on a beach")
+
+    def test_normalize_items_keeps_character_motifs_when_instruction_requests_them(self) -> None:
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "1girl, white bikini",
+                "prompt_random_collect_mode": "random",
+                "prompt_random_collect_strength": "standard",
+                "prompt_random_collect_use_character_motifs": False,
+                "prompt_random_collect_instruction": "武器と鎧をランダムに足す",
+            }
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {"items": [{"index": 0, "tags": "golden halo, silver armor, standing on a beach"}]},
+            contexts,
+        )
+
+        self.assertEqual(result[0]["tags"], "golden halo, silver armor, standing on a beach")
+
+    def test_normalize_items_removes_generated_character_name_tags(self) -> None:
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "1girl, jeanne d'arc \\(fate\\), white bikini",
+                "characters": [{"prompt_tag": "jeanne d'arc (fate)", "prompt_safe_name": "Jeanne D'arc from Fate"}],
+                "prompt_random_collect_mode": "random",
+                "prompt_random_collect_strength": "standard",
+                "prompt_random_collect_use_character_motifs": True,
+            }
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {"items": [{"index": 0, "tags": "jeanne d'arc, fate, snowy cathedral, soft rim lighting"}]},
+            contexts,
+        )
+
+        self.assertEqual(result[0]["tags"], "snowy cathedral, soft rim lighting")
+
+    def test_normalize_items_removes_partial_generated_character_name_tags(self) -> None:
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "1girl, jeanne d'arc alter \\(fate\\), white bikini",
+                "characters": [{"prompt_tag": "jeanne d'arc alter (fate)", "prompt_safe_name": "Jeanne D'arc Alter from Fate"}],
+                "character_metadata": [],
+                "prompt_random_collect_mode": "random",
+                "prompt_random_collect_strength": "standard",
+                "prompt_random_collect_use_character_motifs": True,
+            }
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {"items": [{"index": 0, "tags": "jeanne d'arc alter, sunset beach, playful smile"}]},
+            contexts,
+        )
+
+        self.assertEqual(result[0]["tags"], "sunset beach, playful smile")
+
+    def test_normalize_items_removes_character_name_tags_from_metadata_context(self) -> None:
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "1girl, jeanne d'arc alter \\(fate\\), white bikini",
+                "characters": ["ジャンヌ・ダルク〔オルタ〕（Fate）"],
+                "character_metadata": [{"prompt_tag": "jeanne d'arc alter (fate)", "prompt_safe_name": "Jeanne D'arc Alter from Fate"}],
+                "prompt_random_collect_mode": "random",
+                "prompt_random_collect_strength": "standard",
+                "prompt_random_collect_use_character_motifs": True,
+            }
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {"items": [{"index": 0, "tags": "jeanne d'arc alter (fate), stormy sky, crimson cloak"}]},
+            contexts,
+        )
+
+        self.assertEqual(result[0]["tags"], "stormy sky, crimson cloak")
+
     def test_normalize_items_filters_score_quality_and_clamps_long_tags(self) -> None:
         contexts = [{"index": 0, "existing_positive": ""}]
         result = prompt_random_collect.normalize_prompt_random_collect_items(
@@ -132,6 +262,7 @@ class PromptRandomCollectTests(unittest.TestCase):
                 "existing_positive": "",
                 "prompt_random_collect_mode": "random",
                 "prompt_random_collect_strength": "standard",
+                "prompt_random_collect_use_character_motifs": True,
             }
         ]
         result = prompt_random_collect.normalize_prompt_random_collect_items({"items": [{"index": 0, "tags": reference_tags}]}, contexts)
@@ -211,6 +342,7 @@ class PromptRandomCollectTests(unittest.TestCase):
                 "mode": "positive_completion",
                 "strength": "subtle",
                 "include_characters": False,
+                "use_character_motifs": True,
                 "generated_items": [{"index": 0, "tags": "red dress"}, {"index": 1, "tags": "blue dress"}],
                 "provider": {"model": "qwen"},
             },
@@ -219,6 +351,7 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertEqual(prompt_random_collect.prompt_random_collect_tags(requests[1]), "blue dress")
         self.assertEqual(requests[0]["prompt_random_collect"]["mode"], "positive_completion")
         self.assertFalse(requests[0]["prompt_random_collect"]["include_characters"])
+        self.assertFalse(requests[0]["prompt_random_collect"]["use_character_motifs"])
 
     def test_history_summary_preserves_generated_tags_for_reuse_strip(self) -> None:
         summary = history_store._prompt_random_collect_summary(
@@ -229,6 +362,7 @@ class PromptRandomCollectTests(unittest.TestCase):
                     "instruction": "test",
                     "strength": "subtle",
                     "include_characters": False,
+                    "use_character_motifs": True,
                     "generated_item": {"index": 0, "tags": "red dress"},
                     "provider": {"model": "qwen"},
                 }
@@ -238,6 +372,7 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertEqual(summary["mode"], "positive_completion")
         self.assertEqual(summary["generated_tags"], "red dress")
         self.assertFalse(summary["include_characters"])
+        self.assertFalse(summary["use_character_motifs"])
 
     def test_history_summary_preserves_enabled_config_without_generated_tags(self) -> None:
         summary = history_store._prompt_random_collect_summary(
@@ -247,6 +382,7 @@ class PromptRandomCollectTests(unittest.TestCase):
                     "instruction": "keep this",
                     "strength": "bold",
                     "include_characters": True,
+                    "use_character_motifs": True,
                 }
             }
         )
@@ -254,6 +390,7 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertTrue(summary["enabled"])
         self.assertEqual(summary["instruction"], "keep this")
         self.assertEqual(summary["strength"], "bold")
+        self.assertTrue(summary["use_character_motifs"])
         self.assertEqual(summary["generated_tags"], "")
 
     def test_history_detail_enriches_raw_prompt_from_payload(self) -> None:

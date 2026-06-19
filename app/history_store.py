@@ -449,6 +449,9 @@ def _prompt_random_collect_summary(request_data: dict[str, Any]) -> dict[str, An
         "instruction": str(data.get("instruction") or ""),
         "strength": str(data.get("strength") or ""),
         "include_characters": data.get("include_characters", True) is not False,
+        "use_character_motifs": bool(
+            data.get("include_characters", True) is not False and data.get("use_character_motifs", False)
+        ),
         "generated_tags": generated_tags,
     }
     if generated_item:

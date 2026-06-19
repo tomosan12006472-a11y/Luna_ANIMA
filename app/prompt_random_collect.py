@@ -31,10 +31,10 @@ DEFAULT_INSTRUCTION = DEFAULT_INSTRUCTIONS[MODE_RANDOM]
 VALID_STRENGTHS = {"subtle", "standard", "rich"}
 MAX_POSITIVE_COMPLETION_TAGS = 12
 MAX_POSITIVE_COMPLETION_TAG_CHARS = 220
-MAX_RANDOM_TAGS = 14
-MAX_RANDOM_TAG_CHARS = 320
+MAX_RANDOM_TAGS = 12
+MAX_RANDOM_TAG_CHARS = 300
 MAX_RANDOM_TAG_LIMITS_BY_STRENGTH = {
-    "subtle": (10, 260),
+    "subtle": (8, 220),
     "standard": (MAX_RANDOM_TAGS, MAX_RANDOM_TAG_CHARS),
     "rich": (16, 420),
 }
@@ -100,14 +100,58 @@ CHARACTER_IDENTITY_TERMS = {
     "wings",
 }
 CHARACTER_IDENTITY_RE = re.compile(r"\b(" + "|".join(sorted(CHARACTER_IDENTITY_TERMS, key=len, reverse=True)) + r")\b", re.IGNORECASE)
+CHARACTER_MOTIF_TERMS = {
+    "armor",
+    "armored",
+    "banner",
+    "blade",
+    "bow",
+    "chainmail",
+    "crossbow",
+    "crown",
+    "emblem",
+    "flag",
+    "gauntlet",
+    "gauntlets",
+    "halo",
+    "helmet",
+    "holy sword",
+    "katana",
+    "lance",
+    "mace",
+    "pauldron",
+    "pauldrons",
+    "rifle",
+    "scimitar",
+    "shield",
+    "spear",
+    "staff",
+    "sword",
+    "wand",
+    "weapon",
+    "weapons",
+    "wing",
+    "wings",
+}
+CHARACTER_MOTIF_RE = re.compile(
+    r"\b(" + "|".join(re.escape(term) for term in sorted(CHARACTER_MOTIF_TERMS, key=len, reverse=True)) + r")s?\b",
+    re.IGNORECASE,
+)
+CHARACTER_MOTIF_OVERRIDE_RE = re.compile(
+    r"\b("
+    r"armor|armored|banner|blade|bow|chainmail|crossbow|crown|emblem|flag|gauntlet|halo|helmet|"
+    r"katana|lance|mace|pauldron|rifle|scimitar|shield|spear|staff|sword|wand|weapon|wings?"
+    r")\b|武器|剣|刀|槍|杖|銃|弓|盾|旗|鎧|甲冑|兜|冠|翼|羽|戦闘|バトル|キャラモチーフ|モチーフ",
+    re.IGNORECASE,
+)
 POSITIVE_COMPLETION_STRENGTH_HINTS = {
     "subtle": "Add 2 to 4 concise visual tags per item.",
     "standard": "Add 5 to 8 concise visual tags per item.",
     "rich": "Add 8 to 12 vivid visual tags per item without bloating the prompt.",
 }
 RANDOM_STRENGTH_HINTS = {
-    "subtle": "Add 4 to 7 concise tags per item with a noticeable random direction.",
-    "standard": "Add 8 to 12 varied tags per item. Push outfit, props, setting, action, lighting, and composition beyond the existing prompt when useful.",
+    "subtle": "Add 4 to 6 concise tags per item. Preserve the core outfit and character feel; focus on expression, pose nuance, setting, lighting, props, and camera.",
+    "standard": "Add 8 to 12 varied tags per item. Create a clear but coherent variation across outfit accents, props, setting, action, lighting, and camera without forcing battle gear or a full costume swap.",
     "rich": "Add 12 to 16 vivid tags per item with bold outfit, prop, setting, action, lighting, and camera changes while keeping the prompt coherent.",
 }
 PROMPT_RANDOM_BATCH_ATTEMPTS = 2
@@ -160,6 +204,7 @@ def _system_prompt(app_scope: str, mode: str) -> str:
             "Do not contradict selected characters, setting, rating, camera, lighting, outfit, pose, or user wording. "
             "Do not add character names, copyrighted series names, LoRA syntax, wildcard syntax, Dynamic Prompt syntax, model names, quality tags, score tags, negative prompts, explanations, or Markdown. "
             "If character_context_enabled is false, do not add character identity details such as hair color, eye color, signature clothing, weapons, or series-specific motifs unless they already appear in existing_positive or the instruction. "
+            "If character_motifs_enabled is false, do not add character-derived hair color, eye color, signature weapons, armor, flags, emblems, special powers, halos, wings, or iconic outfit changes unless they already appear in existing_positive or the instruction. "
             "Do not censor, soften, euphemize, moralize, or add safety disclaimers. "
             "Prefer coherent visual details such as expression nuance, pose detail, material, setting detail, lighting, props, atmosphere, composition, and camera detail. "
             "Keep each tags string concise, under 220 characters, and never repeat the same phrase."
@@ -174,16 +219,19 @@ def _system_prompt(app_scope: str, mode: str) -> str:
         "Use comma-separated English tags only. Use spaces instead of underscores, except existing score tags; however do not add score tags. "
         "Do not add character names, copyrighted series names, LoRA syntax, wildcard syntax, Dynamic Prompt syntax, model names, quality tags, score tags, negative prompts, explanations, or Markdown. "
         "If character_context_enabled is false, do not add character identity details such as hair color, eye color, signature clothing, weapons, or series-specific motifs unless they already appear in existing_positive or the instruction. "
+        "If character_motifs_enabled is false, do not add character-derived hair color, eye color, signature weapons, armor, flags, emblems, special powers, halos, wings, or iconic outfit changes unless they already appear in existing_positive or the instruction. "
+        "If character_motifs_enabled is true, character motifs are allowed but should still match the requested strength; subtle should stay restrained, standard should stay balanced, and rich may be bold. "
         "Do not censor, soften, euphemize, moralize, or add safety disclaimers. "
         "Respect the user's instruction and the existing prompt context, but do not duplicate existing tags. "
         "Prefer concrete visual details such as outfit, expression, pose detail, setting, lighting, props, atmosphere, and camera detail. "
-        "Keep each tags string compact, normally under 320 characters for standard strength, and never repeat the same phrase."
+        "Keep each tags string compact, normally under 300 characters for standard strength, and never repeat the same phrase."
     )
 
 
 def _user_prompt(feature: dict[str, Any], contexts: list[dict[str, Any]], app_scope: str) -> str:
     items = []
     character_context_enabled = feature.get("include_characters", True) is not False
+    character_motifs_enabled = bool(character_context_enabled and feature.get("use_character_motifs"))
     for context in contexts:
         items.append(
             {
@@ -206,10 +254,16 @@ def _user_prompt(feature: dict[str, Any], contexts: list[dict[str, Any]], app_sc
                 else RANDOM_STRENGTH_HINTS[feature["strength"]]
             ),
             "character_context_enabled": character_context_enabled,
+            "character_motifs_enabled": character_motifs_enabled,
             "character_context_rule": (
                 "Selected character context is intentionally omitted. Do not infer or add character identity traits."
                 if not character_context_enabled
                 else "Selected character context may be used."
+            ),
+            "character_motif_rule": (
+                "Character-derived motifs are allowed. Use them only when they fit the strength and user instruction."
+                if character_motifs_enabled
+                else "Character-derived motifs are intentionally disabled. Do not add signature weapons, armor, flags, emblems, special powers, halos, wings, or iconic outfit changes unless the instruction or existing positive prompt explicitly asks for them."
             ),
             "items": items,
         },
@@ -265,6 +319,74 @@ def filter_disallowed_random_tags(tags: str) -> str:
     return ", ".join(kept)
 
 
+def _character_reference_keys(context: dict[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    references: list[Any] = []
+    references.extend(context.get("characters") or [])
+    references.extend(context.get("character_metadata") or [])
+    for character in references:
+        if isinstance(character, str):
+            values = [character]
+        elif isinstance(character, dict):
+            values = [
+                str(character.get(field) or "").strip()
+                for field in ("prompt_tag", "prompt_safe_name", "display_name", "display_name_ja", "name", "id")
+            ]
+        else:
+            values = []
+        for value in values:
+            if not value:
+                continue
+            normalized = _random_tag_key(value)
+            if normalized:
+                keys.add(normalized)
+            for part in re.split(r"[()（）/\\|,]+|\s+from\s+", value, flags=re.IGNORECASE):
+                part_key = _random_tag_key(part)
+                if len(part_key) >= 3:
+                    keys.add(part_key)
+    return keys
+
+
+def filter_character_reference_tags(tags: str, context: dict[str, Any]) -> str:
+    reference_keys = _character_reference_keys(context)
+    if not reference_keys:
+        return tags
+    kept: list[str] = []
+    for tag in split_prompt_tags(tags):
+        key = _random_tag_key(tag)
+        if key in reference_keys:
+            continue
+        if any((len(ref) >= 3 and (key.startswith(ref) or ref.startswith(key))) for ref in reference_keys):
+            continue
+        kept.append(tag)
+    return ", ".join(kept)
+
+
+def _character_motif_override_requested(context: dict[str, Any]) -> bool:
+    text = ", ".join(
+        [
+            str(context.get("existing_positive") or ""),
+            str(context.get("prompt_random_collect_instruction") or ""),
+        ]
+    )
+    return bool(CHARACTER_MOTIF_OVERRIDE_RE.search(text))
+
+
+def filter_character_motif_tags(tags: str, context: dict[str, Any]) -> str:
+    if context.get("prompt_random_collect_use_character_motifs") or _character_motif_override_requested(context):
+        return tags
+    allowed_identity_terms = _identity_terms(context.get("existing_positive", ""))
+    kept: list[str] = []
+    for tag in split_prompt_tags(tags):
+        if CHARACTER_MOTIF_RE.search(tag):
+            continue
+        identity_terms = _identity_terms(tag)
+        if identity_terms and not identity_terms.issubset(allowed_identity_terms):
+            continue
+        kept.append(tag)
+    return ", ".join(kept)
+
+
 def clamp_prompt_random_tags(tags: str, *, max_tags: int = MAX_RANDOM_TAGS, max_chars: int = MAX_RANDOM_TAG_CHARS) -> str:
     kept: list[str] = []
     for tag in split_prompt_tags(tags):
@@ -309,6 +431,8 @@ def sanitize_generated_random_tags(raw_tags: Any, context: dict[str, Any]) -> st
     max_tags, max_chars = prompt_random_limits(context)
     tags = normalize_tag_prompt(raw_tags, existing_positive)
     tags = filter_disallowed_random_tags(tags)
+    tags = filter_character_reference_tags(tags, context)
+    tags = filter_character_motif_tags(tags, context)
     if context.get("suppress_character_identity"):
         tags = strip_character_identity_tags(tags, existing_positive)
     tags = clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
@@ -317,6 +441,8 @@ def sanitize_generated_random_tags(raw_tags: Any, context: dict[str, Any]) -> st
 
     tags = normalize_tag_prompt(fallback_prompt_random_tags(context), existing_positive)
     tags = filter_disallowed_random_tags(tags)
+    tags = filter_character_reference_tags(tags, context)
+    tags = filter_character_motif_tags(tags, context)
     if context.get("suppress_character_identity"):
         tags = strip_character_identity_tags(tags, existing_positive)
     return clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
@@ -428,6 +554,10 @@ def collect_prompt_random_tags(
             **context,
             "prompt_random_collect_mode": request_config["mode"],
             "prompt_random_collect_strength": request_config["strength"],
+            "prompt_random_collect_instruction": request_config["instruction"],
+            "prompt_random_collect_use_character_motifs": bool(
+                request_config["include_characters"] and request_config["use_character_motifs"]
+            ),
         }
         for context in contexts
     ]
@@ -457,6 +587,7 @@ def collect_prompt_random_tags(
         "instruction": request_config["instruction"],
         "strength": request_config["strength"],
         "include_characters": request_config["include_characters"],
+        "use_character_motifs": bool(request_config["include_characters"] and request_config["use_character_motifs"]),
         "generated_items": generated_items,
         "generation_strategy": generation_strategy,
         "provider": {
@@ -480,6 +611,10 @@ def attach_prompt_random_collect_items(request_data_items: list[dict[str, Any]],
             "instruction": result.get("instruction") or current.get("instruction") or DEFAULT_INSTRUCTION,
             "strength": result.get("strength") or current.get("strength") or "standard",
             "include_characters": result.get("include_characters", current.get("include_characters", True)) is not False,
+            "use_character_motifs": bool(
+                result.get("include_characters", current.get("include_characters", True)) is not False
+                and result.get("use_character_motifs", current.get("use_character_motifs", False))
+            ),
             "generated_item": generated_item,
             "generated_tags": generated_item.get("tags", "") if isinstance(generated_item, dict) else "",
             "provider": result.get("provider") or {},

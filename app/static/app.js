@@ -414,24 +414,29 @@
       instruction: promptRandomDefaultInstruction(normalizedMode),
       strength: "standard",
       include_characters: true,
+      use_character_motifs: false,
     };
   }
 
   function collectPromptRandomCollect() {
     const mode = normalizePromptRandomMode(value("#promptRandomMode", "random"));
+    const includeCharacters = checked("#promptRandomIncludeCharacters");
     return {
       enabled: checked("#promptRandomEnabled"),
       mode,
       instruction: value("#promptRandomInstruction", promptRandomDefaultInstruction(mode)),
       strength: value("#promptRandomStrength", "standard"),
-      include_characters: checked("#promptRandomIncludeCharacters"),
+      include_characters: includeCharacters,
+      use_character_motifs: includeCharacters && checked("#promptRandomUseCharacterMotifs"),
     };
   }
 
   function promptRandomOnSummary() {
     const mode = normalizePromptRandomMode(value("#promptRandomMode", "random"));
     const modeLabel = mode === "positive_completion" ? "補完" : "RANDOM";
-    return `ON / ${modeLabel} / ${checked("#promptRandomIncludeCharacters") ? "CHAR" : "NO CHAR"}`;
+    const charLabel = checked("#promptRandomIncludeCharacters") ? "CHAR" : "NO CHAR";
+    const motifLabel = checked("#promptRandomIncludeCharacters") && checked("#promptRandomUseCharacterMotifs") ? "MOTIF" : "NO MOTIF";
+    return `ON / ${modeLabel} / ${charLabel} / ${motifLabel}`;
   }
 
   function applyPromptRandomCollectToForm(config = {}) {
@@ -442,6 +447,7 @@
     setValue("#promptRandomInstruction", config.instruction || defaults.instruction);
     setValue("#promptRandomStrength", config.strength || defaults.strength);
     setChecked("#promptRandomIncludeCharacters", config.include_characters !== false);
+    setChecked("#promptRandomUseCharacterMotifs", Boolean(config.include_characters !== false && config.use_character_motifs));
   }
 
   function updatePromptRandomMode() {
@@ -3521,6 +3527,7 @@
       instruction: data.instruction || defaults.instruction,
       strength: data.strength || defaults.strength,
       include_characters: data.include_characters !== false,
+      use_character_motifs: Boolean(data.include_characters !== false && data.use_character_motifs),
     };
   }
 
@@ -4013,6 +4020,7 @@
 
     $("#promptRandomEnabled")?.addEventListener("change", updateSummaries);
     $("#promptRandomIncludeCharacters")?.addEventListener("change", updateSummaries);
+    $("#promptRandomUseCharacterMotifs")?.addEventListener("change", updateSummaries);
     $("#promptRandomMode")?.addEventListener("change", updatePromptRandomMode);
     $("#promptRandomInstruction")?.addEventListener("input", updateSummaries);
     $("#promptRandomStrength")?.addEventListener("change", updateSummaries);
