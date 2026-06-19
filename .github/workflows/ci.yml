@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -52,5 +54,18 @@ jobs:
       - name: Run compileall
         run: python -m compileall app tests
 
-      - name: Check whitespace
-        run: git diff --check
+      - name: Check whitespace in pull request diff
+        if: github.event_name == 'pull_request'
+        run: git diff --check "origin/${{ github.base_ref }}...HEAD"
+
+      - name: Check whitespace in push diff
+        if: github.event_name == 'push'
+        run: |
+          before="${{ github.event.before }}"
+          if [ "$before" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$before^{commit}" 2>/dev/null; then
+            git diff --check "$before..HEAD"
+          elif git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            git diff --check HEAD^ HEAD
+          else
+            git diff --check --root HEAD
+          fi
