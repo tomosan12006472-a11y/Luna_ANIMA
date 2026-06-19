@@ -2,17 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime
 import re
-from threading import Lock
+from threading import RLock
 from typing import Any
 
-from ._shared_utils import read_json_with_retry, write_json_atomic
 from .character_names import localize_favorites_payload
 from .config import FAVORITES_PATH
 from .anima_adapter import catalog
+from .storage.json_store import JsonStore
 
 
 FAVORITE_SOURCES = {"wai_characters", "original_character"}
-_FAVORITES_LOCK = Lock()
+_FAVORITES_LOCK = RLock()
 
 
 def now_iso() -> str:
@@ -88,11 +88,18 @@ def load_favorites() -> dict[str, list[dict[str, Any]]]:
         return _load_favorites_unlocked()
 
 
+def _favorites_store() -> JsonStore:
+    return JsonStore(
+        FAVORITES_PATH,
+        default_factory=empty_favorites,
+        label="character favorites",
+        lock=_FAVORITES_LOCK,
+        validator=normalize_favorites,
+    )
+
+
 def _load_favorites_unlocked() -> dict[str, list[dict[str, Any]]]:
-    if not FAVORITES_PATH.exists():
-        return empty_favorites()
-    raw = read_json_with_retry(FAVORITES_PATH, label="character favorites")
-    return normalize_favorites(raw)
+    return _favorites_store().read(strict=True)
 
 
 def save_favorites(data: dict[str, list[dict[str, Any]]]) -> None:
@@ -101,7 +108,7 @@ def save_favorites(data: dict[str, list[dict[str, Any]]]) -> None:
 
 
 def _save_favorites_unlocked(data: dict[str, list[dict[str, Any]]]) -> None:
-    write_json_atomic(FAVORITES_PATH, normalize_favorites(data))
+    _favorites_store().write(normalize_favorites(data))
 
 
 def make_favorite_id(source: str, item: dict[str, Any]) -> str:

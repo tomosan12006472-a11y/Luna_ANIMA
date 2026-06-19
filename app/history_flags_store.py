@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-import json
-from threading import Lock
-import time
+from threading import RLock
 from typing import Any
 
-from ._shared_utils import write_json_atomic
 from .config import ROOT_DIR
+from .storage.json_store import JsonStore
 
 
 APP_SCOPE = "anima"
 FLAGS_PATH = ROOT_DIR / "user_data" / "history_flags_anima.json"
 VALID_FLAGS = {"favorite", "post_candidate", "hidden", "tags"}
-_FLAGS_LOCK = Lock()
+_FLAGS_LOCK = RLock()
 
 
 def now_iso() -> str:
@@ -33,17 +31,7 @@ def load_history_flags() -> dict[str, Any]:
         return _load_history_flags_unlocked()
 
 
-def _load_history_flags_unlocked() -> dict[str, Any]:
-    if not FLAGS_PATH.exists():
-        return empty_payload()
-    try:
-        data = json.loads(FLAGS_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        time.sleep(0.05)
-        try:
-            data = json.loads(FLAGS_PATH.read_text(encoding="utf-8"))
-        except Exception as second_error:
-            raise RuntimeError("history flags are temporarily unreadable") from second_error
+def _normalize_payload(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         return empty_payload()
     if data.get("app_scope") != APP_SCOPE:
@@ -55,13 +43,27 @@ def _load_history_flags_unlocked() -> dict[str, Any]:
     return data
 
 
+def _flags_store() -> JsonStore:
+    return JsonStore(
+        FLAGS_PATH,
+        default_factory=empty_payload,
+        label="history flags",
+        lock=_FLAGS_LOCK,
+        validator=_normalize_payload,
+    )
+
+
+def _load_history_flags_unlocked() -> dict[str, Any]:
+    return _flags_store().read(strict=True)
+
+
 def save_history_flags(data: dict[str, Any]) -> None:
     with _FLAGS_LOCK:
         _save_history_flags_unlocked(data)
 
 
 def _save_history_flags_unlocked(data: dict[str, Any]) -> None:
-    write_json_atomic(FLAGS_PATH, data)
+    _flags_store().write(data)
 
 
 def normalize_flags(value: Any) -> dict[str, Any]:
@@ -129,12 +131,18 @@ def update_history_flags(history_id: str, patch: dict[str, Any]) -> dict[str, An
             clean_patch[key] = [str(tag) for tag in value] if isinstance(value, list) else []
         else:
             clean_patch[key] = bool(value)
-    with _FLAGS_LOCK:
-        data = _load_history_flags_unlocked()
+    updated_flags: dict[str, Any] = {}
+
+    def mutate(data: dict[str, Any]) -> dict[str, Any]:
+        nonlocal updated_flags
         items = data.setdefault("items", {})
         current = normalize_flags(items.get(history_id))
         current.update(clean_patch)
         current["updated_at"] = now_iso()
         items[history_id] = current
-        _save_history_flags_unlocked(data)
-        return current
+        updated_flags = current
+        return data
+
+    with _FLAGS_LOCK:
+        _flags_store().update(mutate, strict=True)
+        return updated_flags
