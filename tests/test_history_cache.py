@@ -8,6 +8,7 @@ import unittest
 from unittest import mock
 
 from app import history_store
+from app._shared_utils import JsonStoreReadError
 
 
 class HistoryCacheTests(unittest.TestCase):
@@ -92,6 +93,16 @@ class HistoryCacheTests(unittest.TestCase):
         self.assertEqual(self.list_ids(), ["second", "first"])
         second.unlink()
         self.assertEqual(self.list_ids(), ["first"])
+
+    def test_pending_status_update_raises_when_history_stays_unreadable(self) -> None:
+        path = self.history_dir / "entry.json"
+        path.write_text("{", encoding="utf-8")
+        original_text = path.read_text(encoding="utf-8")
+
+        with self.assertRaises(JsonStoreReadError):
+            history_store.update_pending_history_status("entry", "failed", "queue sync failed")
+
+        self.assertEqual(path.read_text(encoding="utf-8"), original_text)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
-from ._shared_utils import write_json_atomic
+from ._shared_utils import JsonStoreReadError, read_json_with_retry, write_json_atomic
 from .anima_adapter import catalog
 from .config import HISTORY_DIR, IMAGE_DIR, PUBLIC_DIR, THUMBNAIL_DIR
 from .output_organizer import infer_anima_generation_method, organization_metadata
@@ -67,19 +67,19 @@ def _locked_history_item(history_id: Any):
         yield
 
 
-def load_history_item(history_id: str) -> dict[str, Any] | None:
+def load_history_item(history_id: str, *, strict: bool = False) -> dict[str, Any] | None:
     path = history_path(history_id)
     if not path.exists():
         return None
     try:
-        item = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        time.sleep(0.05)
-        try:
-            item = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            return None
+        item = read_json_with_retry(path, label=f"history item {history_id}")
+    except JsonStoreReadError:
+        if strict:
+            raise
+        return None
     if not isinstance(item, dict):
+        if strict:
+            raise JsonStoreReadError(f"history item {history_id} is not a JSON object")
         return None
     return normalize_history_item(item)
 
@@ -688,7 +688,7 @@ def complete_pending_history_item(history_id: str, result: Any) -> dict[str, Any
         return None
     image_path, thumb_path = save_generated_image(result.image_data_url, history_id)
     with _locked_history_item(history_id):
-        item = load_history_item(history_id)
+        item = load_history_item(history_id, strict=True)
         if not item:
             return None
         now = now_iso()
@@ -711,7 +711,7 @@ def complete_pending_history_item(history_id: str, result: Any) -> dict[str, Any
 
 def update_pending_history_status(history_id: str, status: str, error: str | None = None) -> dict[str, Any] | None:
     with _locked_history_item(history_id):
-        item = load_history_item(history_id)
+        item = load_history_item(history_id, strict=True)
         if not item:
             return None
         now = now_iso()
@@ -759,7 +759,7 @@ def public_image_dimensions(path: Path) -> dict[str, int]:
 def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = None) -> dict[str, Any]:
     history_id = str(item.get("id") or "")
     with _locked_history_item(history_id):
-        current = load_history_item(history_id) or dict(item)
+        current = load_history_item(history_id, strict=True) or dict(item)
         source = Path(current["image_path"])
         if not source.exists():
             raise FileNotFoundError("source image is missing")

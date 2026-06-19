@@ -8,6 +8,7 @@ from PIL import Image, ImageChops
 
 from app import history_store
 from app import main
+from app._shared_utils import JsonStoreReadError
 
 
 class PublicWatermarkTests(unittest.TestCase):
@@ -75,6 +76,27 @@ class PublicWatermarkTests(unittest.TestCase):
         self.assertEqual(current["queue"]["error"], "Timed out waiting for ComfyUI history")
         self.assertTrue(current["public_save"]["saved"])
         self.assertFalse(current["watermark"]["applied"])
+
+    def test_public_save_stops_when_current_history_is_unreadable(self) -> None:
+        source = self.root / "source.png"
+        Image.new("RGB", (320, 180), (20, 30, 40)).save(source)
+        history_path = self.history_dir / "frame-1.json"
+        history_path.write_text("{", encoding="utf-8")
+        original_text = history_path.read_text(encoding="utf-8")
+        stale_item = {
+            "id": "frame-1",
+            "created_at": "2026-06-18T09:00:00",
+            "status": "completed",
+            "image_path": str(source),
+            "thumbnail_path": str(source),
+            "public_save": {"saved": False},
+            "watermark": {"applied": False},
+        }
+
+        with self.assertRaises(JsonStoreReadError):
+            history_store.copy_public_image(stale_item, {"enabled": False})
+
+        self.assertEqual(history_path.read_text(encoding="utf-8"), original_text)
 
     def test_legacy_public_save_request_uses_saved_watermark_settings(self) -> None:
         watermark = main.resolve_public_save_watermark(
