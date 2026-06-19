@@ -396,6 +396,13 @@
     random: "衣装、表情、背景、小物をランダムに足す",
     positive_completion: "既存Positiveの意図を保ったまま、不足している描写を英語タグで補う",
   };
+  const PROMPT_RANDOM_STRENGTHS = new Set(["subtle", "standard", "reference_568", "rich"]);
+  const PROMPT_RANDOM_STRENGTH_LABELS = {
+    subtle: "控えめ",
+    standard: "標準",
+    reference_568: "#568基準",
+    rich: "大胆",
+  };
 
   function normalizePromptRandomMode(mode) {
     const normalized = String(mode || "random").trim().toLowerCase();
@@ -404,6 +411,11 @@
 
   function promptRandomDefaultInstruction(mode = "random") {
     return PROMPT_RANDOM_DEFAULT_INSTRUCTIONS[normalizePromptRandomMode(mode)] || PROMPT_RANDOM_DEFAULT_INSTRUCTIONS.random;
+  }
+
+  function normalizePromptRandomStrength(strength) {
+    const normalized = String(strength || "standard").trim().toLowerCase();
+    return PROMPT_RANDOM_STRENGTHS.has(normalized) ? normalized : "standard";
   }
 
   function defaultPromptRandomCollect(mode = "random") {
@@ -425,7 +437,7 @@
       enabled: checked("#promptRandomEnabled"),
       mode,
       instruction: value("#promptRandomInstruction", promptRandomDefaultInstruction(mode)),
-      strength: value("#promptRandomStrength", "standard"),
+      strength: normalizePromptRandomStrength(value("#promptRandomStrength", "standard")),
       include_characters: includeCharacters,
       use_character_motifs: includeCharacters && checked("#promptRandomUseCharacterMotifs"),
     };
@@ -434,9 +446,11 @@
   function promptRandomOnSummary() {
     const mode = normalizePromptRandomMode(value("#promptRandomMode", "random"));
     const modeLabel = mode === "positive_completion" ? "補完" : "RANDOM";
+    const strength = normalizePromptRandomStrength(value("#promptRandomStrength", "standard"));
+    const strengthLabel = PROMPT_RANDOM_STRENGTH_LABELS[strength] || "標準";
     const charLabel = checked("#promptRandomIncludeCharacters") ? "CHAR" : "NO CHAR";
     const motifLabel = checked("#promptRandomIncludeCharacters") && checked("#promptRandomUseCharacterMotifs") ? "MOTIF" : "NO MOTIF";
-    return `ON / ${modeLabel} / ${charLabel} / ${motifLabel}`;
+    return `ON / ${modeLabel} / ${strengthLabel} / ${charLabel} / ${motifLabel}`;
   }
 
   function applyPromptRandomCollectToForm(config = {}) {
@@ -445,7 +459,7 @@
     setChecked("#promptRandomEnabled", Boolean(config.enabled));
     setValue("#promptRandomMode", mode);
     setValue("#promptRandomInstruction", config.instruction || defaults.instruction);
-    setValue("#promptRandomStrength", config.strength || defaults.strength);
+    setValue("#promptRandomStrength", normalizePromptRandomStrength(config.strength || defaults.strength));
     setChecked("#promptRandomIncludeCharacters", config.include_characters !== false);
     setChecked("#promptRandomUseCharacterMotifs", Boolean(config.include_characters !== false && config.use_character_motifs !== false));
   }

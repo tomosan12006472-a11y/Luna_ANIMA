@@ -29,6 +29,11 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertEqual(result["mode"], "positive_completion")
         self.assertEqual(result["instruction"], prompt_random_collect.DEFAULT_INSTRUCTIONS["positive_completion"])
 
+    def test_sanitize_request_accepts_reference_568_strength(self) -> None:
+        result = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "strength": "reference_568"})
+
+        self.assertEqual(result["strength"], "reference_568")
+
     def test_sanitize_request_can_disable_character_context(self) -> None:
         result = prompt_random_collect.sanitize_prompt_random_collect_request(
             {"enabled": True, "include_characters": False, "use_character_motifs": True}
@@ -59,6 +64,20 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertTrue(payload["character_motifs_enabled"])
         self.assertIn("allowed", payload["character_motif_rule"])
         self.assertIn("Creative variance is desirable", prompt_random_collect._system_prompt("anima", "random"))
+
+    def test_user_prompt_reference_568_strength_includes_reference_conditions(self) -> None:
+        feature = prompt_random_collect.sanitize_prompt_random_collect_request(
+            {"enabled": True, "mode": "random", "strength": "reference_568"}
+        )
+        payload = json.loads(prompt_random_collect._user_prompt(feature, [{"index": 0, "existing_positive": "1girl, white bikini"}], "anima"))
+
+        self.assertEqual(payload["strength"], "reference_568")
+        self.assertIn("#568 reference conditions", payload["strength_hint"])
+        self.assertIn("Do not invent new hair or eye colors", payload["strength_hint"])
+        self.assertIn("reference_568_conditions", payload)
+        self.assertIn("white Bikini", payload["reference_568_conditions"]["existing_positive"])
+        self.assertNotIn("generated_tags", payload["reference_568_conditions"])
+        self.assertIn("not a fixed visual theme", " ".join(payload["reference_568_conditions"]["behavior_to_copy"]))
 
     def test_character_context_disabled_removes_character_tags_from_existing_positive_context(self) -> None:
         request = {
@@ -166,7 +185,7 @@ class PromptRandomCollectTests(unittest.TestCase):
                 "items": [
                     {
                         "index": 0,
-                        "tags": "red checkered frilly dress, holding a miniature wooden horse, holding a small wooden staff, silver sword, golden armor, sunset sky",
+                        "tags": "red checkered frilly dress, holding a miniature wooden horse, holding a small wooden staff, small silver halberd, energy pistol, silver sword, golden armor, sunset sky",
                     }
                 ]
             },
@@ -359,6 +378,46 @@ class PromptRandomCollectTests(unittest.TestCase):
 
         self.assertEqual(result[0]["tags"], reference_tags)
         self.assertLessEqual(len(result[0]["tags"]), prompt_random_collect.MAX_RANDOM_TAG_CHARS)
+
+    def test_reference_568_strength_uses_standard_random_limits(self) -> None:
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "@gpt-image-2, white Bikini",
+                "prompt_random_collect_mode": "random",
+                "prompt_random_collect_strength": "reference_568",
+                "prompt_random_collect_use_character_motifs": True,
+            }
+        ]
+
+        self.assertEqual(
+            prompt_random_collect.prompt_random_limits(contexts[0]),
+            (prompt_random_collect.MAX_RANDOM_TAGS, prompt_random_collect.MAX_RANDOM_TAG_CHARS),
+        )
+
+    def test_reference_568_strength_filters_new_hair_and_eye_colors(self) -> None:
+        contexts = [
+            {
+                "index": 0,
+                "existing_positive": "@gpt-image-2, white Bikini",
+                "prompt_random_collect_mode": "random",
+                "prompt_random_collect_strength": "reference_568",
+                "prompt_random_collect_use_character_motifs": True,
+            }
+        ]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {
+                "items": [
+                    {
+                        "index": 0,
+                        "tags": "blue hair, red eyes, ribbon hair accessory, holding a miniature wooden horse, sunset sky",
+                    }
+                ]
+            },
+            contexts,
+        )
+
+        self.assertEqual(result[0]["tags"], "ribbon hair accessory, holding a miniature wooden horse, sunset sky")
 
     def test_positive_completion_keeps_tighter_tag_span(self) -> None:
         reference_tags = (

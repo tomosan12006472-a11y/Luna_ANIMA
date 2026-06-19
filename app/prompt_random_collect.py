@@ -28,7 +28,8 @@ DEFAULT_INSTRUCTIONS = {
     MODE_POSITIVE_COMPLETION: "既存Positiveの意図を保ったまま、不足している描写を英語タグで補う",
 }
 DEFAULT_INSTRUCTION = DEFAULT_INSTRUCTIONS[MODE_RANDOM]
-VALID_STRENGTHS = {"subtle", "standard", "rich"}
+STRENGTH_REFERENCE_568 = "reference_568"
+VALID_STRENGTHS = {"subtle", "standard", "rich", STRENGTH_REFERENCE_568}
 MAX_POSITIVE_COMPLETION_TAGS = 12
 MAX_POSITIVE_COMPLETION_TAG_CHARS = 220
 MAX_RANDOM_TAGS = 12
@@ -36,6 +37,7 @@ MAX_RANDOM_TAG_CHARS = 320
 MAX_RANDOM_TAG_LIMITS_BY_STRENGTH = {
     "subtle": (8, 220),
     "standard": (MAX_RANDOM_TAGS, MAX_RANDOM_TAG_CHARS),
+    STRENGTH_REFERENCE_568: (MAX_RANDOM_TAGS, MAX_RANDOM_TAG_CHARS),
     "rich": (16, 420),
 }
 LOCAL_FALLBACK_TAG_SETS = [
@@ -147,21 +149,46 @@ CHARACTER_MOTIF_OVERRIDE_RE = re.compile(
 HEAVY_RANDOM_MOTIF_RE = re.compile(
     r"\b("
     r"armor|armored|blade|bodysuit|bow|chainmail|crossbow|daggers?|gauntlets?|greatsword|"
-    r"halberd|helmet|katana|lance|mace|rifle|scimitar|shield|spear|staff|sword|tactical|weapons?"
+    r"cannon|firearm|guns?|halberd|helmet|katana|lance|mace|pistol|rifle|scimitar|shield|spear|staff|sword|tactical|weapons?"
     r")s?\b",
     re.IGNORECASE,
 )
 SMALL_PROP_RE = re.compile(r"\b(miniature|small|tiny|toy|wooden|plush|handheld)\b", re.IGNORECASE)
+LIGHT_PROP_WEAPON_RE = re.compile(r"\bstaff\b", re.IGNORECASE)
+HAIR_EYE_COLOR_RE = re.compile(
+    r"\b(auburn|black|blonde|blue|brown|green|golden|gray|grey|pink|purple|red|silver|white)\s+(hair|eyes?)\b",
+    re.IGNORECASE,
+)
 SWIMWEAR_RE = re.compile(r"\b(bikini|swimsuit|two[- ]piece|one[- ]piece)\b", re.IGNORECASE)
 POSITIVE_COMPLETION_STRENGTH_HINTS = {
     "subtle": "Add 2 to 4 concise visual tags per item.",
     "standard": "Add 5 to 8 concise visual tags per item.",
+    STRENGTH_REFERENCE_568: "Add 5 to 8 concise visual tags per item.",
     "rich": "Add 8 to 12 vivid visual tags per item without bloating the prompt.",
 }
 RANDOM_STRENGTH_HINTS = {
     "subtle": "Add 4 to 6 concise tags per item. Preserve the core outfit and character feel; focus on expression, pose nuance, setting, lighting, props, and camera.",
     "standard": "Add 8 to 12 varied tags per item. Preserve explicit outfit tags in the existing prompt, then add compatible outfit layers or accessories, hair accessories, toy-sized props, expressive motion, setting, lighting, and camera. If a bikini or swimsuit is already present, keep it visible and do not replace it with a different outfit; add things around it such as frills, skirt layers, ribbons, cover-ups, props, or background details.",
+    STRENGTH_REFERENCE_568: "Use the included #568 reference conditions as a behavioral example. Add 8 to 12 varied tags per item. Preserve explicit outfit tags such as white Bikini, then add compatible outfit layers or accessories, small props, expressive motion, setting, lighting, and camera. Do not invent new hair or eye colors. Do not copy any reference result literally; reproduce the behavior of preserving the base outfit while adding playful coherent variety.",
     "rich": "Add 12 to 16 vivid tags per item with bold outfit, prop, setting, action, lighting, and camera changes while keeping the prompt coherent.",
+}
+REFERENCE_568_CONDITIONS = {
+    "source": "Luna ANIMA history #568 behavioral reference",
+    "selected_character_context": "Jeanne D'arc from Fate",
+    "existing_positive": (
+        "masterpiece, best quality, score_7, anime illustration, safe, 1girl, "
+        "jeanne d'arc \\(fate\\), An anime illustration of Jeanne D'arc from Fate in a clean, expressive composition., "
+        "@gpt-image-2, white Bikini"
+    ),
+    "instruction": "衣装、表情、背景、小物をランダムに足す",
+    "behavior_to_copy": [
+        "Keep the base swimsuit or bikini from existing_positive visible.",
+        "Add compatible outfit layers or accessories around the base outfit instead of replacing it.",
+        "Add a small prop, expressive motion, background, lighting, and camera detail.",
+        "Do not invent new hair or eye colors; selected character identity is already handled by the app.",
+        "Do not chase a specific color, pattern, or outfit; the reference is about behavior, not a fixed visual theme.",
+        "Avoid turning the result into heavy armor or a full battle costume unless the user's current prompt asks for it.",
+    ],
 }
 PROMPT_RANDOM_BATCH_ATTEMPTS = 2
 PROMPT_RANDOM_SINGLE_ATTEMPTS = 2
@@ -252,33 +279,36 @@ def _user_prompt(feature: dict[str, Any], contexts: list[dict[str, Any]], app_sc
                 "existing_positive": str(context.get("existing_positive") or "")[:3500],
             }
         )
+    payload = {
+        "app_scope": app_scope,
+        "mode": feature["mode"],
+        "count": len(items),
+        "instruction": feature["instruction"],
+        "strength": feature["strength"],
+        "strength_hint": (
+            POSITIVE_COMPLETION_STRENGTH_HINTS[feature["strength"]]
+            if feature["mode"] == MODE_POSITIVE_COMPLETION
+            else RANDOM_STRENGTH_HINTS[feature["strength"]]
+        ),
+        "character_context_enabled": character_context_enabled,
+        "character_motifs_enabled": character_motifs_enabled,
+        "character_context_rule": (
+            "Selected character context is intentionally omitted. Do not infer or add character identity traits."
+            if not character_context_enabled
+            else "Selected character context may be used."
+        ),
+        "character_motif_rule": (
+            "Character-derived motifs are allowed. Use them only when they fit the strength and user instruction."
+            if character_motifs_enabled
+            else "Character-derived motifs are intentionally disabled. Do not add signature weapons, armor, flags, emblems, special powers, halos, wings, or iconic outfit changes unless the instruction or existing positive prompt explicitly asks for them."
+        ),
+        "batch_diversity_rule": "Do not reuse the same added tag or the same obvious motif across multiple items in this batch.",
+        "items": items,
+    }
+    if feature["mode"] == MODE_RANDOM and feature["strength"] == STRENGTH_REFERENCE_568:
+        payload["reference_568_conditions"] = REFERENCE_568_CONDITIONS
     return json.dumps(
-        {
-            "app_scope": app_scope,
-            "mode": feature["mode"],
-            "count": len(items),
-            "instruction": feature["instruction"],
-            "strength": feature["strength"],
-            "strength_hint": (
-                POSITIVE_COMPLETION_STRENGTH_HINTS[feature["strength"]]
-                if feature["mode"] == MODE_POSITIVE_COMPLETION
-                else RANDOM_STRENGTH_HINTS[feature["strength"]]
-            ),
-            "character_context_enabled": character_context_enabled,
-            "character_motifs_enabled": character_motifs_enabled,
-            "character_context_rule": (
-                "Selected character context is intentionally omitted. Do not infer or add character identity traits."
-                if not character_context_enabled
-                else "Selected character context may be used."
-            ),
-            "character_motif_rule": (
-                "Character-derived motifs are allowed. Use them only when they fit the strength and user instruction."
-                if character_motifs_enabled
-                else "Character-derived motifs are intentionally disabled. Do not add signature weapons, armor, flags, emblems, special powers, halos, wings, or iconic outfit changes unless the instruction or existing positive prompt explicitly asks for them."
-            ),
-            "batch_diversity_rule": "Do not reuse the same added tag or the same obvious motif across multiple items in this batch.",
-            "items": items,
-        },
+        payload,
         ensure_ascii=False,
         indent=2,
     )
@@ -404,7 +434,7 @@ def filter_heavy_random_motif_tags(tags: str, context: dict[str, Any]) -> str:
         return tags
     kept: list[str] = []
     for tag in split_prompt_tags(tags):
-        if HEAVY_RANDOM_MOTIF_RE.search(tag) and not SMALL_PROP_RE.search(tag):
+        if HEAVY_RANDOM_MOTIF_RE.search(tag) and not (SMALL_PROP_RE.search(tag) and LIGHT_PROP_WEAPON_RE.search(tag)):
             continue
         kept.append(tag)
     return ", ".join(kept)
@@ -417,6 +447,19 @@ def filter_outfit_replacement_tags(tags: str, context: dict[str, Any]) -> str:
     kept: list[str] = []
     for tag in split_prompt_tags(tags):
         if SWIMWEAR_RE.search(tag):
+            continue
+        kept.append(tag)
+    return ", ".join(kept)
+
+
+def filter_reference_568_identity_overrides(tags: str, context: dict[str, Any]) -> str:
+    if str(context.get("prompt_random_collect_strength") or "standard") != STRENGTH_REFERENCE_568:
+        return tags
+    existing_positive = str(context.get("existing_positive") or "")
+    kept: list[str] = []
+    for tag in split_prompt_tags(tags):
+        match = HAIR_EYE_COLOR_RE.search(tag)
+        if match and match.group(0).lower() not in existing_positive.lower():
             continue
         kept.append(tag)
     return ", ".join(kept)
@@ -470,6 +513,7 @@ def sanitize_generated_random_tags(raw_tags: Any, context: dict[str, Any]) -> st
     tags = filter_character_motif_tags(tags, context)
     tags = filter_heavy_random_motif_tags(tags, context)
     tags = filter_outfit_replacement_tags(tags, context)
+    tags = filter_reference_568_identity_overrides(tags, context)
     if context.get("suppress_character_identity"):
         tags = strip_character_identity_tags(tags, existing_positive)
     tags = clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
@@ -482,6 +526,7 @@ def sanitize_generated_random_tags(raw_tags: Any, context: dict[str, Any]) -> st
     tags = filter_character_motif_tags(tags, context)
     tags = filter_heavy_random_motif_tags(tags, context)
     tags = filter_outfit_replacement_tags(tags, context)
+    tags = filter_reference_568_identity_overrides(tags, context)
     if context.get("suppress_character_identity"):
         tags = strip_character_identity_tags(tags, existing_positive)
     return clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
