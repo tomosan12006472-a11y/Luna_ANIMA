@@ -4,8 +4,11 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from app import history_store, prompt_random_collect
+from app.generation_helpers import prompt_random_collect_context_request
+from app.payload_builder import build_prompts
 
 
 class PromptRandomCollectTests(unittest.TestCase):
@@ -29,6 +32,37 @@ class PromptRandomCollectTests(unittest.TestCase):
         result = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "include_characters": False})
         self.assertFalse(result["include_characters"])
 
+    def test_user_prompt_marks_character_context_as_intentionally_omitted(self) -> None:
+        feature = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "include_characters": False})
+        payload = json.loads(prompt_random_collect._user_prompt(feature, [{"index": 0, "existing_positive": "1girl"}], "anima"))
+
+        self.assertFalse(payload["character_context_enabled"])
+        self.assertIn("intentionally omitted", payload["character_context_rule"])
+
+    def test_character_context_disabled_removes_character_tags_from_existing_positive_context(self) -> None:
+        request = {
+            "character1": "scathach (fate)",
+            "character2": "None",
+            "character3": "None",
+            "original_character": "None",
+            "rating": "safe",
+            "quality_preset": "standard",
+            "meta_prompt": "anime illustration",
+            "positive_prompt": "1girl, solo, cafe, maid outfit",
+            "negative_prompt": "",
+            "negative_prompt_raw": "",
+            "negative_prompt_mode": "append",
+            "prompt_random_collect": {"enabled": True, "include_characters": False},
+        }
+        regular_positive = build_prompts(request)["positive"].lower()
+        context_positive = build_prompts(prompt_random_collect_context_request(request, include_characters=False))["positive"].lower()
+
+        self.assertIn("scathach", regular_positive)
+        self.assertIn("fate", regular_positive)
+        self.assertNotIn("scathach", context_positive)
+        self.assertNotIn("fate", context_positive)
+        self.assertIn("cafe", context_positive)
+
     def test_normalize_items_removes_disallowed_syntax_and_existing_tags(self) -> None:
         contexts = [{"index": 0, "seed": 11, "existing_positive": "white hair, blue eyes"}]
         result = prompt_random_collect.normalize_prompt_random_collect_items(
@@ -36,6 +70,48 @@ class PromptRandomCollectTests(unittest.TestCase):
             contexts,
         )
         self.assertEqual(result[0]["tags"], "red dress")
+
+    def test_normalize_items_strips_character_identity_tags_when_context_is_suppressed(self) -> None:
+        contexts = [{"index": 0, "existing_positive": "1girl, cafe", "suppress_character_identity": True}]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {"items": [{"index": 0, "tags": "blue hair, messy bun, red apron, sword, coffee cup, soft sunlight"}]},
+            contexts,
+        )
+        self.assertEqual(result[0]["tags"], "red apron, coffee cup, soft sunlight")
+
+    def test_normalize_items_keeps_identity_tags_when_existing_positive_allows_them(self) -> None:
+        contexts = [{"index": 0, "existing_positive": "1girl, blue hair, ponytail", "suppress_character_identity": True}]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {"items": [{"index": 0, "tags": "long hair, loose ponytail, red apron, sword"}]},
+            contexts,
+        )
+        self.assertEqual(result[0]["tags"], "long hair, loose ponytail, red apron")
+
+    def test_normalize_items_filters_score_quality_and_clamps_long_tags(self) -> None:
+        contexts = [{"index": 0, "existing_positive": ""}]
+        result = prompt_random_collect.normalize_prompt_random_collect_items(
+            {
+                "items": [
+                    {
+                        "index": 0,
+                        "tags": (
+                            "score_9, masterpiece, best quality, soft sunlight, ceramic cup, wooden table, "
+                            "steam rising, cozy atmosphere, shallow depth of field, pastel walls, "
+                            "8k resolution, flower vase, lace apron, warm shadows, window reflection, extra detail"
+                        ),
+                    }
+                ]
+            },
+            contexts,
+        )
+
+        tags = result[0]["tags"]
+        self.assertNotIn("score_9", tags)
+        self.assertNotIn("masterpiece", tags)
+        self.assertNotIn("best quality", tags)
+        self.assertNotIn("8k", tags)
+        self.assertLessEqual(len(tags), prompt_random_collect.MAX_RANDOM_TAG_CHARS)
+        self.assertLessEqual(len(tags.split(",")), prompt_random_collect.MAX_RANDOM_TAGS)
 
     def test_normalize_items_requires_one_item_per_context(self) -> None:
         contexts = [{"index": 0}, {"index": 1}]
@@ -49,6 +125,36 @@ class PromptRandomCollectTests(unittest.TestCase):
                 {"items": [{"index": 0, "tags": "red dress"}, {"index": 1, "tags": "red dress"}]},
                 contexts,
             )
+
+    def test_collect_items_falls_back_to_single_item_calls_after_batch_failures(self) -> None:
+        contexts = [{"index": 0, "existing_positive": ""}, {"index": 1, "existing_positive": ""}]
+        calls: list[int] = []
+
+        def fake_once(config, model, request_config, call_contexts, app_scope):
+            calls.append(len(call_contexts))
+            if len(call_contexts) > 1:
+                raise ValueError("bad batch json")
+            index = call_contexts[0]["index"]
+            return [{"index": index, "tags": f"tag {index}"}]
+
+        with mock.patch.object(prompt_random_collect, "_collect_prompt_random_items_once", side_effect=fake_once):
+            items, strategy = prompt_random_collect._collect_prompt_random_items_with_fallback({}, "model", {}, contexts, "anima")
+
+        self.assertEqual(calls, [2, 2, 1, 1])
+        self.assertEqual(items, [{"index": 0, "tags": "tag 0"}, {"index": 1, "tags": "tag 1"}])
+        self.assertTrue(strategy["fallback"])
+        self.assertEqual(strategy["mode"], "single_fallback")
+
+    def test_collect_items_uses_local_tags_when_single_item_calls_fail(self) -> None:
+        contexts = [{"index": 0, "existing_positive": ""}, {"index": 1, "existing_positive": ""}]
+
+        with mock.patch.object(prompt_random_collect, "_collect_prompt_random_items_once", side_effect=ValueError("bad json")):
+            items, strategy = prompt_random_collect._collect_prompt_random_items_with_fallback({}, "model", {}, contexts, "anima")
+
+        self.assertEqual(len(items), 2)
+        self.assertTrue(all(item["tags"] for item in items))
+        self.assertTrue(strategy["fallback"])
+        self.assertTrue(any("local fallback" in item for item in strategy["errors"]))
 
     def test_attach_generated_item_to_each_request(self) -> None:
         requests = [{"queue_index": 0, "prompt_random_collect": {"enabled": True}}, {"queue_index": 1, "prompt_random_collect": {"enabled": True}}]
