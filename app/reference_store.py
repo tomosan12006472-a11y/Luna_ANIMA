@@ -3,18 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from hashlib import sha256
 from io import BytesIO
-import json
 from pathlib import Path
-from threading import Lock
-import time
+from threading import RLock
 import uuid
 from typing import Any
 
 from PIL import Image, ImageOps
 
-from ._shared_utils import write_json_atomic
 from .config import ROOT_DIR
 from .schemas.reference import ReferenceAssistSettings
+from .storage.json_store import JsonStore
 
 
 REFERENCE_DIR = ROOT_DIR / "user_data" / "reference_inputs"
@@ -22,7 +20,7 @@ THUMB_DIR = REFERENCE_DIR / "thumbs"
 MANIFEST_PATH = REFERENCE_DIR / "reference_inputs.json"
 MAX_REFERENCE_SIDE = 2048
 MAX_UPLOAD_BYTES = 30 * 1024 * 1024
-_MANIFEST_LOCK = Lock()
+_MANIFEST_LOCK = RLock()
 
 REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
 THUMB_DIR.mkdir(parents=True, exist_ok=True)
@@ -44,22 +42,7 @@ def empty_manifest() -> dict[str, Any]:
     return {"schema_version": 1, "items": {}}
 
 
-def load_manifest() -> dict[str, Any]:
-    with _MANIFEST_LOCK:
-        return _load_manifest_unlocked()
-
-
-def _load_manifest_unlocked() -> dict[str, Any]:
-    if not MANIFEST_PATH.exists():
-        return empty_manifest()
-    try:
-        data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        time.sleep(0.05)
-        try:
-            data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-        except Exception as second_error:
-            raise RuntimeError("reference manifest is temporarily unreadable") from second_error
+def _validate_manifest(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         return empty_manifest()
     items = data.get("items")
@@ -69,13 +52,32 @@ def _load_manifest_unlocked() -> dict[str, Any]:
     return data
 
 
+def _manifest_store() -> JsonStore:
+    return JsonStore(
+        MANIFEST_PATH,
+        default_factory=empty_manifest,
+        label="reference manifest",
+        lock=_MANIFEST_LOCK,
+        validator=_validate_manifest,
+    )
+
+
+def load_manifest() -> dict[str, Any]:
+    with _MANIFEST_LOCK:
+        return _load_manifest_unlocked()
+
+
+def _load_manifest_unlocked() -> dict[str, Any]:
+    return _manifest_store().read(strict=True)
+
+
 def save_manifest(data: dict[str, Any]) -> None:
     with _MANIFEST_LOCK:
         _save_manifest_unlocked(data)
 
 
 def _save_manifest_unlocked(data: dict[str, Any]) -> None:
-    write_json_atomic(MANIFEST_PATH, data)
+    _manifest_store().write(data)
 
 
 def public_item(item: dict[str, Any]) -> dict[str, Any]:
