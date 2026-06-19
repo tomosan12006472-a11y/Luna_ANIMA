@@ -12,6 +12,7 @@ from app.generation_prepare import generation_request_dict
 from app.main import app
 from app.schemas.generation import GenerateRequest, HiresFixSettings, OfficialLorasSettings
 from app.schemas.reference import ImageToImageSettings, ReferenceAssistSettings
+from app.workflow import loras as workflow_loras
 
 
 class GenerationSchemaTests(unittest.TestCase):
@@ -116,11 +117,13 @@ class GenerationSchemaTests(unittest.TestCase):
             payload_builder.ANIMA_TURBO_LORA_V01_NAME: "D:/test/lora/turbo_v01.safetensors",
             payload_builder.ANIMA_TURBO_LORA_V02_NAME: "D:/test/lora/turbo_v02.safetensors",
         }
+        fake_find_lora = lambda name: lora_paths.get(name, "")
         with (
             mock.patch.object(generation_api, "prepare_reference_request", side_effect=lambda request_data, addr, upload: request_data),
             mock.patch.object(generation_api, "prepare_reference_modules_request", side_effect=lambda request_data, addr, upload: request_data),
             mock.patch.object(generation_api, "prepare_i2i_request", side_effect=lambda request_data, addr, upload: request_data),
-            mock.patch.object(payload_builder, "find_lora_file", side_effect=lambda name: lora_paths.get(name, "")),
+            mock.patch.object(payload_builder, "find_lora_file", side_effect=fake_find_lora),
+            mock.patch.object(workflow_loras, "find_lora_file", side_effect=fake_find_lora),
         ):
             response = client.post("/api/payload/preview", json=request)
 
