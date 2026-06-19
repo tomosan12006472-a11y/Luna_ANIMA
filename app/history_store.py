@@ -458,6 +458,8 @@ def _prompt_random_collect_summary(request_data: dict[str, Any]) -> dict[str, An
         summary["generated_item"] = generated_item
     if isinstance(data.get("provider"), dict):
         summary["provider"] = data.get("provider")
+    if isinstance(data.get("generation_strategy"), dict):
+        summary["generation_strategy"] = data.get("generation_strategy")
     return summary
 
 

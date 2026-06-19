@@ -6,373 +6,90 @@ from typing import Any
 from urllib import error
 
 from .prompt_converter import (
+    SCORE_TAG_RE,
     _deep_merge,
     _ensure_ready,
     _json_request,
     _parse_json_object,
     _route,
-    SCORE_TAG_RE,
     normalize_tag_prompt,
     prompt_converter_status,
     sanitize_prompt_converter_settings,
     split_prompt_tags,
 )
+from .prompt_random.context import build_prompt_random_collect_contexts, prompt_random_collect_context_request
+from .prompt_random.fallback import (
+    LOCAL_FALLBACK_TAG_SETS,
+    PROMPT_RANDOM_BATCH_ATTEMPTS,
+    PROMPT_RANDOM_SINGLE_ATTEMPTS,
+    fallback_prompt_random_tags,
+)
+from .prompt_random import fallback as _fallback
+from .prompt_random import service as _service
+from .prompt_random.parser import _raw_item_tags, normalize_prompt_random_collect_items
+from .prompt_random.provider import _legacy_568_system_prompt, _provider_config, _system_prompt, _user_prompt
+from .prompt_random.sanitizer import (
+    _character_motif_override_requested,
+    _character_reference_keys,
+    _identity_terms,
+    _random_tag_key,
+    clamp_prompt_random_tags,
+    filter_character_motif_tags,
+    filter_character_reference_tags,
+    filter_disallowed_random_tags,
+    filter_heavy_random_motif_tags,
+    filter_outfit_replacement_tags,
+    filter_reference_568_identity_overrides,
+    prompt_random_limits,
+    sanitize_generated_random_tags,
+    strip_character_identity_tags,
+)
+from .prompt_random.service import (
+    attach_prompt_random_collect_items,
+    prompt_random_collect_enabled,
+    prompt_random_collect_status,
+    prompt_random_collect_tags,
+    sanitize_prompt_random_collect_request,
+)
+from .prompt_random.settings import (
+    CHARACTER_IDENTITY_RE,
+    CHARACTER_IDENTITY_TERMS,
+    CHARACTER_MOTIF_OVERRIDE_RE,
+    CHARACTER_MOTIF_RE,
+    CHARACTER_MOTIF_TERMS,
+    DEFAULT_INSTRUCTION,
+    DEFAULT_INSTRUCTIONS,
+    DISALLOWED_RANDOM_TAG_KEYS,
+    DISALLOWED_RANDOM_TAG_RE,
+    HAIR_EYE_COLOR_RE,
+    HEAVY_RANDOM_MOTIF_RE,
+    LIGHT_PROP_WEAPON_RE,
+    MAX_LEGACY_568_RANDOM_TAG_CHARS,
+    MAX_LEGACY_568_RANDOM_TAGS,
+    MAX_POSITIVE_COMPLETION_TAG_CHARS,
+    MAX_POSITIVE_COMPLETION_TAGS,
+    MAX_RANDOM_TAG_CHARS,
+    MAX_RANDOM_TAG_LIMITS_BY_STRENGTH,
+    MAX_RANDOM_TAGS,
+    MODE_POSITIVE_COMPLETION,
+    MODE_RANDOM,
+    POSITIVE_COMPLETION_STRENGTH_HINTS,
+    RANDOM_STRENGTH_HINTS,
+    REFERENCE_568_CONDITIONS,
+    SMALL_PROP_RE,
+    STRENGTH_LEGACY_568,
+    STRENGTH_REFERENCE_568,
+    SWIMWEAR_RE,
+    VALID_MODES,
+    VALID_STRENGTHS,
+    _clamp_text,
+    _is_legacy_568_context,
+    _is_legacy_568_feature,
+)
 from .schemas.generation import PromptRandomCollectSettings
 
 
-MODE_RANDOM = "random"
-MODE_POSITIVE_COMPLETION = "positive_completion"
-VALID_MODES = {MODE_RANDOM, MODE_POSITIVE_COMPLETION}
-DEFAULT_INSTRUCTIONS = {
-    MODE_RANDOM: "衣装、表情、背景、小物をランダムに足す",
-    MODE_POSITIVE_COMPLETION: "既存Positiveの意図を保ったまま、不足している描写を英語タグで補う",
-}
-DEFAULT_INSTRUCTION = DEFAULT_INSTRUCTIONS[MODE_RANDOM]
-STRENGTH_REFERENCE_568 = "reference_568"
-STRENGTH_LEGACY_568 = "legacy_568"
-VALID_STRENGTHS = {"subtle", "standard", "rich", STRENGTH_REFERENCE_568, STRENGTH_LEGACY_568}
-MAX_POSITIVE_COMPLETION_TAGS = 12
-MAX_POSITIVE_COMPLETION_TAG_CHARS = 220
-MAX_RANDOM_TAGS = 12
-MAX_RANDOM_TAG_CHARS = 320
-MAX_LEGACY_568_RANDOM_TAGS = 14
-MAX_LEGACY_568_RANDOM_TAG_CHARS = 320
-MAX_RANDOM_TAG_LIMITS_BY_STRENGTH = {
-    "subtle": (8, 220),
-    "standard": (MAX_RANDOM_TAGS, MAX_RANDOM_TAG_CHARS),
-    STRENGTH_REFERENCE_568: (MAX_RANDOM_TAGS, MAX_RANDOM_TAG_CHARS),
-    STRENGTH_LEGACY_568: (MAX_LEGACY_568_RANDOM_TAGS, MAX_LEGACY_568_RANDOM_TAG_CHARS),
-    "rich": (16, 420),
-}
-LOCAL_FALLBACK_TAG_SETS = [
-    "soft ambient lighting, atmospheric depth, detailed props, cohesive color palette, natural pose detail",
-    "warm window light, layered background detail, relaxed expression, gentle shadows, cozy atmosphere",
-    "cinematic framing, subtle motion, textured fabric detail, foreground props, soft depth of field",
-    "balanced composition, delicate highlights, environmental storytelling, soft reflections, calm mood",
-]
-DISALLOWED_RANDOM_TAG_KEYS = {
-    "4k",
-    "8k",
-    "amazing quality",
-    "anime art",
-    "anime style",
-    "best quality",
-    "crisp lines",
-    "digital painting",
-    "high detail",
-    "high quality",
-    "high resolution",
-    "masterpiece",
-    "sharp focus",
-}
-DISALLOWED_RANDOM_TAG_RE = re.compile(
-    r"\b("
-    r"4k|8k|amazing quality|anime art|anime style|best quality|crisp lines|digital painting|"
-    r"high detail|high quality|high resolution|masterpiece|sharp focus"
-    r")\b",
-    re.IGNORECASE,
-)
-CHARACTER_IDENTITY_TERMS = {
-    "armor",
-    "bangs",
-    "braid",
-    "braids",
-    "bun",
-    "eye",
-    "eyes",
-    "hair",
-    "hairstyle",
-    "horn",
-    "horns",
-    "iris",
-    "katana",
-    "lock",
-    "locks",
-    "ponytail",
-    "ponytails",
-    "pupil",
-    "pupils",
-    "spear",
-    "staff",
-    "strand",
-    "strands",
-    "sword",
-    "tail",
-    "twintail",
-    "twintails",
-    "weapon",
-    "weapons",
-    "wing",
-    "wings",
-}
-CHARACTER_IDENTITY_RE = re.compile(r"\b(" + "|".join(sorted(CHARACTER_IDENTITY_TERMS, key=len, reverse=True)) + r")\b", re.IGNORECASE)
-CHARACTER_MOTIF_TERMS = {
-    "armor",
-    "armored",
-    "banner",
-    "blade",
-    "bow",
-    "chainmail",
-    "crossbow",
-    "crown",
-    "emblem",
-    "flag",
-    "gauntlet",
-    "gauntlets",
-    "halo",
-    "helmet",
-    "holy sword",
-    "katana",
-    "lance",
-    "mace",
-    "pauldron",
-    "pauldrons",
-    "rifle",
-    "scimitar",
-    "shield",
-    "spear",
-    "staff",
-    "sword",
-    "wand",
-    "weapon",
-    "weapons",
-    "wing",
-    "wings",
-}
-CHARACTER_MOTIF_RE = re.compile(
-    r"\b(" + "|".join(re.escape(term) for term in sorted(CHARACTER_MOTIF_TERMS, key=len, reverse=True)) + r")s?\b",
-    re.IGNORECASE,
-)
-CHARACTER_MOTIF_OVERRIDE_RE = re.compile(
-    r"\b("
-    r"armor|armored|banner|blade|bow|chainmail|crossbow|crown|emblem|flag|gauntlet|halo|helmet|"
-    r"katana|lance|mace|pauldron|rifle|scimitar|shield|spear|staff|sword|wand|weapon|wings?"
-    r")\b|武器|剣|刀|槍|杖|銃|弓|盾|旗|鎧|甲冑|兜|冠|翼|羽|戦闘|バトル|キャラモチーフ|モチーフ",
-    re.IGNORECASE,
-)
-HEAVY_RANDOM_MOTIF_RE = re.compile(
-    r"\b("
-    r"armor|armored|blade|bodysuit|bow|chainmail|crossbow|daggers?|gauntlets?|greatsword|"
-    r"cannon|firearm|guns?|halberd|helmet|katana|lance|mace|pistol|rifle|scimitar|shield|spear|staff|sword|tactical|weapons?"
-    r")s?\b",
-    re.IGNORECASE,
-)
-SMALL_PROP_RE = re.compile(r"\b(miniature|small|tiny|toy|wooden|plush|handheld)\b", re.IGNORECASE)
-LIGHT_PROP_WEAPON_RE = re.compile(r"\bstaff\b", re.IGNORECASE)
-HAIR_EYE_COLOR_RE = re.compile(
-    r"\b(auburn|black|blonde|blue|brown|green|golden|gray|grey|pink|purple|red|silver|white)\s+(hair|eyes?)\b",
-    re.IGNORECASE,
-)
-SWIMWEAR_RE = re.compile(r"\b(bikini|swimsuit|two[- ]piece|one[- ]piece)\b", re.IGNORECASE)
-POSITIVE_COMPLETION_STRENGTH_HINTS = {
-    "subtle": "Add 2 to 4 concise visual tags per item.",
-    "standard": "Add 5 to 8 concise visual tags per item.",
-    STRENGTH_REFERENCE_568: "Add 5 to 8 concise visual tags per item.",
-    STRENGTH_LEGACY_568: "Add 5 to 8 concise visual tags per item.",
-    "rich": "Add 8 to 12 vivid visual tags per item without bloating the prompt.",
-}
-RANDOM_STRENGTH_HINTS = {
-    "subtle": "Add 4 to 6 concise tags per item. Preserve the core outfit and character feel; focus on expression, pose nuance, setting, lighting, props, and camera.",
-    "standard": "Add 8 to 12 varied tags per item. Preserve explicit outfit tags in the existing prompt, then add compatible outfit layers or accessories, hair accessories, toy-sized props, expressive motion, setting, lighting, and camera. If a bikini or swimsuit is already present, keep it visible and do not replace it with a different outfit; add things around it such as frills, skirt layers, ribbons, cover-ups, props, or background details.",
-    STRENGTH_REFERENCE_568: "Use the included #568 reference conditions as a behavioral example. Add 8 to 12 varied tags per item. Preserve explicit outfit tags such as white Bikini, then add compatible outfit layers or accessories, small props, expressive motion, setting, lighting, and camera. Do not invent new hair or eye colors. Do not copy any reference result literally; reproduce the behavior of preserving the base outfit while adding playful coherent variety.",
-    STRENGTH_LEGACY_568: "Add 8 to 12 varied tags per item. Push outfit, props, setting, action, lighting, and composition beyond the existing prompt when useful.",
-    "rich": "Add 12 to 16 vivid tags per item with bold outfit, prop, setting, action, lighting, and camera changes while keeping the prompt coherent.",
-}
-REFERENCE_568_CONDITIONS = {
-    "source": "Luna ANIMA history #568 behavioral reference",
-    "selected_character_context": "Jeanne D'arc from Fate",
-    "existing_positive": (
-        "masterpiece, best quality, score_7, anime illustration, safe, 1girl, "
-        "jeanne d'arc \\(fate\\), An anime illustration of Jeanne D'arc from Fate in a clean, expressive composition., "
-        "@gpt-image-2, white Bikini"
-    ),
-    "instruction": "衣装、表情、背景、小物をランダムに足す",
-    "behavior_to_copy": [
-        "Keep the base swimsuit or bikini from existing_positive visible.",
-        "Add compatible outfit layers or accessories around the base outfit instead of replacing it.",
-        "Add a small prop, expressive motion, background, lighting, and camera detail.",
-        "Do not invent new hair or eye colors; selected character identity is already handled by the app.",
-        "Do not chase a specific color, pattern, or outfit; the reference is about behavior, not a fixed visual theme.",
-        "Avoid turning the result into heavy armor or a full battle costume unless the user's current prompt asks for it.",
-    ],
-}
-PROMPT_RANDOM_BATCH_ATTEMPTS = 2
-PROMPT_RANDOM_SINGLE_ATTEMPTS = 2
-
-
-def _is_legacy_568_feature(feature: dict[str, Any]) -> bool:
-    return feature.get("mode") == MODE_RANDOM and feature.get("strength") == STRENGTH_LEGACY_568
-
-
-def _is_legacy_568_context(context: dict[str, Any]) -> bool:
-    return (
-        str(context.get("prompt_random_collect_mode") or MODE_RANDOM) == MODE_RANDOM
-        and str(context.get("prompt_random_collect_strength") or "standard") == STRENGTH_LEGACY_568
-    )
-
-
-def _clamp_text(value: Any, default: str, limit: int) -> str:
-    text = str(value or "").strip()
-    if not text:
-        text = default
-    return text[:limit]
-
-
-def sanitize_prompt_random_collect_request(value: Any) -> dict[str, Any]:
-    raw = value.model_dump() if hasattr(value, "model_dump") else value if isinstance(value, dict) else {}
-    return PromptRandomCollectSettings.model_validate(raw).model_dump()
-
-
-def prompt_random_collect_enabled(value: Any) -> bool:
-    return bool(sanitize_prompt_random_collect_request(value).get("enabled"))
-
-
-def _provider_config(app_settings: Any, feature: Any = None) -> dict[str, Any]:
-    settings = app_settings if isinstance(app_settings, dict) else {}
-    base = settings.get("prompt_converter") if isinstance(settings.get("prompt_converter"), dict) else {}
-    override = settings.get("prompt_random_collect_provider") if isinstance(settings.get("prompt_random_collect_provider"), dict) else {}
-    config = sanitize_prompt_converter_settings(_deep_merge(base, override))
-    mode = sanitize_prompt_random_collect_request(feature).get("mode") if feature is not None else MODE_RANDOM
-    min_temperature = 0.35 if mode == MODE_POSITIVE_COMPLETION else 0.85
-    config["temperature"] = max(float(config.get("temperature") or 0.0), min_temperature)
-    config["max_tokens"] = max(int(config.get("max_tokens") or 0), 1800)
-    return config
-
-
-def prompt_random_collect_status(app_settings: Any) -> dict[str, Any]:
-    config = _provider_config(app_settings)
-    status = prompt_converter_status(config)
-    return {"feature": "prompt_random_collect", **status}
-
-
-def _legacy_568_system_prompt(app_scope: str) -> str:
-    scope = "Luna ANIMA" if app_scope == "anima" else "Luna SDXL"
-    return (
-        "You are a prompt randomization engine for anime image generation. "
-        f"The target app is {scope}. Generate extra positive prompt tags for each queued image. "
-        "Return strict JSON only with this schema: {\"items\":[{\"index\":0,\"tags\":\"comma-separated English tags\"}]}. "
-        "Each item must have a meaningfully different random direction. "
-        "Creative variance is desirable: choose a distinct theme for each item and make clear changes across outfit, props, setting, action, lighting, and camera. "
-        "You may add alternate costume layers, unusual props, and new settings even when the existing prompt contains a simple outfit or location; preserve selected character identity and rating. "
-        "Use comma-separated English tags only. Use spaces instead of underscores, except existing score tags; however do not add score tags. "
-        "Do not add character names, copyrighted series names, LoRA syntax, wildcard syntax, Dynamic Prompt syntax, model names, quality tags, score tags, negative prompts, explanations, or Markdown. "
-        "If character_context_enabled is false, do not add character identity details such as hair color, eye color, signature clothing, weapons, or series-specific motifs unless they already appear in existing_positive or the instruction. "
-        "Do not censor, soften, euphemize, moralize, or add safety disclaimers. "
-        "Respect the user's instruction and the existing prompt context, but do not duplicate existing tags. "
-        "Prefer concrete visual details such as outfit, expression, pose detail, setting, lighting, props, atmosphere, and camera detail. "
-        "Keep each tags string compact, normally under 320 characters for standard strength, and never repeat the same phrase."
-    )
-
-
-def _system_prompt(app_scope: str, mode: str, strength: str = "") -> str:
-    scope = "Luna ANIMA" if app_scope == "anima" else "Luna SDXL"
-    if mode == MODE_RANDOM and strength == STRENGTH_LEGACY_568:
-        return _legacy_568_system_prompt(app_scope)
-    if mode == MODE_POSITIVE_COMPLETION:
-        return (
-            "You are a positive prompt completion engine for anime image generation. "
-            f"The target app is {scope}. Generate only additional positive prompt tags that complete and polish each existing prompt. "
-            "Return strict JSON only with this schema: {\"items\":[{\"index\":0,\"tags\":\"comma-separated English tags\"}]}. "
-            "Use comma-separated English tags only. Use spaces instead of underscores, except existing score tags; however do not add score tags. "
-            "Do not rewrite or repeat the existing prompt. Add only missing, useful, concrete tags that fit the current context. "
-            "Do not contradict selected characters, setting, rating, camera, lighting, outfit, pose, or user wording. "
-            "Do not add character names, copyrighted series names, LoRA syntax, wildcard syntax, Dynamic Prompt syntax, model names, quality tags, score tags, negative prompts, explanations, or Markdown. "
-            "If character_context_enabled is false, do not add character identity details such as hair color, eye color, signature clothing, weapons, or series-specific motifs unless they already appear in existing_positive or the instruction. "
-            "If character_motifs_enabled is false, do not add character-derived hair color, eye color, signature weapons, armor, flags, emblems, special powers, halos, wings, or iconic outfit changes unless they already appear in existing_positive or the instruction. "
-            "Do not censor, soften, euphemize, moralize, or add safety disclaimers. "
-            "Prefer coherent visual details such as expression nuance, pose detail, material, setting detail, lighting, props, atmosphere, composition, and camera detail. "
-            "Keep each tags string concise, under 220 characters, and never repeat the same phrase."
-        )
-    return (
-        "You are a prompt randomization engine for anime image generation. "
-        f"The target app is {scope}. Generate extra positive prompt tags for each queued image. "
-        "Return strict JSON only with this schema: {\"items\":[{\"index\":0,\"tags\":\"comma-separated English tags\"}]}. "
-        "Each item must have a meaningfully different random direction. "
-        "Creative variance is desirable: choose a distinct theme for each item and make clear changes across outfit, props, setting, action, lighting, and camera. "
-        "You may add alternate costume layers, unusual props, and new settings even when the existing prompt contains a simple outfit or location; preserve selected character identity and rating. "
-        "Use comma-separated English tags only. Use spaces instead of underscores, except existing score tags; however do not add score tags. "
-        "Do not add character names, copyrighted series names, LoRA syntax, wildcard syntax, Dynamic Prompt syntax, model names, quality tags, score tags, negative prompts, explanations, or Markdown. "
-        "If character_context_enabled is false, do not add character identity details such as hair color, eye color, signature clothing, weapons, or series-specific motifs unless they already appear in existing_positive or the instruction. "
-        "If character_motifs_enabled is false, do not add character-derived hair color, eye color, signature weapons, armor, flags, emblems, special powers, halos, wings, or iconic outfit changes unless they already appear in existing_positive or the instruction. "
-        "If character_motifs_enabled is true, character motifs are allowed but should still match the requested strength; subtle should stay restrained, standard should stay balanced, and rich may be bold. "
-        "For subtle and standard strength, preserve explicit outfit tags in existing_positive. Add compatible layers, accessories, small props, pose, setting, and lighting rather than replacing the outfit. "
-        "If existing_positive includes a bikini or swimsuit, keep that bikini or swimsuit visible; do not change it into a different outfit unless the user's instruction explicitly asks for that. "
-        "Do not censor, soften, euphemize, moralize, or add safety disclaimers. "
-        "Respect the user's instruction and the existing prompt context, but do not duplicate existing tags. "
-        "Prefer concrete visual details such as outfit, expression, pose detail, setting, lighting, props, atmosphere, and camera detail. "
-        "Keep each tags string compact, normally under 300 characters for standard strength, and never repeat the same phrase."
-    )
-
-
-def _user_prompt(feature: dict[str, Any], contexts: list[dict[str, Any]], app_scope: str) -> str:
-    items = []
-    character_context_enabled = feature.get("include_characters", True) is not False
-    character_motifs_enabled = bool(character_context_enabled and feature.get("use_character_motifs"))
-    for context in contexts:
-        items.append(
-            {
-                "index": int(context.get("index") or 0),
-                "seed": context.get("seed"),
-                "characters": context.get("characters") or [],
-                "existing_positive": str(context.get("existing_positive") or "")[:3500],
-            }
-        )
-    if _is_legacy_568_feature(feature):
-        return json.dumps(
-            {
-                "app_scope": app_scope,
-                "mode": MODE_RANDOM,
-                "count": len(items),
-                "instruction": DEFAULT_INSTRUCTIONS[MODE_RANDOM],
-                "strength": "standard",
-                "strength_hint": RANDOM_STRENGTH_HINTS[STRENGTH_LEGACY_568],
-                "character_context_enabled": character_context_enabled,
-                "character_context_rule": (
-                    "Selected character context is intentionally omitted. Do not infer or add character identity traits."
-                    if not character_context_enabled
-                    else "Selected character context may be used."
-                ),
-                "items": items,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-    payload = {
-        "app_scope": app_scope,
-        "mode": feature["mode"],
-        "count": len(items),
-        "instruction": feature["instruction"],
-        "strength": feature["strength"],
-        "strength_hint": (
-            POSITIVE_COMPLETION_STRENGTH_HINTS[feature["strength"]]
-            if feature["mode"] == MODE_POSITIVE_COMPLETION
-            else RANDOM_STRENGTH_HINTS[feature["strength"]]
-        ),
-        "character_context_enabled": character_context_enabled,
-        "character_motifs_enabled": character_motifs_enabled,
-        "character_context_rule": (
-            "Selected character context is intentionally omitted. Do not infer or add character identity traits."
-            if not character_context_enabled
-            else "Selected character context may be used."
-        ),
-        "character_motif_rule": (
-            "Character-derived motifs are allowed. Use them only when they fit the strength and user instruction."
-            if character_motifs_enabled
-            else "Character-derived motifs are intentionally disabled. Do not add signature weapons, armor, flags, emblems, special powers, halos, wings, or iconic outfit changes unless the instruction or existing positive prompt explicitly asks for them."
-        ),
-        "batch_diversity_rule": "Do not reuse the same added tag or the same obvious motif across multiple items in this batch.",
-        "items": items,
-    }
-    if feature["mode"] == MODE_RANDOM and feature["strength"] == STRENGTH_REFERENCE_568:
-        payload["reference_568_conditions"] = REFERENCE_568_CONDITIONS
-    return json.dumps(
-        payload,
-        ensure_ascii=False,
-        indent=2,
-    )
-
-
-def _chat_completion(config: dict[str, Any], model: str, feature: dict[str, Any], contexts: list[dict[str, Any]], app_scope: str) -> dict[str, Any]:
+def _chat_completion(config, model, feature, contexts, app_scope):
     payload = {
         "model": model,
         "messages": [
@@ -393,404 +110,39 @@ def _chat_completion(config: dict[str, Any], model: str, feature: dict[str, Any]
     return _parse_json_object(str(content or reasoning_content or ""))
 
 
-def _raw_item_tags(item: Any) -> str:
-    if isinstance(item, dict):
-        return str(item.get("tags") or item.get("tags_en") or item.get("prompt") or item.get("text") or "").strip()
-    return str(item or "").strip()
-
-
-def _identity_terms(text: Any) -> set[str]:
-    return {match.group(1).lower() for match in CHARACTER_IDENTITY_RE.finditer(str(text or ""))}
-
-
-def _random_tag_key(tag: str) -> str:
-    return re.sub(r"\s+", " ", str(tag or "").strip().lower()).strip(" ,;.")
-
-
-def filter_disallowed_random_tags(tags: str) -> str:
-    kept: list[str] = []
-    for tag in split_prompt_tags(tags):
-        key = _random_tag_key(tag)
-        if not key:
-            continue
-        if SCORE_TAG_RE.fullmatch(key) or key in DISALLOWED_RANDOM_TAG_KEYS or DISALLOWED_RANDOM_TAG_RE.search(key):
-            continue
-        kept.append(tag)
-    return ", ".join(kept)
-
-
-def _character_reference_keys(context: dict[str, Any]) -> set[str]:
-    keys: set[str] = set()
-    references: list[Any] = []
-    references.extend(context.get("characters") or [])
-    references.extend(context.get("character_metadata") or [])
-    for character in references:
-        if isinstance(character, str):
-            values = [character]
-        elif isinstance(character, dict):
-            values = [
-                str(character.get(field) or "").strip()
-                for field in ("prompt_tag", "prompt_safe_name", "display_name", "display_name_ja", "name", "id")
-            ]
-        else:
-            values = []
-        for value in values:
-            if not value:
-                continue
-            normalized = _random_tag_key(value)
-            if normalized:
-                keys.add(normalized)
-            for part in re.split(r"[()（）/\\|,]+|\s+from\s+", value, flags=re.IGNORECASE):
-                part_key = _random_tag_key(part)
-                if len(part_key) >= 3:
-                    keys.add(part_key)
-    return keys
-
-
-def filter_character_reference_tags(tags: str, context: dict[str, Any]) -> str:
-    reference_keys = _character_reference_keys(context)
-    if not reference_keys:
-        return tags
-    kept: list[str] = []
-    for tag in split_prompt_tags(tags):
-        key = _random_tag_key(tag)
-        if key in reference_keys:
-            continue
-        if any((len(ref) >= 3 and (key.startswith(ref) or ref.startswith(key))) for ref in reference_keys):
-            continue
-        kept.append(tag)
-    return ", ".join(kept)
-
-
-def _character_motif_override_requested(context: dict[str, Any]) -> bool:
-    text = ", ".join(
-        [
-            str(context.get("existing_positive") or ""),
-            str(context.get("prompt_random_collect_instruction") or ""),
-        ]
-    )
-    return bool(CHARACTER_MOTIF_OVERRIDE_RE.search(text))
-
-
-def filter_character_motif_tags(tags: str, context: dict[str, Any]) -> str:
-    if context.get("prompt_random_collect_use_character_motifs", True) or _character_motif_override_requested(context):
-        return tags
-    kept: list[str] = []
-    for tag in split_prompt_tags(tags):
-        if CHARACTER_MOTIF_RE.search(tag):
-            continue
-        kept.append(tag)
-    return ", ".join(kept)
-
-
-def filter_heavy_random_motif_tags(tags: str, context: dict[str, Any]) -> str:
-    if str(context.get("prompt_random_collect_mode") or MODE_RANDOM) != MODE_RANDOM:
-        return tags
-    if str(context.get("prompt_random_collect_strength") or "standard") == "rich":
-        return tags
-    if _character_motif_override_requested(context):
-        return tags
-    kept: list[str] = []
-    for tag in split_prompt_tags(tags):
-        if HEAVY_RANDOM_MOTIF_RE.search(tag) and not (SMALL_PROP_RE.search(tag) and LIGHT_PROP_WEAPON_RE.search(tag)):
-            continue
-        kept.append(tag)
-    return ", ".join(kept)
-
-
-def filter_outfit_replacement_tags(tags: str, context: dict[str, Any]) -> str:
-    existing_positive = str(context.get("existing_positive") or "")
-    if not SWIMWEAR_RE.search(existing_positive):
-        return tags
-    kept: list[str] = []
-    for tag in split_prompt_tags(tags):
-        if SWIMWEAR_RE.search(tag):
-            continue
-        kept.append(tag)
-    return ", ".join(kept)
-
-
-def filter_reference_568_identity_overrides(tags: str, context: dict[str, Any]) -> str:
-    if str(context.get("prompt_random_collect_strength") or "standard") != STRENGTH_REFERENCE_568:
-        return tags
-    existing_positive = str(context.get("existing_positive") or "")
-    kept: list[str] = []
-    for tag in split_prompt_tags(tags):
-        match = HAIR_EYE_COLOR_RE.search(tag)
-        if match and match.group(0).lower() not in existing_positive.lower():
-            continue
-        kept.append(tag)
-    return ", ".join(kept)
-
-
-def clamp_prompt_random_tags(tags: str, *, max_tags: int = MAX_RANDOM_TAGS, max_chars: int = MAX_RANDOM_TAG_CHARS) -> str:
-    kept: list[str] = []
-    for tag in split_prompt_tags(tags):
-        candidate = ", ".join([*kept, tag])
-        if kept and len(candidate) > max_chars:
-            break
-        kept.append(tag)
-        if len(kept) >= max_tags:
-            break
-    return ", ".join(kept).strip(" ,")
-
-
-def prompt_random_limits(context: dict[str, Any]) -> tuple[int, int]:
-    mode = str(context.get("prompt_random_collect_mode") or MODE_RANDOM)
-    if mode == MODE_POSITIVE_COMPLETION:
-        return MAX_POSITIVE_COMPLETION_TAGS, MAX_POSITIVE_COMPLETION_TAG_CHARS
-    strength = str(context.get("prompt_random_collect_strength") or "standard")
-    return MAX_RANDOM_TAG_LIMITS_BY_STRENGTH.get(strength, MAX_RANDOM_TAG_LIMITS_BY_STRENGTH["standard"])
-
-
-def strip_character_identity_tags(tags: str, existing_positive: Any) -> str:
-    allowed_terms = _identity_terms(existing_positive)
-    kept: list[str] = []
-    for tag in split_prompt_tags(tags):
-        terms = _identity_terms(tag)
-        if terms and not terms.issubset(allowed_terms):
-            continue
-        kept.append(tag)
-    return ", ".join(kept)
-
-
-def fallback_prompt_random_tags(context: dict[str, Any]) -> str:
-    try:
-        index = int(context.get("index") or 0)
-    except (TypeError, ValueError):
-        index = 0
-    return LOCAL_FALLBACK_TAG_SETS[index % len(LOCAL_FALLBACK_TAG_SETS)]
-
-
-def sanitize_generated_random_tags(raw_tags: Any, context: dict[str, Any]) -> str:
-    existing_positive = context.get("existing_positive", "")
-    max_tags, max_chars = prompt_random_limits(context)
-    tags = normalize_tag_prompt(raw_tags, existing_positive)
-    tags = filter_disallowed_random_tags(tags)
-    if _is_legacy_568_context(context):
-        if context.get("suppress_character_identity"):
-            tags = strip_character_identity_tags(tags, existing_positive)
-        tags = clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
-        if tags:
-            return tags
-
-        tags = normalize_tag_prompt(fallback_prompt_random_tags(context), existing_positive)
-        tags = filter_disallowed_random_tags(tags)
-        if context.get("suppress_character_identity"):
-            tags = strip_character_identity_tags(tags, existing_positive)
-        return clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
-
-    tags = filter_character_reference_tags(tags, context)
-    tags = filter_character_motif_tags(tags, context)
-    tags = filter_heavy_random_motif_tags(tags, context)
-    tags = filter_outfit_replacement_tags(tags, context)
-    tags = filter_reference_568_identity_overrides(tags, context)
-    if context.get("suppress_character_identity"):
-        tags = strip_character_identity_tags(tags, existing_positive)
-    tags = clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
-    if tags:
-        return tags
-
-    tags = normalize_tag_prompt(fallback_prompt_random_tags(context), existing_positive)
-    tags = filter_disallowed_random_tags(tags)
-    tags = filter_character_reference_tags(tags, context)
-    tags = filter_character_motif_tags(tags, context)
-    tags = filter_heavy_random_motif_tags(tags, context)
-    tags = filter_outfit_replacement_tags(tags, context)
-    tags = filter_reference_568_identity_overrides(tags, context)
-    if context.get("suppress_character_identity"):
-        tags = strip_character_identity_tags(tags, existing_positive)
-    return clamp_prompt_random_tags(tags, max_tags=max_tags, max_chars=max_chars)
-
-
-def normalize_prompt_random_collect_items(data: dict[str, Any], contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    raw_items = data.get("items") if isinstance(data, dict) else None
-    if not isinstance(raw_items, list):
-        raise ValueError("random collect response must include an items array")
-    if len(raw_items) < len(contexts):
-        raise ValueError(f"random collect returned {len(raw_items)} items for {len(contexts)} queued images")
-
-    by_index: dict[int, Any] = {}
-    ordered: list[Any] = []
-    for position, raw in enumerate(raw_items):
-        raw_index = raw.get("index") if isinstance(raw, dict) else None
-        try:
-            index = int(raw_index)
-        except (TypeError, ValueError):
-            index = position
-        by_index[index] = raw
-        ordered.append(raw)
-
-    generated: list[dict[str, Any]] = []
-    seen_tags: set[str] = set()
-    seen_tag_keys: set[str] = set()
-    legacy_568_contexts = bool(contexts) and all(_is_legacy_568_context(context) for context in contexts)
-    for position, context in enumerate(contexts):
-        index = int(context.get("index") or position)
-        raw = by_index.get(index, ordered[position] if position < len(ordered) else {})
-        tags = sanitize_generated_random_tags(_raw_item_tags(raw), context)
-        if not legacy_568_contexts:
-            unique_tags: list[str] = []
-            for tag in split_prompt_tags(tags):
-                tag_key = _random_tag_key(tag)
-                if tag_key and tag_key in seen_tag_keys:
-                    continue
-                unique_tags.append(tag)
-                if tag_key:
-                    seen_tag_keys.add(tag_key)
-            tags = ", ".join(unique_tags).strip(" ,") or sanitize_generated_random_tags("", context)
-        tags = re.sub(r"\s+", " ", tags).strip(" ,")
-        if not tags:
-            raise ValueError(f"random collect item {index} did not include usable tags")
-        key = tags.lower()
-        if len(contexts) > 1 and key in seen_tags:
-            raise ValueError("random collect returned duplicate tag sets")
-        seen_tags.add(key)
-        generated.append({"index": index, "seed": context.get("seed"), "tags": tags})
-    return generated
-
-
-def _retryable_exception_message(exc: Exception) -> str:
-    return "".join([type(exc).__name__, ": ", str(exc)]).strip()
-
-
-def _collect_prompt_random_items_once(
-    config: dict[str, Any],
-    model: str,
-    request_config: dict[str, Any],
-    contexts: list[dict[str, Any]],
-    app_scope: str,
-) -> list[dict[str, Any]]:
+def _collect_prompt_random_items_once(config, model, request_config, contexts, app_scope):
     data = _chat_completion(config, model, request_config, contexts, app_scope)
     return normalize_prompt_random_collect_items(data, contexts)
 
 
-def _collect_prompt_random_items_with_fallback(
-    config: dict[str, Any],
-    model: str,
-    request_config: dict[str, Any],
-    contexts: list[dict[str, Any]],
-    app_scope: str,
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    errors: list[str] = []
-    for attempt in range(1, PROMPT_RANDOM_BATCH_ATTEMPTS + 1):
-        try:
-            items = _collect_prompt_random_items_once(config, model, request_config, contexts, app_scope)
-            return items, {"mode": "batch", "batch_attempts": attempt, "fallback": False, "errors": errors}
-        except (error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
-            errors.append(f"batch attempt {attempt}: {_retryable_exception_message(exc)}")
-
-    generated_items: list[dict[str, Any]] = []
-    single_attempts = 0
-    for context in contexts:
-        single_context = [context]
-        for attempt in range(1, PROMPT_RANDOM_SINGLE_ATTEMPTS + 1):
-            single_attempts += 1
-            try:
-                generated_items.extend(_collect_prompt_random_items_once(config, model, request_config, single_context, app_scope))
-                break
-            except (error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
-                errors.append(f"single index {context.get('index')} attempt {attempt}: {_retryable_exception_message(exc)}")
-        else:
-            generated_items.append({"index": int(context.get("index") or 0), "seed": context.get("seed"), "tags": sanitize_generated_random_tags("", context)})
-            errors.append(f"single index {context.get('index')}: used local fallback tags")
-
-    return generated_items, {
-        "mode": "single_fallback",
-        "batch_attempts": PROMPT_RANDOM_BATCH_ATTEMPTS,
-        "single_attempts": single_attempts,
-        "fallback": True,
-        "errors": errors[-6:],
-    }
+def _collect_prompt_random_items_with_fallback(config, model, request_config, contexts, app_scope):
+    return _fallback._collect_prompt_random_items_with_fallback(
+        config,
+        model,
+        request_config,
+        contexts,
+        app_scope,
+        collect_once=_collect_prompt_random_items_once,
+    )
 
 
-def collect_prompt_random_tags(
-    app_settings: Any,
-    *,
-    feature: Any,
-    contexts: list[dict[str, Any]],
-    app_scope: str,
-) -> dict[str, Any]:
-    request_config = sanitize_prompt_random_collect_request(feature)
-    if not request_config["enabled"]:
-        return {"ok": True, "enabled": False, "generated_items": []}
-    if not contexts:
-        return {"ok": False, "status": 400, "stage": "prompt_random_collect_context", "message": "Random Collect context is empty."}
-    contexts = [
-        {
-            **context,
-            "prompt_random_collect_mode": request_config["mode"],
-            "prompt_random_collect_strength": request_config["strength"],
-            "prompt_random_collect_instruction": request_config["instruction"],
-            "prompt_random_collect_use_character_motifs": bool(
-                request_config["include_characters"] and request_config["use_character_motifs"]
-            ),
-        }
-        for context in contexts
-    ]
-
-    config = _provider_config(app_settings, request_config)
-    if not config["enabled"]:
-        return {"ok": False, "status": 400, "stage": "prompt_random_collect_disabled", "message": "Prompt Random Collect provider is disabled."}
-    status = _ensure_ready(config)
-    if not status.get("reachable"):
-        return {"ok": False, "status": 502, "stage": "prompt_random_collect_provider", "message": status.get("message") or "Local prompt random collect API is not reachable.", "provider_status": status}
-    models = status.get("models") if isinstance(status.get("models"), list) else []
-    model = str(config.get("model") or "auto")
-    if model == "auto":
-        model = str(models[0] if models else "")
-    if not model:
-        return {"ok": False, "status": 502, "stage": "prompt_random_collect_model", "message": "Prompt random collect model is not loaded.", "provider_status": status}
-
-    try:
-        generated_items, generation_strategy = _collect_prompt_random_items_with_fallback(config, model, request_config, contexts, app_scope)
-    except (error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
-        return {"ok": False, "status": 502, "stage": "prompt_random_collect_generate", "message": str(exc), "provider_status": status}
-
-    return {
-        "ok": True,
-        "enabled": True,
-        "mode": request_config["mode"],
-        "instruction": request_config["instruction"],
-        "strength": request_config["strength"],
-        "include_characters": request_config["include_characters"],
-        "use_character_motifs": bool(request_config["include_characters"] and request_config["use_character_motifs"]),
-        "generated_items": generated_items,
-        "generation_strategy": generation_strategy,
-        "provider": {
-            "provider": config["provider"],
-            "base_url": config["base_url"],
-            "model": model,
-        },
-    }
+def _retryable_exception_message(exc):
+    return _fallback._retryable_exception_message(exc)
 
 
-def attach_prompt_random_collect_items(request_data_items: list[dict[str, Any]], result: dict[str, Any]) -> None:
-    generated_items = result.get("generated_items") if isinstance(result.get("generated_items"), list) else []
-    by_index = {int(item.get("index") or position): item for position, item in enumerate(generated_items) if isinstance(item, dict)}
-    for position, request_data in enumerate(request_data_items):
-        queue_index = int(request_data.get("queue_index") or position)
-        generated_item = by_index.get(queue_index, generated_items[position] if position < len(generated_items) else {})
-        current = request_data.get("prompt_random_collect") if isinstance(request_data.get("prompt_random_collect"), dict) else {}
-        request_data["prompt_random_collect"] = {
-            "enabled": True,
-            "mode": result.get("mode") or current.get("mode") or MODE_RANDOM,
-            "instruction": result.get("instruction") or current.get("instruction") or DEFAULT_INSTRUCTION,
-            "strength": result.get("strength") or current.get("strength") or "standard",
-            "include_characters": result.get("include_characters", current.get("include_characters", True)) is not False,
-            "use_character_motifs": bool(
-                result.get("include_characters", current.get("include_characters", True)) is not False
-                and result.get("use_character_motifs", current.get("use_character_motifs", True))
-            ),
-            "generated_item": generated_item,
-            "generated_tags": generated_item.get("tags", "") if isinstance(generated_item, dict) else "",
-            "provider": result.get("provider") or {},
-        }
+def prompt_random_collect_status(app_settings):
+    config = _provider_config(app_settings)
+    status = prompt_converter_status(config)
+    return {"feature": "prompt_random_collect", **status}
 
 
-def prompt_random_collect_tags(request_data: dict[str, Any]) -> str:
-    data = request_data.get("prompt_random_collect") if isinstance(request_data, dict) else None
-    if not isinstance(data, dict) or not data.get("enabled"):
-        return ""
-    generated_item = data.get("generated_item") if isinstance(data.get("generated_item"), dict) else {}
-    return str(generated_item.get("tags") or data.get("generated_tags") or "").strip()
+def collect_prompt_random_tags(app_settings, *, feature, contexts, app_scope):
+    return _service.collect_prompt_random_tags(
+        app_settings,
+        feature=feature,
+        contexts=contexts,
+        app_scope=app_scope,
+        collect_with_fallback=_collect_prompt_random_items_with_fallback,
+        provider_config=_provider_config,
+        ensure_ready=lambda config: _ensure_ready(config),
+    )

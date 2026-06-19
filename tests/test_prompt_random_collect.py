@@ -9,9 +9,57 @@ from unittest import mock
 from app import history_store, prompt_random_collect
 from app.generation_helpers import prompt_random_collect_context_request
 from app.payload_builder import build_prompts
+from app.prompt_random import context as prompt_random_context
+from app.prompt_random import fallback as prompt_random_fallback
+from app.prompt_random import sanitizer as prompt_random_sanitizer
+from app.prompt_random import service as prompt_random_service
 
 
 class PromptRandomCollectTests(unittest.TestCase):
+    def test_facade_reexports_legacy_symbols(self) -> None:
+        for name in (
+            "PromptRandomCollectSettings",
+            "POSITIVE_COMPLETION_STRENGTH_HINTS",
+            "SCORE_TAG_RE",
+            "split_prompt_tags",
+            "normalize_tag_prompt",
+            "_random_tag_key",
+            "_identity_terms",
+            "_character_reference_keys",
+            "_character_motif_override_requested",
+        ):
+            self.assertTrue(hasattr(prompt_random_collect, name), name)
+
+    def test_facade_collect_uses_legacy_patch_points(self) -> None:
+        feature = {"enabled": True, "mode": "random", "strength": "standard"}
+        contexts = [{"index": 0, "seed": 1, "existing_positive": "1girl"}]
+
+        with mock.patch.object(prompt_random_collect, "_provider_config", side_effect=RuntimeError("provider patch used")):
+            with self.assertRaisesRegex(RuntimeError, "provider patch used"):
+                prompt_random_collect.collect_prompt_random_tags({}, feature=feature, contexts=contexts, app_scope="anima")
+
+        with mock.patch.object(
+            prompt_random_collect,
+            "_provider_config",
+            return_value={
+                "enabled": True,
+                "provider": "lmstudio",
+                "base_url": "http://example.test/v1",
+                "model": "qwen",
+                "temperature": 0.85,
+                "max_tokens": 1800,
+                "timeout_sec": 30,
+            },
+        ), mock.patch.object(prompt_random_collect, "_ensure_ready", return_value={"reachable": True, "models": ["qwen"]}), mock.patch.object(
+            prompt_random_collect,
+            "_json_request",
+            return_value={"choices": [{"message": {"content": "{\"items\":[{\"index\":0,\"tags\":\"red dress\"}]}"}}]},
+        ):
+            result = prompt_random_collect.collect_prompt_random_tags({}, feature=feature, contexts=contexts, app_scope="anima")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["generated_items"][0]["tags"], "red dress")
+
     def test_sanitize_request_defaults_instruction_and_strength(self) -> None:
         result = prompt_random_collect.sanitize_prompt_random_collect_request({"enabled": True, "strength": "bad"})
         self.assertTrue(result["enabled"])
@@ -147,6 +195,34 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertNotIn("scathach", context_positive)
         self.assertNotIn("fate", context_positive)
         self.assertIn("cafe", context_positive)
+
+    def test_context_module_removes_selected_characters_when_disabled(self) -> None:
+        request = {
+            "character1": "scathach (fate)",
+            "character2": "None",
+            "character3": "None",
+            "original_character": "None",
+            "rating": "safe",
+            "quality_preset": "standard",
+            "meta_prompt": "anime illustration",
+            "positive_prompt": "1girl, solo, cafe, maid outfit",
+            "negative_prompt": "",
+            "negative_prompt_raw": "",
+            "negative_prompt_mode": "append",
+            "prompt_random_collect": {"enabled": True, "include_characters": False},
+        }
+
+        contexts = prompt_random_context.build_prompt_random_collect_contexts(
+            [request],
+            include_characters=False,
+            build_prompts_func=build_prompts,
+        )
+
+        self.assertEqual(contexts[0]["characters"], [])
+        self.assertEqual(contexts[0]["character_metadata"], [])
+        self.assertTrue(contexts[0]["suppress_character_identity"])
+        self.assertNotIn("scathach", contexts[0]["existing_positive"].lower())
+        self.assertIn("cafe", contexts[0]["existing_positive"].lower())
 
     def test_normalize_items_removes_disallowed_syntax_and_existing_tags(self) -> None:
         contexts = [{"index": 0, "seed": 11, "existing_positive": "white hair, blue eyes"}]
@@ -383,6 +459,22 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertLessEqual(len(tags), prompt_random_collect.MAX_RANDOM_TAG_CHARS)
         self.assertLessEqual(len(tags.split(",")), prompt_random_collect.MAX_RANDOM_TAGS)
 
+    def test_sanitizer_module_filters_quality_score_and_overlong_tags(self) -> None:
+        raw_tags = (
+            "score_9, masterpiece, best quality, soft sunlight, ceramic cup, wooden table, "
+            "steam rising, cozy atmosphere, shallow depth of field, pastel walls, "
+            "8k resolution, flower vase, lace apron, warm shadows, window reflection, extra detail"
+        )
+
+        tags = prompt_random_sanitizer.sanitize_generated_random_tags(raw_tags, {"existing_positive": ""})
+
+        self.assertNotIn("score_9", tags)
+        self.assertNotIn("masterpiece", tags)
+        self.assertNotIn("best quality", tags)
+        self.assertNotIn("8k", tags)
+        self.assertLessEqual(len(tags), prompt_random_collect.MAX_RANDOM_TAG_CHARS)
+        self.assertLessEqual(len(tags.split(",")), prompt_random_collect.MAX_RANDOM_TAGS)
+
     def test_random_mode_preserves_reference_level_tag_span(self) -> None:
         reference_tags = (
             "golden halo floating above head, translucent blue energy cloak, holding a glowing crystal orb, "
@@ -583,6 +675,31 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertTrue(strategy["fallback"])
         self.assertEqual(strategy["mode"], "single_fallback")
 
+    def test_fallback_module_falls_back_to_single_item_calls_after_batch_failures(self) -> None:
+        contexts = [{"index": 0, "existing_positive": ""}, {"index": 1, "existing_positive": ""}]
+        calls: list[int] = []
+
+        def fake_once(config, model, request_config, call_contexts, app_scope):
+            calls.append(len(call_contexts))
+            if len(call_contexts) > 1:
+                raise ValueError("bad batch json")
+            index = call_contexts[0]["index"]
+            return [{"index": index, "tags": f"tag {index}"}]
+
+        items, strategy = prompt_random_fallback._collect_prompt_random_items_with_fallback(
+            {},
+            "model",
+            {},
+            contexts,
+            "anima",
+            collect_once=fake_once,
+        )
+
+        self.assertEqual(calls, [2, 2, 1, 1])
+        self.assertEqual(items, [{"index": 0, "tags": "tag 0"}, {"index": 1, "tags": "tag 1"}])
+        self.assertTrue(strategy["fallback"])
+        self.assertEqual(strategy["mode"], "single_fallback")
+
     def test_collect_items_uses_local_tags_when_single_item_calls_fail(self) -> None:
         contexts = [{"index": 0, "existing_positive": ""}, {"index": 1, "existing_positive": ""}]
 
@@ -593,6 +710,44 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertTrue(all(item["tags"] for item in items))
         self.assertTrue(strategy["fallback"])
         self.assertTrue(any("local fallback" in item for item in strategy["errors"]))
+
+    def test_fallback_module_uses_local_tags_when_single_item_calls_fail(self) -> None:
+        contexts = [{"index": 0, "existing_positive": ""}, {"index": 1, "existing_positive": ""}]
+
+        items, strategy = prompt_random_fallback._collect_prompt_random_items_with_fallback(
+            {},
+            "model",
+            {},
+            contexts,
+            "anima",
+            collect_once=mock.Mock(side_effect=ValueError("bad json")),
+        )
+
+        self.assertEqual(len(items), 2)
+        self.assertTrue(all(item["tags"] for item in items))
+        self.assertTrue(strategy["fallback"])
+        self.assertTrue(any("local fallback" in item for item in strategy["errors"]))
+
+    def test_service_collect_response_shape_preserves_generation_strategy(self) -> None:
+        strategy = {"mode": "batch", "batch_attempts": 1, "fallback": False, "errors": []}
+
+        with mock.patch.object(prompt_random_service, "ensure_provider_ready", return_value={"reachable": True, "models": ["qwen"]}), mock.patch.object(
+            prompt_random_service,
+            "_collect_prompt_random_items_with_fallback",
+            return_value=([{"index": 0, "seed": 11, "tags": "red dress"}], strategy),
+        ):
+            result = prompt_random_service.collect_prompt_random_tags(
+                {"prompt_converter": {"enabled": True, "provider": "lmstudio", "base_url": "http://127.0.0.1:1234/v1"}},
+                feature={"enabled": True},
+                contexts=[{"index": 0, "seed": 11, "existing_positive": ""}],
+                app_scope="anima",
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["enabled"])
+        self.assertEqual(result["generated_items"], [{"index": 0, "seed": 11, "tags": "red dress"}])
+        self.assertEqual(result["generation_strategy"], strategy)
+        self.assertEqual(result["provider"]["model"], "qwen")
 
     def test_attach_generated_item_to_each_request(self) -> None:
         requests = [{"queue_index": 0, "prompt_random_collect": {"enabled": True}}, {"queue_index": 1, "prompt_random_collect": {"enabled": True}}]
@@ -606,6 +761,7 @@ class PromptRandomCollectTests(unittest.TestCase):
                 "use_character_motifs": True,
                 "generated_items": [{"index": 0, "tags": "red dress"}, {"index": 1, "tags": "blue dress"}],
                 "provider": {"model": "qwen"},
+                "generation_strategy": {"mode": "batch", "batch_attempts": 1, "fallback": False, "errors": []},
             },
         )
         self.assertEqual(prompt_random_collect.prompt_random_collect_tags(requests[0]), "red dress")
@@ -613,6 +769,7 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertEqual(requests[0]["prompt_random_collect"]["mode"], "positive_completion")
         self.assertFalse(requests[0]["prompt_random_collect"]["include_characters"])
         self.assertFalse(requests[0]["prompt_random_collect"]["use_character_motifs"])
+        self.assertEqual(requests[0]["prompt_random_collect"]["generation_strategy"]["mode"], "batch")
 
     def test_history_summary_preserves_generated_tags_for_reuse_strip(self) -> None:
         summary = history_store._prompt_random_collect_summary(
@@ -626,6 +783,7 @@ class PromptRandomCollectTests(unittest.TestCase):
                     "use_character_motifs": True,
                     "generated_item": {"index": 0, "tags": "red dress"},
                     "provider": {"model": "qwen"},
+                    "generation_strategy": {"mode": "batch", "batch_attempts": 1, "fallback": False, "errors": []},
                 }
             }
         )
@@ -634,6 +792,7 @@ class PromptRandomCollectTests(unittest.TestCase):
         self.assertEqual(summary["generated_tags"], "red dress")
         self.assertFalse(summary["include_characters"])
         self.assertFalse(summary["use_character_motifs"])
+        self.assertEqual(summary["generation_strategy"]["mode"], "batch")
 
     def test_history_summary_preserves_enabled_config_without_generated_tags(self) -> None:
         summary = history_store._prompt_random_collect_summary(

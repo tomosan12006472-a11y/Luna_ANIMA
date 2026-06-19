@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from . import comfy_client
 from .history_store import list_all_history_with_warnings
 from .payload_builder import build_prompts
+from .prompt_random.context import build_prompt_random_collect_contexts, prompt_random_collect_context_request
 from .prompt_random_collect import (
     attach_prompt_random_collect_items,
     collect_prompt_random_tags,
@@ -126,21 +127,6 @@ def prompt_random_collect_error_response(result: dict[str, Any]) -> JSONResponse
     return JSONResponse(status_code=status_code, content=result)
 
 
-def prompt_random_collect_context_request(request_data: dict[str, Any], *, include_characters: bool) -> dict[str, Any]:
-    if include_characters:
-        return request_data
-    context_request = dict(request_data)
-    context_request.update(
-        {
-            "character1": "None",
-            "character2": "None",
-            "character3": "None",
-            "original_character": "None",
-        }
-    )
-    return context_request
-
-
 def apply_prompt_random_collect_or_error(request_data_items: list[dict[str, Any]]) -> JSONResponse | None:
     if not request_data_items:
         return None
@@ -149,20 +135,11 @@ def apply_prompt_random_collect_or_error(request_data_items: list[dict[str, Any]
     if not prompt_random_collect_enabled(feature_config):
         return None
     include_characters = bool(feature_config.get("include_characters", True))
-    contexts: list[dict[str, Any]] = []
-    for position, request_data in enumerate(request_data_items):
-        context_request = prompt_random_collect_context_request(request_data, include_characters=include_characters)
-        prompts = build_prompts(context_request)
-        contexts.append(
-            {
-                "index": int(request_data.get("queue_index") or position),
-                "seed": prompts.get("seed", request_data.get("seed")),
-                "characters": prompts.get("characters", []) if include_characters else [],
-                "character_metadata": prompts.get("character_metadata", []) if include_characters else [],
-                "existing_positive": prompts.get("positive", ""),
-                "suppress_character_identity": not include_characters,
-            }
-        )
+    contexts = build_prompt_random_collect_contexts(
+        request_data_items,
+        include_characters=include_characters,
+        build_prompts_func=build_prompts,
+    )
     result = collect_prompt_random_tags(load_app_settings(), feature=feature_config, contexts=contexts, app_scope="anima")
     if not result.get("ok"):
         return prompt_random_collect_error_response(result)
