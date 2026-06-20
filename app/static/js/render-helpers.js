@@ -1,4 +1,4 @@
-import { $, displayValue, unique } from "./dom.js?v=v1.38-prompt-library-split-20260620";
+import { $, displayValue, unique } from "./dom.js?v=v1.39-history-reuse-split-20260620";
 
 export function fillSelect(selector, options, selected) {
   const select = typeof selector === "string" ? $(selector) : selector;

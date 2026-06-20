@@ -1,0 +1,86 @@
+export function createHistoryRequestFeature({
+  state,
+  characters,
+  promptRandom,
+  i2i,
+  reference,
+  detailers,
+  reuseDataFeature,
+} = {}) {
+  function historyRequestFromItem(item = {}) {
+    const data = reuseDataFeature.historyReuseData(item);
+    return {
+      workflow_mode: data.hires_fix.enabled ? "anima_mobile_extended" : "anima",
+      character1: characters.slotRequestValueFromData(data, "character1"),
+      character2: characters.slotRequestValueFromData(data, "character2"),
+      character3: characters.slotRequestValueFromData(data, "character3"),
+      original_character: characters.slotRequestValueFromData(data, "original"),
+      character1_weight: 1.0,
+      character2_weight: 1.0,
+      character3_weight: 1.0,
+      original_weight: 1.0,
+      character1_role: "main",
+      character2_role: "left",
+      character3_role: "right",
+      rating: data.rating,
+      rating_prompt_overrides: data.rating_prompt_overrides,
+      quality_preset: data.quality_preset,
+      quality_prompt_overrides: data.quality_prompt_overrides,
+      meta_prompt: item.meta_prompt || "anime illustration",
+      year_prompt: item.year_prompt || "",
+      outfit_prompt: item.outfit_prompt || "",
+      expression_prompt: item.expression_prompt || "",
+      pose_prompt: item.pose_prompt || "",
+      background_prompt: item.background_prompt || "",
+      lighting_prompt: item.lighting_prompt || "",
+      camera_prompt: item.camera_prompt || "",
+      natural_description: data.natural_description,
+      positive_prompt: data.positive_prompt,
+      negative_prompt: data.negative_prompt,
+      negative_prompt_raw: data.negative_prompt,
+      negative_prompt_mode: data.negative_prompt_mode,
+      negative_preset: data.negative_preset,
+      prompt_ban: item.prompt_ban || "",
+      common_prompt: item.common || "",
+      model: data.model,
+      text_encoder: state.appSettings.text_encoder || state.defaults.text_encoder || "qwen_3_06b_base.safetensors",
+      vae: state.appSettings.vae || state.defaults.vae || "qwen_image_vae.safetensors",
+      width: data.width,
+      height: data.height,
+      steps: data.steps,
+      cfg: data.cfg,
+      shift: data.shift,
+      sampler: data.sampler,
+      scheduler: data.scheduler,
+      seed: data.seed,
+      seed_mode: data.seed_mode,
+      official_loras: data.official_loras,
+      loras: data.loras,
+      count: 1,
+      wait: false,
+      dynamic_prompt: { enabled: false },
+      prompt_random_collect: promptRandom.historyCollect(data.prompt_random_collect),
+      hires_fix: data.hires_fix,
+      reference_assist: { enabled: false },
+      image_to_image: i2i.history(item),
+      face_detailer: detailers.historyFaceRequest(item),
+      hand_detailer: detailers.historyHandRequest(item),
+      reference_modules: reference.historyModules(item),
+    };
+  }
+
+  function buildVariationRequest(item = {}, count = 1) {
+    return {
+      ...historyRequestFromItem(item),
+      seed_mode: "random",
+      seed: -1,
+      count,
+      wait: false,
+    };
+  }
+
+  return {
+    historyRequestFromItem,
+    buildVariationRequest,
+  };
+}
