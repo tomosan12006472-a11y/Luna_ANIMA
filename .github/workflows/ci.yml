@@ -35,6 +35,9 @@ jobs:
       - name: Check static import tokens
         run: node scripts/check_static_import_tokens.mjs
 
+      - name: Check frontend contracts
+        run: node scripts/check_frontend_contracts.mjs
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

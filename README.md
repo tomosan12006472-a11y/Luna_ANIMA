@@ -64,6 +64,7 @@ Use Python 3.11 or newer. Local setup can be created with `setup_venv.bat`.
 ```bat
 node scripts/check_frontend_js.mjs
 node scripts/check_static_import_tokens.mjs
+node scripts/check_frontend_contracts.mjs
 python -m unittest discover -s tests
 python -m compileall app tests
 git diff --check
@@ -71,7 +72,11 @@ git diff --check
 
 The CI test suite does not require ComfyUI, LM Studio, Ollama, or llama.cpp to be running.
 
-Frontend modules live under `app/static/js`. `app/static/app.js` is a compatibility bootstrap, while `app/static/js/main.js` should stay focused on app shell wiring, shared feature context, action registration, and startup orchestration.
+Frontend modules live under `app/static/js`. `app/static/app.js` is a compatibility bootstrap, while `app/static/js/main.js` should stay focused on app shell wiring, shared feature context, action registration, and startup orchestration. The frontend checks cover JavaScript syntax, static import cache tokens, and lightweight contracts for factory exports, actions, API paths, request keys, and key DOM/state references.
+
+After the PR that adds the frontend contract check is merged green, the large structural refactoring is considered complete. Future work should be treated as feature improvement, observability, regression hardening, or bugfix work. Further module splits should stay small and needs-driven.
+
+See `docs/frontend_modules.md` for the current frontend module map and maintenance boundaries.
 
 ## Notes
 
