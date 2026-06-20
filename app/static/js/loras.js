@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.33-settings-prompt-library-module-20260620";
+} from "./dom.js?v=v1.34-character-module-20260620";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
