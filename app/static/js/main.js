@@ -1,6 +1,6 @@
-import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.31-reference-i2i-module-20260620";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.31-reference-i2i-module-20260620";
-import { onDomReady } from "./bootstrap.js?v=v1.31-reference-i2i-module-20260620";
+import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.32-generation-form-module-20260620";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.32-generation-form-module-20260620";
+import { onDomReady } from "./bootstrap.js?v=v1.32-generation-form-module-20260620";
 import {
   $,
   $$,
@@ -16,14 +16,15 @@ import {
   text,
   unique,
   value,
-} from "./dom.js?v=v1.31-reference-i2i-module-20260620";
-import { createHistoryFeature } from "./history.js?v=v1.31-reference-i2i-module-20260620";
-import { createI2iFeature } from "./i2i.js?v=v1.31-reference-i2i-module-20260620";
-import { createLoraFeature } from "./loras.js?v=v1.31-reference-i2i-module-20260620";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.31-reference-i2i-module-20260620";
-import { createQueueFeature } from "./queue.js?v=v1.31-reference-i2i-module-20260620";
-import { createReferenceFeature } from "./reference.js?v=v1.31-reference-i2i-module-20260620";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } from "./state.js?v=v1.31-reference-i2i-module-20260620";
+} from "./dom.js?v=v1.32-generation-form-module-20260620";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.32-generation-form-module-20260620";
+import { createHistoryFeature } from "./history.js?v=v1.32-generation-form-module-20260620";
+import { createI2iFeature } from "./i2i.js?v=v1.32-generation-form-module-20260620";
+import { createLoraFeature } from "./loras.js?v=v1.32-generation-form-module-20260620";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.32-generation-form-module-20260620";
+import { createQueueFeature } from "./queue.js?v=v1.32-generation-form-module-20260620";
+import { createReferenceFeature } from "./reference.js?v=v1.32-generation-form-module-20260620";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } from "./state.js?v=v1.32-generation-form-module-20260620";
 
 (() => {
   "use strict";
@@ -109,6 +110,20 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     errorMessage,
     refreshHistory: () => history.loadContact(true),
   });
+  const generationForm = createGenerationFormFeature({
+    state,
+    UI,
+    fillSelect: (selector, options, selected) => fillSelect(selector, options, selected),
+    slotRequestValue: (slotName) => slotRequestValue(slotName),
+    collectRatingPromptOverrides: () => collectRatingPromptOverrides(),
+    collectQualityPromptOverrides: () => collectQualityPromptOverrides(),
+    collectFaceDetailerSettings: (enabled, mode) => collectFaceDetailerSettings(enabled, mode),
+    collectHandDetailerSettings: (enabled, mode) => collectHandDetailerSettings(enabled, mode),
+    promptRandom,
+    loras,
+    i2i,
+    reference,
+  });
 
   function fillSelect(selector, options, selected) {
     const select = typeof selector === "string" ? $(selector) : selector;
@@ -123,63 +138,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       select.appendChild(option);
     }
     if (current) select.value = current;
-  }
-
-  function selectedQueueCount() {
-    const count = Number(value("#queueCount", 1));
-    return Number.isFinite(count) && count > 0 ? count : 1;
-  }
-
-  function selectedVariationCount() {
-    const count = Math.trunc(Number(value("#variationCount", 2)));
-    return Number.isFinite(count) && count > 0 ? count : 2;
-  }
-
-  function normalizeHiresMode(mode) {
-    return String(mode || "latent").toLowerCase() === "model" ? "model" : "latent";
-  }
-
-  function normalizeHiresFix(hires = {}) {
-    const source = hires && typeof hires === "object" ? hires : {};
-    const latentMethod = String(source.latent_upscale_method || source.upscale_method || "nearest-exact").trim() || "nearest-exact";
-    return {
-      enabled: Boolean(source.enabled),
-      mode: normalizeHiresMode(source.mode),
-      upscale_factor: numberFrom(source.upscale_factor ?? source.factor, 1.5),
-      denoise: numberFrom(source.denoise, 0.45),
-      steps: intFrom(source.steps, 15),
-      latent_upscale_method: latentMethod,
-      upscale_model: String(source.upscale_model || "").trim(),
-      target_width: intFrom(source.target_width, 0),
-      target_height: intFrom(source.target_height, 0),
-    };
-  }
-
-  function collectHiresFix() {
-    return normalizeHiresFix({
-      enabled: checked("#hiresEnabled"),
-      mode: value("#hiresMode", "latent"),
-      upscale_factor: numberValue("#hiresFactor", 1.5),
-      denoise: numberValue("#hiresDenoise", 0.45),
-      steps: intFrom(numberValue("#hiresSteps", 15), 15),
-      latent_upscale_method: value("#hiresMethod", "nearest-exact"),
-      upscale_model: value("#hiresModel", ""),
-      target_width: intFrom(numberValue("#hiresTargetW", 0), 0),
-      target_height: intFrom(numberValue("#hiresTargetH", 0), 0),
-    });
-  }
-
-  function applyHiresFixToForm(hires = {}) {
-    const next = normalizeHiresFix(hires);
-    setChecked("#hiresEnabled", next.enabled);
-    setValue("#hiresMode", next.mode);
-    setValue("#hiresFactor", next.upscale_factor);
-    setValue("#hiresDenoise", next.denoise);
-    setValue("#hiresSteps", next.steps);
-    fillSelect("#hiresMethod", state.models.upscale_methods || [], next.latent_upscale_method);
-    fillSelect("#hiresModel", state.models.upscale_models || [], next.upscale_model);
-    setValue("#hiresTargetW", next.target_width);
-    setValue("#hiresTargetH", next.target_height);
   }
 
   function slotRequestValue(slotName) {
@@ -323,67 +281,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
   }
 
   function collectRequest() {
-    const negative = value("#negativePrompt", "");
-    const seedMode = value("#seedModeSelect", "fixed");
-    const hiresFix = collectHiresFix();
-    return {
-      workflow_mode: hiresFix.enabled ? "anima_mobile_extended" : "anima",
-      character1: slotRequestValue("character1"),
-      character2: slotRequestValue("character2"),
-      character3: slotRequestValue("character3"),
-      original_character: slotRequestValue("original"),
-      character1_weight: 1.0,
-      character2_weight: 1.0,
-      character3_weight: 1.0,
-      original_weight: 1.0,
-      character1_role: "main",
-      character2_role: "left",
-      character3_role: "right",
-      rating: UI.segValue("#ratingSeg", "rating") || "safe",
-      rating_prompt_overrides: collectRatingPromptOverrides(),
-      quality_preset: UI.segValue("#qualitySeg", "quality") || "standard",
-      quality_prompt_overrides: collectQualityPromptOverrides(),
-      meta_prompt: value("#metaPrompt", "anime illustration"),
-      year_prompt: value("#yearPrompt", ""),
-      outfit_prompt: value("#outfitPrompt", ""),
-      expression_prompt: value("#expressionPrompt", ""),
-      pose_prompt: value("#posePrompt", ""),
-      background_prompt: value("#backgroundPrompt", ""),
-      lighting_prompt: value("#lightingPrompt", ""),
-      camera_prompt: value("#cameraPrompt", ""),
-      natural_description: value("#naturalDescription", ""),
-      positive_prompt: value("#positivePrompt", ""),
-      negative_prompt: negative,
-      negative_prompt_raw: negative,
-      negative_prompt_mode: value("#negativeMode", "append"),
-      negative_preset: value("#negativePreset", "anima_recommended"),
-      prompt_ban: value("#promptBan", ""),
-      common_prompt: "",
-      model: value("#modelSelect", state.appSettings.model || state.defaults.model || "Anima\\anima-preview3-base.safetensors"),
-      text_encoder: state.appSettings.text_encoder || state.defaults.text_encoder || "qwen_3_06b_base.safetensors",
-      vae: state.appSettings.vae || state.defaults.vae || "qwen_image_vae.safetensors",
-      width: numberValue("#widthInput", 1024),
-      height: numberValue("#heightInput", 1536),
-      steps: numberValue("#stepsInput", 32),
-      cfg: numberValue("#cfgInput", 4.5),
-      shift: numberValue("#shiftInput", 4),
-      sampler: value("#samplerSelect", "er_sde"),
-      scheduler: value("#schedulerSelect", "simple"),
-      seed: seedMode === "random" ? -1 : Math.trunc(numberValue("#seedInput", -1)),
-      seed_mode: seedMode,
-      official_loras: loras.collectOfficial(),
-      loras: loras.collect(),
-      count: selectedQueueCount(),
-      wait: false,
-      dynamic_prompt: { enabled: checked("#dynamicEnabled") },
-      prompt_random_collect: promptRandom.collect(),
-      hires_fix: hiresFix,
-      reference_assist: { enabled: false },
-      image_to_image: i2i.collect(),
-      face_detailer: collectFaceDetailerSettings(checked("#fdEnabled"), "generation"),
-      hand_detailer: collectHandDetailerSettings(checked("#hdEnabled"), "generation"),
-      reference_modules: reference.collectModules(),
-    };
+    return generationForm.collectRequest();
   }
 
   function sourceForCharacter(item) {
@@ -1679,27 +1577,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
   }
 
   function applySettingsToForm(settings = {}, defaults = state.defaults) {
-    setValue("#positivePrompt", settings.default_positive_prompt ?? defaults.positive_prompt ?? "");
-    setValue("#negativePrompt", settings.default_negative_prompt ?? defaults.negative_prompt ?? "");
-    setValue("#negativeMode", settings.negative_prompt_mode ?? defaults.negative_prompt_mode ?? "append");
-    setValue("#negativePreset", settings.negative_preset || "anima_recommended");
-    setValue("#metaPrompt", settings.meta_prompt || "anime illustration");
-    setValue("#yearPrompt", settings.year_prompt || "");
-    setValue("#outfitPrompt", settings.outfit_prompt || "");
-    setValue("#expressionPrompt", settings.expression_prompt || "");
-    setValue("#posePrompt", settings.pose_prompt || "");
-    setValue("#backgroundPrompt", settings.background_prompt || "");
-    setValue("#cameraPrompt", settings.camera_prompt || "");
-    setValue("#lightingPrompt", settings.lighting_prompt || "");
-    setValue("#naturalDescription", settings.natural_description || "");
-    setValue("#widthInput", settings.width ?? defaults.width ?? 1024);
-    setValue("#heightInput", settings.height ?? defaults.height ?? 1536);
-    setValue("#stepsInput", settings.steps ?? defaults.steps ?? 32);
-    setValue("#cfgInput", settings.cfg ?? defaults.cfg ?? 4.5);
-    setValue("#shiftInput", settings.shift ?? defaults.shift ?? 4);
-    setValue("#seedInput", settings.seed ?? defaults.seed ?? -1);
-    setValue("#seedModeSelect", settings.seed_mode || "fixed");
-    setValue("#queueCount", settings.generation_count || 1);
+    generationForm.applySettingsBasicsToForm(settings, defaults);
     UI.setSegValue("#ratingSeg", "rating", settings.rating || "safe");
     UI.setSegValue("#qualitySeg", "quality", settings.quality_preset || "standard");
     state.ratingPromptDrafts = ratingPromptOverrides(settings);
@@ -1711,11 +1589,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     promptRandom.applyToForm(settings.prompt_random_collect || {});
     promptRandom.renderInstructionFavorites(settings);
     applyWatermark(settings.watermark || {});
-    applyHiresFixToForm(settings.hires_fix || {});
-
-    fillSelect("#modelSelect", state.models.models || [], settings.model ?? defaults.model ?? "Anima\\anima-preview3-base.safetensors");
-    fillSelect("#samplerSelect", state.models.samplers || [], settings.sampler ?? defaults.sampler ?? "er_sde");
-    fillSelect("#schedulerSelect", state.models.schedulers || [], settings.scheduler ?? defaults.scheduler ?? "simple");
     updateSizeChips();
     updateSummaries();
   }
@@ -1902,10 +1775,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     if (targetSlot === "original") return char.id || displayName;
     if (source === "original_character") return `original:${char.id || displayName}`;
     return char.prompt_tag || displayName;
-  }
-
-  function historyHiresFixRequest(item = {}) {
-    return normalizeHiresFix(item.hires_fix || {});
   }
 
   function historyFaceDetailerRequest(item = {}) {
@@ -2185,7 +2054,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       loras: loras.history(item.loras || []),
       dynamic_prompt: { enabled: false },
       prompt_random_collect: { ...promptRandom.historyCollect(item.prompt_random_collect), enabled: false },
-      hires_fix: historyHiresFixRequest(item),
+      hires_fix: generationForm.historyHiresFix(item),
       image_to_image: i2i.history(item),
       reference_modules: reference.historyModules(item),
       face_detailer: historyFaceDetailerRequest(item),
@@ -2208,35 +2077,11 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     state.qualityPromptDrafts = qualityPromptOverrides(data);
     renderRatingPrompt();
     renderQualityPrompt();
-    setValue("#metaPrompt", data.meta_prompt);
-    setValue("#yearPrompt", data.year_prompt);
-    setValue("#outfitPrompt", data.outfit_prompt);
-    setValue("#expressionPrompt", data.expression_prompt);
-    setValue("#posePrompt", data.pose_prompt);
-    setValue("#backgroundPrompt", data.background_prompt);
-    setValue("#cameraPrompt", data.camera_prompt);
-    setValue("#lightingPrompt", data.lighting_prompt);
-    setValue("#positivePrompt", data.positive_prompt);
-    setValue("#negativePrompt", data.negative_prompt);
-    setValue("#negativeMode", data.negative_prompt_mode);
-    setValue("#negativePreset", data.negative_preset);
-    setValue("#promptBan", data.prompt_ban);
-    setValue("#naturalDescription", data.natural_description);
-    setValue("#modelSelect", data.model);
-    setValue("#widthInput", data.width);
-    setValue("#heightInput", data.height);
-    setValue("#stepsInput", data.steps);
-    setValue("#cfgInput", data.cfg);
-    setValue("#shiftInput", data.shift);
-    setValue("#samplerSelect", data.sampler);
-    setValue("#schedulerSelect", data.scheduler);
-    setValue("#seedInput", data.seed);
-    setValue("#seedModeSelect", data.seed_mode);
+    generationForm.applyHistoryBasicsToForm(data);
     loras.applyOfficialToForm(data.official_loras);
     loras.renderRows(data.loras || []);
     setChecked("#dynamicEnabled", Boolean(data.dynamic_prompt?.enabled));
     promptRandom.applyToForm(data.prompt_random_collect || {});
-    applyHiresFixToForm(data.hires_fix || {});
 
     i2i.applyToForm(data.image_to_image || {}, { update: false });
     reference.applyModulesToForm(data.reference_modules || {}, { update: false });
@@ -2324,7 +2169,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       loras: loras.history(req.loras || []),
       dynamic_prompt: req.dynamic_prompt && typeof req.dynamic_prompt === "object" ? req.dynamic_prompt : { enabled: false },
       prompt_random_collect: promptRandom.historyCollect(req.prompt_random_collect),
-      hires_fix: historyHiresFixRequest({ hires_fix: req.hires_fix }),
+      hires_fix: generationForm.historyHiresFix({ hires_fix: req.hires_fix }),
       image_to_image: i2i.history({ image_to_image: req.image_to_image }),
       reference_modules: reference.historyModules({ reference_modules: req.reference_modules }),
       face_detailer: historyFaceDetailerRequest({ face_detailer: req.face_detailer }),
@@ -2404,7 +2249,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
 
   async function generateFrameVariations() {
     if (!state.detailItem?.id) return;
-    const count = selectedVariationCount();
+    const count = generationForm.selectedVariationCount();
     const request = {
       ...historyRequestFromItem(state.detailItem),
       seed_mode: "random",
@@ -2431,7 +2276,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
 
   function settingsFromForm() {
     const next = clone(state.appSettings);
-    const hiresFix = collectHiresFix();
+    const hiresFix = generationForm.collectHiresFix();
     Object.assign(next, {
       workflow_mode: hiresFix.enabled ? "anima_mobile_extended" : "anima",
       model: value("#modelSelect", state.defaults.model || next.model || ""),
@@ -2446,7 +2291,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       scheduler: value("#schedulerSelect", "simple"),
       seed: Math.trunc(numberValue("#seedInput", -1)),
       seed_mode: value("#seedModeSelect", "fixed"),
-      generation_count: selectedQueueCount(),
+      generation_count: generationForm.selectedQueueCount(),
       default_positive_prompt: value("#positivePrompt", ""),
       default_negative_prompt: value("#negativePrompt", ""),
       negative_prompt_mode: value("#negativeMode", "append"),
