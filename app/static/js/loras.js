@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.35-detailer-module-20260620";
+} from "./dom.js?v=v1.36-main-shell-cleanup-20260620";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
