@@ -7,7 +7,7 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.32-generation-form-module-20260620";
+} from "./dom.js?v=v1.33-settings-prompt-library-module-20260620";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);

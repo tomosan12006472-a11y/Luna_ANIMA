@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.32-generation-form-module-20260620";
+import { $, text } from "./dom.js?v=v1.33-settings-prompt-library-module-20260620";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);
