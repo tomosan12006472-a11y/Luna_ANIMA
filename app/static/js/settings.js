@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.34-character-module-20260620";
+} from "./dom.js?v=v1.35-detailer-module-20260620";
 
 export function createSettingsFeature({
   api,
