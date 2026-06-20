@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.36-main-shell-cleanup-20260620";
+} from "./dom.js?v=v1.37-app-shell-checks-20260620";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 

@@ -7,7 +7,7 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.36-main-shell-cleanup-20260620";
+} from "./dom.js?v=v1.37-app-shell-checks-20260620";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
@@ -30,6 +30,20 @@ export function createHistoryFeature({
   historyNegativeText,
   collectWatermark,
 } = {}) {
+  const textProviders = {
+    historyPositiveText: typeof historyPositiveText === "function" ? historyPositiveText : () => "",
+    historyNegativeText: typeof historyNegativeText === "function" ? historyNegativeText : () => "",
+  };
+
+  function setTextProviders(providers = {}) {
+    if (typeof providers.historyPositiveText === "function") {
+      textProviders.historyPositiveText = providers.historyPositiveText;
+    }
+    if (typeof providers.historyNegativeText === "function") {
+      textProviders.historyNegativeText = providers.historyNegativeText;
+    }
+  }
+
   function isActiveItem(item) {
     return ACTIVE_STATUSES.has(String(item?.status || ""));
   }
@@ -323,8 +337,8 @@ export function createHistoryFeature({
       addMetaRow(table, "RATING", item.rating || "-");
       addMetaRow(table, "CHARACTERS", characterSummary(item));
       addMetaRow(table, "LORA", loras.summary(item.loras || []));
-      addMetaRow(table, "POSITIVE", historyPositiveText(item), true);
-      addMetaRow(table, "NEGATIVE", historyNegativeText(item), true);
+      addMetaRow(table, "POSITIVE", textProviders.historyPositiveText(item), true);
+      addMetaRow(table, "NEGATIVE", textProviders.historyNegativeText(item), true);
     }
     UI.openSheet("#frameSheet");
   }
@@ -453,6 +467,7 @@ export function createHistoryFeature({
     renderContact,
     renderFrameDetail,
     savePublicImage,
+    setTextProviders,
     shareFrame,
     toggleFrameFavorite,
   };

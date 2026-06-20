@@ -26,6 +26,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check Node.js version
+        run: node --version
+
+      - name: Check frontend JavaScript syntax
+        run: node scripts/check_frontend_js.mjs
+
+      - name: Check static import tokens
+        run: node scripts/check_static_import_tokens.mjs
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
