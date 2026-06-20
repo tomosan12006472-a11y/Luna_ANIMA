@@ -5,8 +5,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.37-app-shell-checks-20260620";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.37-app-shell-checks-20260620";
+} from "./dom.js?v=v1.38-prompt-library-split-20260620";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.38-prompt-library-split-20260620";
 
 const EMPTY_SLOT_LABELS = {
   character1: "未選択",

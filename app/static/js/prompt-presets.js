@@ -3,7 +3,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.37-app-shell-checks-20260620";
+} from "./dom.js?v=v1.38-prompt-library-split-20260620";
 
 const QUALITY_PROMPTS = Object.freeze({
   standard: "masterpiece, best quality, score_7",
