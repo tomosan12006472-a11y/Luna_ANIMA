@@ -1,33 +1,33 @@
-import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.36-main-shell-cleanup-20260620";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.36-main-shell-cleanup-20260620";
-import { onDomReady } from "./bootstrap.js?v=v1.36-main-shell-cleanup-20260620";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.37-app-shell-checks-20260620";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.37-app-shell-checks-20260620";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.37-app-shell-checks-20260620";
+import { onDomReady } from "./bootstrap.js?v=v1.37-app-shell-checks-20260620";
 import {
   $,
   $$,
   checked,
   clone,
-  displayValue,
   numberValue,
   setValue,
   text,
-  unique,
   value,
-} from "./dom.js?v=v1.36-main-shell-cleanup-20260620";
-import { createCharacterFeature } from "./characters.js?v=v1.36-main-shell-cleanup-20260620";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.36-main-shell-cleanup-20260620";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.36-main-shell-cleanup-20260620";
-import { createHistoryFeature } from "./history.js?v=v1.36-main-shell-cleanup-20260620";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.36-main-shell-cleanup-20260620";
-import { createI2iFeature } from "./i2i.js?v=v1.36-main-shell-cleanup-20260620";
-import { createLoraFeature } from "./loras.js?v=v1.36-main-shell-cleanup-20260620";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.36-main-shell-cleanup-20260620";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.36-main-shell-cleanup-20260620";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.36-main-shell-cleanup-20260620";
-import { createQueueFeature } from "./queue.js?v=v1.36-main-shell-cleanup-20260620";
-import { createReferenceFeature } from "./reference.js?v=v1.36-main-shell-cleanup-20260620";
-import { createSettingsFeature } from "./settings.js?v=v1.36-main-shell-cleanup-20260620";
-import { createInitialState } from "./state.js?v=v1.36-main-shell-cleanup-20260620";
-import { createDetailerFeature } from "./detailers.js?v=v1.36-main-shell-cleanup-20260620";
+} from "./dom.js?v=v1.37-app-shell-checks-20260620";
+import { createCharacterFeature } from "./characters.js?v=v1.37-app-shell-checks-20260620";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.37-app-shell-checks-20260620";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.37-app-shell-checks-20260620";
+import { createHistoryFeature } from "./history.js?v=v1.37-app-shell-checks-20260620";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.37-app-shell-checks-20260620";
+import { createI2iFeature } from "./i2i.js?v=v1.37-app-shell-checks-20260620";
+import { createLoraFeature } from "./loras.js?v=v1.37-app-shell-checks-20260620";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.37-app-shell-checks-20260620";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.37-app-shell-checks-20260620";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.37-app-shell-checks-20260620";
+import { createQueueFeature } from "./queue.js?v=v1.37-app-shell-checks-20260620";
+import { createReferenceFeature } from "./reference.js?v=v1.37-app-shell-checks-20260620";
+import { createSettingsFeature } from "./settings.js?v=v1.37-app-shell-checks-20260620";
+import { createInitialState } from "./state.js?v=v1.37-app-shell-checks-20260620";
+import { createDetailerFeature } from "./detailers.js?v=v1.37-app-shell-checks-20260620";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.37-app-shell-checks-20260620";
 
 (() => {
   "use strict";
@@ -35,19 +35,10 @@ import { createDetailerFeature } from "./detailers.js?v=v1.36-main-shell-cleanup
   const UI = window.UI;
 
   const state = createInitialState();
-  let historyReuse;
 
-  function exitToLogin(message = "") {
-    UI.closeSheets();
-    $("#loginView")?.classList.add("is-active");
-    $$(".view[data-view]").forEach((view) => view.classList.remove("is-active"));
-    $("#tabs")?.classList.add("hidden");
-    $("#exposeBar")?.classList.add("hidden");
-    UI.safelight("idle");
-    if (message) text("#loginStatus", message);
-  }
-
-  const { api, fetchWithAuthHandling } = createApiClient({ onUnauthorized: exitToLogin });
+  const { api, fetchWithAuthHandling } = createApiClient({
+    onUnauthorized: (message) => exitToLogin(message, { UI }),
+  });
   const promptPresets = createPromptPresetsFeature({
     api,
     state,
@@ -107,8 +98,8 @@ import { createDetailerFeature } from "./detailers.js?v=v1.36-main-shell-cleanup
     loras,
     addMetaRow: (table, label, nextValue, selectable) => addMetaRow(table, label, nextValue, selectable),
     characterSummary: (item) => characterSummary(item),
-    historyPositiveText: (item) => historyReuse.historyPositiveText(item),
-    historyNegativeText: (item) => historyReuse.historyNegativeText(item),
+    historyPositiveText: () => "",
+    historyNegativeText: () => "",
     collectWatermark: () => settingsFeature.collectWatermark(),
   });
   const queue = createQueueFeature({
@@ -139,7 +130,7 @@ import { createDetailerFeature } from "./detailers.js?v=v1.36-main-shell-cleanup
     i2i,
     reference,
   });
-  historyReuse = createHistoryReuseFeature({
+  const historyReuse = createHistoryReuseFeature({
     state,
     UI,
     characters,
@@ -151,6 +142,10 @@ import { createDetailerFeature } from "./detailers.js?v=v1.36-main-shell-cleanup
     reference,
     detailers,
     updateSummaries: () => updateSummaries(),
+  });
+  history.setTextProviders({
+    historyPositiveText: (item) => historyReuse.historyPositiveText(item),
+    historyNegativeText: (item) => historyReuse.historyNegativeText(item),
   });
   const generationActions = createGenerationActionsFeature({
     api,
@@ -174,21 +169,20 @@ import { createDetailerFeature } from "./detailers.js?v=v1.36-main-shell-cleanup
     applyHistoryReuseData: (data) => historyReuse.applyHistoryReuseData(data),
     reuseDataFromRequest: (request) => historyReuse.reuseDataFromRequest(request),
   });
-
-  function fillSelect(selector, options, selected) {
-    const select = typeof selector === "string" ? $(selector) : selector;
-    if (!select) return;
-    const current = String(selected ?? select.value ?? "").trim();
-    const values = unique([current, ...(options || [])]);
-    select.replaceChildren();
-    for (const optionValue of values.length ? values : [current || ""]) {
-      const option = document.createElement("option");
-      option.value = optionValue;
-      option.textContent = optionValue || "-";
-      select.appendChild(option);
-    }
-    if (current) select.value = current;
-  }
+  const appShell = createAppShell({
+    api,
+    state,
+    UI,
+    errorMessage,
+    isUnauthorized,
+    applySettingsToForm: (nextSettings, defaults) => applySettingsToForm(nextSettings, defaults),
+    characters,
+    fillSelect,
+    history,
+    loadModels: (refresh) => loadModels(refresh),
+    loras,
+    updateSummaries: () => updateSummaries(),
+  });
 
   function collectRequest() {
     return generationForm.collectRequest();
@@ -264,31 +258,6 @@ import { createDetailerFeature } from "./detailers.js?v=v1.36-main-shell-cleanup
     updateSizeChips();
   }
 
-  function characterSummary(item = {}) {
-    const chars = Array.isArray(item.characters) ? item.characters : [];
-    if (!chars.length) return item.original_character || "-";
-    return chars.map((char) => {
-      if (typeof char === "string") return char;
-      const role = char.role || char.position || "";
-      const name = char.display_name || char.name || char.id || "";
-      return role && name ? `${role}: ${name}` : name;
-    }).filter(Boolean).join(", ") || "-";
-  }
-
-  function addMetaRow(table, label, value, selectable = false) {
-    const tr = document.createElement("tr");
-    const th = document.createElement("td");
-    th.textContent = label;
-    const td = document.createElement("td");
-    td.textContent = displayValue(value);
-    if (selectable) {
-      td.style.userSelect = "text";
-      td.style.webkitUserSelect = "text";
-    }
-    tr.append(th, td);
-    table.appendChild(tr);
-  }
-
   function settingsFromForm() {
     const next = clone(state.appSettings);
     const hiresFix = generationForm.collectHiresFix();
@@ -339,90 +308,9 @@ import { createDetailerFeature } from "./detailers.js?v=v1.36-main-shell-cleanup
     return next;
   }
 
-  async function login() {
-    text("#loginStatus", "");
-    try {
-      await api("/api/login", {
-        method: "POST",
-        body: JSON.stringify({ pin: value("#pinInput", "") }),
-      });
-      UI.enterDarkroom();
-      await bootstrap();
-    } catch (error) {
-      text("#loginStatus", errorMessage(error));
-    }
-  }
-
-  function reportBootstrapFailures(results, tasks) {
-    const failures = results
-      .map((result, index) => ({ result, task: tasks[index] || {} }))
-      .filter((entry) => entry.result.status === "rejected");
-    if (!failures.length) return;
-    for (const failure of failures) {
-      console.warn(`bootstrap optional failed: ${failure.task.label || "optional"}`, failure.result.reason);
-    }
-    const authFailure = failures.find((failure) => isUnauthorized(failure.result.reason));
-    if (authFailure) {
-      const message = errorMessage(authFailure.result.reason) || authExpiredMessage();
-      text("#loginStatus", message);
-      exitToLogin(message);
-      throw authFailure.result.reason;
-    }
-    const labels = failures.map((failure) => failure.task.label || "optional").join(" / ");
-    UI.toast(`起動時の一部読み込みに失敗: ${labels}`, "error");
-    for (const failure of failures) {
-      if (failure.task.status) text(failure.task.status, `${failure.task.label}: ${errorMessage(failure.result.reason)}`);
-    }
-  }
-
-  async function bootstrap(initialData = null) {
-    const data = initialData || await api("/api/bootstrap");
-    state.bootstrap = data;
-    state.appSettings = data.settings || {};
-    state.defaults = data.defaults || {};
-    text("#catalogCount", `${data.catalog_count || 0} chars + ${data.custom_count || 0} custom / original ${data.original_count || 0}`);
-    applySettingsToForm(state.appSettings, state.defaults);
-
-    const modelResult = await Promise.allSettled([loadModels(false), loras.loadCatalog()]);
-    if (modelResult[0].status === "rejected") {
-      console.warn(modelResult[0].reason);
-      fillSelect("#modelSelect", [], state.defaults.model || state.appSettings.model || "Anima\\anima-preview3-base.safetensors");
-      fillSelect("#samplerSelect", [], state.defaults.sampler || state.appSettings.sampler || "er_sde");
-      fillSelect("#schedulerSelect", [], state.defaults.scheduler || state.appSettings.scheduler || "simple");
-    }
-    reportBootstrapFailures(modelResult, [
-      { label: "モデル一覧", status: "#settingsStatus" },
-      { label: "LoRA一覧", status: "#settingsStatus" },
-    ]);
-    loras.renderConfigured(state.appSettings);
-    const optionalResults = await Promise.allSettled([
-      characters.loadFavorites(),
-      characters.searchCharacters(),
-      history.loadContact(true),
-    ]);
-    reportBootstrapFailures(optionalResults, [
-      { label: "お気に入り", status: "#catalogCount" },
-      { label: "キャラ検索", status: "#catalogCount" },
-      { label: "履歴", status: "#contactCount" },
-    ]);
-    updateSummaries();
-  }
-
-  async function tryBootstrapSession() {
-    try {
-      const data = await api("/api/bootstrap");
-      UI.enterDarkroom();
-      await bootstrap(data);
-    } catch (error) {
-      const message = errorMessage(error) || authExpiredMessage();
-      text("#loginStatus", message);
-      exitToLogin(message);
-    }
-  }
-
   function registerMainActions() {
     registerActions({
-      login: () => login(),
+      login: () => appShell.login(),
       "frame-reuse": () => {
         if (state.detailItem) historyReuse.applyHistoryToForm(state.detailItem);
       },
@@ -444,7 +332,7 @@ import { createDetailerFeature } from "./detailers.js?v=v1.36-main-shell-cleanup
 
   function bindEvents() {
     $("#pinInput")?.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") login();
+      if (event.key === "Enter") appShell.login();
     });
 
     promptPresets.bindEvents();
@@ -510,7 +398,7 @@ import { createDetailerFeature } from "./detailers.js?v=v1.36-main-shell-cleanup
     reference.renderPreviews();
     characters.renderSlots();
     updateSummaries();
-    tryBootstrapSession();
+    appShell.tryBootstrapSession();
   }
 
   onDomReady(init);

@@ -62,12 +62,16 @@ Startup is refused when `LUNA_ANIMA_HOST` is `0.0.0.0` or `::` and the default P
 Use Python 3.11 or newer. Local setup can be created with `setup_venv.bat`.
 
 ```bat
+node scripts/check_frontend_js.mjs
+node scripts/check_static_import_tokens.mjs
 python -m unittest discover -s tests
 python -m compileall app tests
 git diff --check
 ```
 
 The CI test suite does not require ComfyUI, LM Studio, Ollama, or llama.cpp to be running.
+
+Frontend modules live under `app/static/js`. `app/static/app.js` is a compatibility bootstrap, while `app/static/js/main.js` should stay focused on app shell wiring, shared feature context, action registration, and startup orchestration.
 
 ## Notes
 
