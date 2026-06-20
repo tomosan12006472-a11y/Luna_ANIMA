@@ -1,5 +1,5 @@
-import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.37-app-shell-checks-20260620";
-import { $, $$, text, value } from "./dom.js?v=v1.37-app-shell-checks-20260620";
+import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.38-prompt-library-split-20260620";
+import { $, $$, text, value } from "./dom.js?v=v1.38-prompt-library-split-20260620";
 
 export function exitToLogin(message = "", { UI = window.UI } = {}) {
   UI.closeSheets();
