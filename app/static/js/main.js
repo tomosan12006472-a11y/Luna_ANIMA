@@ -1,6 +1,6 @@
-import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.30-history-queue-module-20260620";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.30-history-queue-module-20260620";
-import { onDomReady } from "./bootstrap.js?v=v1.30-history-queue-module-20260620";
+import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.31-reference-i2i-module-20260620";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.31-reference-i2i-module-20260620";
+import { onDomReady } from "./bootstrap.js?v=v1.31-reference-i2i-module-20260620";
 import {
   $,
   $$,
@@ -16,12 +16,14 @@ import {
   text,
   unique,
   value,
-} from "./dom.js?v=v1.30-history-queue-module-20260620";
-import { createHistoryFeature } from "./history.js?v=v1.30-history-queue-module-20260620";
-import { createLoraFeature } from "./loras.js?v=v1.30-history-queue-module-20260620";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.30-history-queue-module-20260620";
-import { createQueueFeature } from "./queue.js?v=v1.30-history-queue-module-20260620";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } from "./state.js?v=v1.30-history-queue-module-20260620";
+} from "./dom.js?v=v1.31-reference-i2i-module-20260620";
+import { createHistoryFeature } from "./history.js?v=v1.31-reference-i2i-module-20260620";
+import { createI2iFeature } from "./i2i.js?v=v1.31-reference-i2i-module-20260620";
+import { createLoraFeature } from "./loras.js?v=v1.31-reference-i2i-module-20260620";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.31-reference-i2i-module-20260620";
+import { createQueueFeature } from "./queue.js?v=v1.31-reference-i2i-module-20260620";
+import { createReferenceFeature } from "./reference.js?v=v1.31-reference-i2i-module-20260620";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } from "./state.js?v=v1.31-reference-i2i-module-20260620";
 
 (() => {
   "use strict";
@@ -33,11 +35,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     character2: "未選択",
     character3: "未選択",
     original: "未選択",
-  };
-  const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
-  const REFMOD_EMPTY_TEXT = {
-    outfit: "Outfit参照は未選択です。",
-    pose: "Pose参照は未選択です。",
   };
   const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
   const QUALITY_PROMPTS = Object.freeze({
@@ -76,6 +73,18 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
   const loras = createLoraFeature({
     api,
     state,
+    updateSummaries: () => updateSummaries(),
+  });
+  const i2i = createI2iFeature({
+    api,
+    state,
+    UI,
+    updateSummaries: () => updateSummaries(),
+  });
+  const reference = createReferenceFeature({
+    api,
+    state,
+    UI,
     updateSummaries: () => updateSummaries(),
   });
   const history = createHistoryFeature({
@@ -316,9 +325,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
   function collectRequest() {
     const negative = value("#negativePrompt", "");
     const seedMode = value("#seedModeSelect", "fixed");
-    const i2iEnabled = checked("#i2iEnabled") && Boolean(state.i2i.imageId);
-    const outfitEnabled = checked("#outfitEnabled");
-    const poseEnabled = checked("#poseEnabled");
     const hiresFix = collectHiresFix();
     return {
       workflow_mode: hiresFix.enabled ? "anima_mobile_extended" : "anima",
@@ -373,42 +379,10 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       prompt_random_collect: promptRandom.collect(),
       hires_fix: hiresFix,
       reference_assist: { enabled: false },
-      image_to_image: {
-        enabled: i2iEnabled,
-        image_id: state.i2i.imageId,
-        denoise: numberValue("#i2iDenoise", 0.45),
-        resize_mode: value("#i2iResize", "fit"),
-        use_source_size: checked("#i2iUseSource"),
-        allow_with_hires_fix: false,
-        allow_with_reference_assist: false,
-      },
+      image_to_image: i2i.collect(),
       face_detailer: collectFaceDetailerSettings(checked("#fdEnabled"), "generation"),
       hand_detailer: collectHandDetailerSettings(checked("#hdEnabled"), "generation"),
-      reference_modules: {
-        enabled: true,
-        preset: outfitEnabled && poseEnabled ? "outfit_pose" : outfitEnabled ? "outfit_only" : poseEnabled ? "pose_only" : "off",
-        outfit: {
-          enabled: outfitEnabled,
-          image_id: state.refmod.outfit.imageId,
-          image_name: state.refmod.outfit.name,
-          strength: numberValue("#outfitStrength", 0.45),
-          mode: "image_prompt",
-          strategy: "ip_adapter",
-          crop_mode: "user_prepared",
-          start_at: numberValue("#outfitStart", 0),
-          end_at: numberValue("#outfitEnd", 0.75),
-        },
-        pose: {
-          enabled: poseEnabled,
-          image_id: state.refmod.pose.imageId,
-          image_name: state.refmod.pose.name,
-          mode: value("#poseMode", "pose_image"),
-          strength: numberValue("#poseStrength", 0.75),
-          strategy: "controlnet_openpose",
-          start_at: numberValue("#poseStart", 0),
-          end_at: numberValue("#poseEnd", 0.85),
-        },
-      },
+      reference_modules: reference.collectModules(),
     };
   }
 
@@ -1488,172 +1462,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     if (inserted) UI.toast("Positiveに反映しました");
   }
 
-  function i2iItemState(item = {}) {
-    const imageId = String(item.image_id || "").trim();
-    return {
-      imageId,
-      thumb: String(item.thumbnail_url || item.thumb || "").trim(),
-      name: String(item.original_filename || item.filename || item.name || imageId || "").trim(),
-    };
-  }
-
-  function renderI2iPreview() {
-    const root = $("#i2iPreview");
-    if (!root) return;
-    root.replaceChildren();
-    if (!state.i2i.imageId) {
-      root.classList.add("is-empty");
-      root.textContent = I2I_EMPTY_TEXT;
-      return;
-    }
-    root.classList.remove("is-empty");
-    if (state.i2i.thumb) {
-      const img = document.createElement("img");
-      img.src = state.i2i.thumb;
-      img.alt = state.i2i.name || "i2i source";
-      img.loading = "lazy";
-      img.decoding = "async";
-      root.appendChild(img);
-    }
-    const label = document.createElement("span");
-    label.textContent = state.i2i.name || state.i2i.imageId;
-    root.appendChild(label);
-  }
-
-  function applyI2iItem(item = {}) {
-    state.i2i = i2iItemState(item);
-    setChecked("#i2iEnabled", Boolean(state.i2i.imageId));
-    renderI2iPreview();
-    updateSummaries();
-  }
-
-  function clearI2iImage() {
-    state.i2i = { imageId: "", thumb: "", name: "" };
-    setChecked("#i2iEnabled", false);
-    setValue("#i2iFile", "");
-    text("#i2iStatus", "");
-    renderI2iPreview();
-    updateSummaries();
-  }
-
-  async function uploadI2iImage() {
-    const input = $("#i2iFile");
-    const file = input?.files?.[0];
-    if (!file) {
-      text("#i2iStatus", "下絵ファイルを選択してください");
-      UI.toast("下絵ファイルを選択してください", "error");
-      return;
-    }
-    text("#i2iStatus", "アップロード中...");
-    const form = new FormData();
-    form.append("file", file);
-    const data = await api("/api/i2i/upload", {
-      method: "POST",
-      body: form,
-    });
-    applyI2iItem(data.item);
-    text("#i2iStatus", "下絵を設定しました");
-    UI.toast("下絵を設定しました");
-  }
-
-  async function setFrameAsI2iSource() {
-    if (!state.detailItem?.id) return;
-    text("#frameActionStatus", "下絵を準備中...");
-    const data = await api("/api/i2i/from-history", {
-      method: "POST",
-      body: JSON.stringify({ history_id: state.detailItem.id }),
-    });
-    applyI2iItem(data.item);
-    UI.closeSheets();
-    UI.switchTab("expose");
-    const fold = $("details[data-fold='i2i']");
-    if (fold) fold.open = true;
-    text("#i2iStatus", "下絵を設定しました");
-    UI.toast("下絵に設定しました");
-  }
-
-  function refmodLabel(module) {
-    return module === "pose" ? "Pose" : "Outfit";
-  }
-
-  function refmodItemState(item = {}) {
-    const imageId = String(item.image_id || "").trim();
-    return {
-      imageId,
-      thumb: String(item.thumbnail_url || item.image_url || item.thumb || "").trim(),
-      name: String(item.original_filename || item.filename || item.name || imageId || "").trim(),
-    };
-  }
-
-  function renderRefmodPreview(module) {
-    const root = $(`#${module}Preview`);
-    if (!root) return;
-    const item = state.refmod[module] || { imageId: "", thumb: "", name: "" };
-    root.replaceChildren();
-    if (!item.imageId) {
-      root.classList.add("is-empty");
-      root.textContent = REFMOD_EMPTY_TEXT[module] || "参照は未選択です。";
-      return;
-    }
-    root.classList.remove("is-empty");
-    if (item.thumb) {
-      const img = document.createElement("img");
-      img.src = item.thumb;
-      img.alt = item.name || `${module} reference`;
-      img.loading = "lazy";
-      img.decoding = "async";
-      root.appendChild(img);
-    }
-    const label = document.createElement("span");
-    label.textContent = item.name || item.imageId;
-    root.appendChild(label);
-  }
-
-  function renderRefmodPreviews() {
-    renderRefmodPreview("outfit");
-    renderRefmodPreview("pose");
-  }
-
-  function applyRefmodItem(module, item = {}) {
-    if (!state.refmod[module]) return;
-    state.refmod[module] = refmodItemState(item);
-    setChecked(`#${module}Enabled`, Boolean(state.refmod[module].imageId));
-    renderRefmodPreview(module);
-    updateSummaries();
-  }
-
-  function clearRefmodImage(module) {
-    if (!state.refmod[module]) return;
-    state.refmod[module] = { imageId: "", thumb: "", name: "" };
-    setChecked(`#${module}Enabled`, false);
-    setValue(`#${module}File`, "");
-    text("#refModStatus", "");
-    renderRefmodPreview(module);
-    updateSummaries();
-  }
-
-  async function uploadRefmodImage(module) {
-    if (!state.refmod[module]) return;
-    const label = refmodLabel(module);
-    const input = $(`#${module}File`);
-    const file = input?.files?.[0];
-    if (!file) {
-      text("#refModStatus", `${label}参照画像を選択してください`);
-      UI.toast(`${label}参照画像を選択してください`, "error");
-      return;
-    }
-    text("#refModStatus", `${label}参照をアップロード中...`);
-    const form = new FormData();
-    form.append("file", file);
-    const data = await api(`/api/reference-modules/upload?module=${encodeURIComponent(module)}`, {
-      method: "POST",
-      body: form,
-    });
-    applyRefmodItem(module, data.item);
-    text("#refModStatus", `${label}参照を設定しました`);
-    UI.toast(`${label}参照を設定しました`);
-  }
-
   function collectFaceDetailerSettings(enabled = checked("#fdEnabled"), mode = "generation") {
     return {
       enabled: Boolean(enabled),
@@ -2100,52 +1908,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     return normalizeHiresFix(item.hires_fix || {});
   }
 
-  function historyImageToImageRequest(item = {}) {
-    const image = item.image_to_image && typeof item.image_to_image === "object" ? item.image_to_image : {};
-    return {
-      enabled: Boolean(image.enabled && image.image_id),
-      image_id: String(image.image_id || ""),
-      denoise: numberFrom(image.denoise, 0.45),
-      resize_mode: String(image.resize_mode || "fit"),
-      use_source_size: Boolean(image.use_source_size),
-      allow_with_hires_fix: false,
-      allow_with_reference_assist: false,
-    };
-  }
-
-  function historyReferenceModulesRequest(item = {}) {
-    const modules = item.reference_modules && typeof item.reference_modules === "object" ? item.reference_modules : {};
-    const outfit = modules.outfit && typeof modules.outfit === "object" ? modules.outfit : {};
-    const pose = modules.pose && typeof modules.pose === "object" ? modules.pose : {};
-    const outfitEnabled = Boolean(outfit.enabled && outfit.image_id);
-    const poseEnabled = Boolean(pose.enabled && pose.image_id);
-    return {
-      enabled: true,
-      preset: outfitEnabled && poseEnabled ? "outfit_pose" : outfitEnabled ? "outfit_only" : poseEnabled ? "pose_only" : "off",
-      outfit: {
-        enabled: outfitEnabled,
-        image_id: String(outfit.image_id || ""),
-        image_name: String(outfit.image_name || ""),
-        strength: numberFrom(outfit.strength, 0.45),
-        mode: String(outfit.mode || "image_prompt"),
-        strategy: String(outfit.strategy || "ip_adapter"),
-        crop_mode: String(outfit.crop_mode || "user_prepared"),
-        start_at: numberFrom(outfit.start_at, 0),
-        end_at: numberFrom(outfit.end_at, 0.75),
-      },
-      pose: {
-        enabled: poseEnabled,
-        image_id: String(pose.image_id || ""),
-        image_name: String(pose.image_name || ""),
-        mode: String(pose.mode || "pose_image"),
-        strength: numberFrom(pose.strength, 0.75),
-        strategy: String(pose.strategy || "controlnet_openpose"),
-        start_at: numberFrom(pose.start_at, 0),
-        end_at: numberFrom(pose.end_at, 0.85),
-      },
-    };
-  }
-
   function historyFaceDetailerRequest(item = {}) {
     const face = item.face_detailer && typeof item.face_detailer === "object" ? item.face_detailer : {};
     return {
@@ -2424,8 +2186,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       dynamic_prompt: { enabled: false },
       prompt_random_collect: { ...promptRandom.historyCollect(item.prompt_random_collect), enabled: false },
       hires_fix: historyHiresFixRequest(item),
-      image_to_image: historyImageToImageRequest(item),
-      reference_modules: historyReferenceModulesRequest(item),
+      image_to_image: i2i.history(item),
+      reference_modules: reference.historyModules(item),
       face_detailer: historyFaceDetailerRequest(item),
       hand_detailer: historyHandDetailerRequest(item),
       source_item: item,
@@ -2476,32 +2238,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     promptRandom.applyToForm(data.prompt_random_collect || {});
     applyHiresFixToForm(data.hires_fix || {});
 
-    const i2i = data.image_to_image || {};
-    const i2iImageId = i2i.enabled ? String(i2i.image_id || "") : "";
-    state.i2i = { imageId: i2iImageId, thumb: "", name: String(i2i.image_name || i2iImageId || "") };
-    setChecked("#i2iEnabled", Boolean(i2iImageId));
-    setValue("#i2iDenoise", i2i.denoise ?? 0.45);
-    setValue("#i2iResize", i2i.resize_mode || "fit");
-    setChecked("#i2iUseSource", Boolean(i2i.use_source_size));
-    renderI2iPreview();
-
-    const modules = data.reference_modules || {};
-    const outfit = modules.outfit || {};
-    const pose = modules.pose || {};
-    const outfitImageId = outfit.enabled ? String(outfit.image_id || "") : "";
-    const poseImageId = pose.enabled ? String(pose.image_id || "") : "";
-    state.refmod.outfit = { imageId: outfitImageId, thumb: "", name: String(outfit.image_name || outfitImageId || "") };
-    state.refmod.pose = { imageId: poseImageId, thumb: "", name: String(pose.image_name || poseImageId || "") };
-    setChecked("#outfitEnabled", Boolean(outfitImageId));
-    setValue("#outfitStrength", outfit.strength ?? 0.45);
-    setValue("#outfitStart", outfit.start_at ?? 0);
-    setValue("#outfitEnd", outfit.end_at ?? 0.75);
-    setChecked("#poseEnabled", Boolean(poseImageId));
-    setValue("#poseMode", pose.mode || "pose_image");
-    setValue("#poseStrength", pose.strength ?? 0.75);
-    setValue("#poseStart", pose.start_at ?? 0);
-    setValue("#poseEnd", pose.end_at ?? 0.85);
-    renderRefmodPreviews();
+    i2i.applyToForm(data.image_to_image || {}, { update: false });
+    reference.applyModulesToForm(data.reference_modules || {}, { update: false });
 
     const face = data.face_detailer || {};
     setChecked("#fdEnabled", Boolean(face.enabled));
@@ -2587,8 +2325,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       dynamic_prompt: req.dynamic_prompt && typeof req.dynamic_prompt === "object" ? req.dynamic_prompt : { enabled: false },
       prompt_random_collect: promptRandom.historyCollect(req.prompt_random_collect),
       hires_fix: historyHiresFixRequest({ hires_fix: req.hires_fix }),
-      image_to_image: historyImageToImageRequest({ image_to_image: req.image_to_image }),
-      reference_modules: historyReferenceModulesRequest({ reference_modules: req.reference_modules }),
+      image_to_image: i2i.history({ image_to_image: req.image_to_image }),
+      reference_modules: reference.historyModules({ reference_modules: req.reference_modules }),
       face_detailer: historyFaceDetailerRequest({ face_detailer: req.face_detailer }),
       hand_detailer: historyHandDetailerRequest({ hand_detailer: req.hand_detailer }),
       source_item: req,
@@ -2650,10 +2388,10 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       prompt_random_collect: promptRandom.historyCollect(data.prompt_random_collect),
       hires_fix: data.hires_fix,
       reference_assist: { enabled: false },
-      image_to_image: historyImageToImageRequest(item),
+      image_to_image: i2i.history(item),
       face_detailer: historyFaceDetailerRequest(item),
       hand_detailer: historyHandDetailerRequest(item),
-      reference_modules: historyReferenceModulesRequest(item),
+      reference_modules: reference.historyModules(item),
     };
   }
 
@@ -2954,15 +2692,9 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       "frame-reuse": () => {
         if (state.detailItem) applyHistoryToForm(state.detailItem);
       },
-      "frame-to-i2i": () => setFrameAsI2iSource(),
+      "frame-to-i2i": () => i2i.setFromHistoryItem(state.detailItem),
       "frame-face-detail": () => queueFrameFaceDetailer(),
       "frame-hand-detail": () => queueFrameHandDetailer(),
-      "i2i-upload": () => uploadI2iImage(),
-      "i2i-clear": () => clearI2iImage(),
-      "outfit-upload": () => uploadRefmodImage("outfit"),
-      "outfit-clear": () => clearRefmodImage("outfit"),
-      "pose-upload": () => uploadRefmodImage("pose"),
-      "pose-clear": () => clearRefmodImage("pose"),
       "save-auto-prompts": () => saveAutoPrompts(),
       "save-defaults": () => saveDefaults(),
       "reset-defaults": () => resetDefaults(),
@@ -2970,6 +2702,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       "reload-ui": () => reloadUi(),
     });
     registerActions(history.actions);
+    registerActions(i2i.actions);
+    registerActions(reference.actions);
     registerActions(loras.actions);
     registerActions(promptRandom.actions);
     registerActions(queue.actions);
@@ -3003,6 +2737,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     });
 
     history.bindEvents();
+    i2i.bindEvents();
+    reference.bindEvents();
     promptRandom.bindEvents();
     queue.bindEvents();
     $("#ratingPrompt")?.addEventListener("input", updateRatingPromptDraft);
@@ -3183,8 +2919,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     registerMainActions();
     bindEvents();
     clearCharacterSearch();
-    renderI2iPreview();
-    renderRefmodPreviews();
+    i2i.renderPreview();
+    reference.renderPreviews();
     renderSlots();
     updateSummaries();
     tryBootstrapSession();
