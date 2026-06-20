@@ -1,6 +1,6 @@
-import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.34-character-module-20260620";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.34-character-module-20260620";
-import { onDomReady } from "./bootstrap.js?v=v1.34-character-module-20260620";
+import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.35-detailer-module-20260620";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.35-detailer-module-20260620";
+import { onDomReady } from "./bootstrap.js?v=v1.35-detailer-module-20260620";
 import {
   $,
   $$,
@@ -15,18 +15,19 @@ import {
   text,
   unique,
   value,
-} from "./dom.js?v=v1.34-character-module-20260620";
-import { createCharacterFeature } from "./characters.js?v=v1.34-character-module-20260620";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.34-character-module-20260620";
-import { createHistoryFeature } from "./history.js?v=v1.34-character-module-20260620";
-import { createI2iFeature } from "./i2i.js?v=v1.34-character-module-20260620";
-import { createLoraFeature } from "./loras.js?v=v1.34-character-module-20260620";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.34-character-module-20260620";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.34-character-module-20260620";
-import { createQueueFeature } from "./queue.js?v=v1.34-character-module-20260620";
-import { createReferenceFeature } from "./reference.js?v=v1.34-character-module-20260620";
-import { createSettingsFeature } from "./settings.js?v=v1.34-character-module-20260620";
-import { createInitialState } from "./state.js?v=v1.34-character-module-20260620";
+} from "./dom.js?v=v1.35-detailer-module-20260620";
+import { createCharacterFeature } from "./characters.js?v=v1.35-detailer-module-20260620";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.35-detailer-module-20260620";
+import { createHistoryFeature } from "./history.js?v=v1.35-detailer-module-20260620";
+import { createI2iFeature } from "./i2i.js?v=v1.35-detailer-module-20260620";
+import { createLoraFeature } from "./loras.js?v=v1.35-detailer-module-20260620";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.35-detailer-module-20260620";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.35-detailer-module-20260620";
+import { createQueueFeature } from "./queue.js?v=v1.35-detailer-module-20260620";
+import { createReferenceFeature } from "./reference.js?v=v1.35-detailer-module-20260620";
+import { createSettingsFeature } from "./settings.js?v=v1.35-detailer-module-20260620";
+import { createInitialState } from "./state.js?v=v1.35-detailer-module-20260620";
+import { createDetailerFeature } from "./detailers.js?v=v1.35-detailer-module-20260620";
 
 (() => {
   "use strict";
@@ -123,6 +124,12 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
     errorMessage,
     refreshHistory: () => history.loadContact(true),
   });
+  const detailers = createDetailerFeature({
+    api,
+    state,
+    UI,
+    history,
+  });
   const generationForm = createGenerationFormFeature({
     state,
     UI,
@@ -130,8 +137,8 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
     slotRequestValue: (slotName) => characters.slotRequestValue(slotName),
     collectRatingPromptOverrides: () => collectRatingPromptOverrides(),
     collectQualityPromptOverrides: () => collectQualityPromptOverrides(),
-    collectFaceDetailerSettings: (enabled, mode) => collectFaceDetailerSettings(enabled, mode),
-    collectHandDetailerSettings: (enabled, mode) => collectHandDetailerSettings(enabled, mode),
+    collectFaceDetailerSettings: (enabled, mode) => detailers.collectFaceSettings(enabled, mode),
+    collectHandDetailerSettings: (enabled, mode) => detailers.collectHandSettings(enabled, mode),
     promptRandom,
     loras,
     i2i,
@@ -309,92 +316,6 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
       choices: [{ label, value: "yes", kind: "danger" }],
     });
     return choice === "yes";
-  }
-
-  function collectFaceDetailerSettings(enabled = checked("#fdEnabled"), mode = "generation") {
-    return {
-      enabled: Boolean(enabled),
-      mode,
-      detector: "bbox/face_yolov8m.pt",
-      steps: Math.trunc(numberValue("#fdSteps", 12)),
-      cfg: numberValue("#fdCfg", 4.0),
-      denoise: numberValue("#fdDenoise", 0.3),
-      guide_size: 512,
-      max_size: 1024,
-      bbox_threshold: numberValue("#fdBbox", 0.5),
-      bbox_dilation: 10,
-      bbox_crop_factor: 3.0,
-      sam_enabled: false,
-      seed_policy: "image_seed_plus_offset",
-      seed_offset: 100000,
-    };
-  }
-
-  function collectHandDetailerSettings(enabled = checked("#hdEnabled"), mode = "generation") {
-    return {
-      enabled: Boolean(enabled),
-      mode,
-      detector: "bbox/hand_yolov8s.pt",
-      steps: Math.trunc(numberValue("#hdSteps", 14)),
-      cfg: numberValue("#hdCfg", 4.0),
-      denoise: numberValue("#hdDenoise", 0.45),
-      guide_size: 512,
-      max_size: 1024,
-      bbox_threshold: numberValue("#hdBbox", 0.35),
-      bbox_dilation: 16,
-      bbox_crop_factor: 2.5,
-      drop_size: 24,
-      sam_enabled: false,
-      seed_policy: "image_seed_plus_offset",
-      seed_offset: 200000,
-      lllite_enabled: true,
-      lllite_model: "anima-lllite-inpainting-v2.safetensors",
-      lllite_strength: numberValue("#hdLlliteStrength", 0.85),
-      lllite_start: 0,
-      lllite_end: 1,
-    };
-  }
-
-  async function queueFrameFaceDetailer() {
-    if (!state.detailItem?.id) return;
-    text("#frameActionStatus", "顔補正をキュー投入中...");
-    const data = await api("/api/face-detailer/postprocess", {
-      method: "POST",
-      body: JSON.stringify({
-        history_id: state.detailItem.id,
-        settings: collectFaceDetailerSettings(true, "postprocess"),
-      }),
-    });
-    UI.closeSheets();
-    text("#fdStatus", "顔補正をキューに入れました");
-    UI.toast("顔補正をキューに入れました");
-    UI.safelight("developing", "FACE DETAILING");
-    state.pollHadActive = true;
-    await history.loadContact(true);
-    if (Array.isArray(data.warnings) && data.warnings.length) {
-      UI.toast(data.warnings.slice(0, 2).join(" / "));
-    }
-  }
-
-  async function queueFrameHandDetailer() {
-    if (!state.detailItem?.id) return;
-    text("#frameActionStatus", "手補正をキュー投入中...");
-    const data = await api("/api/hand-detailer/postprocess", {
-      method: "POST",
-      body: JSON.stringify({
-        history_id: state.detailItem.id,
-        settings: collectHandDetailerSettings(true, "postprocess"),
-      }),
-    });
-    UI.closeSheets();
-    text("#hdStatus", "手補正をキューに入れました");
-    UI.toast("手補正をキューに入れました");
-    UI.safelight("developing", "HAND DETAILING");
-    state.pollHadActive = true;
-    await history.loadContact(true);
-    if (Array.isArray(data.warnings) && data.warnings.length) {
-      UI.toast(data.warnings.slice(0, 2).join(" / "));
-    }
   }
 
   function canSubmitGenerateRequest() {
@@ -606,53 +527,6 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
     }
     tr.append(th, td);
     table.appendChild(tr);
-  }
-
-  function historyFaceDetailerRequest(item = {}) {
-    const face = item.face_detailer && typeof item.face_detailer === "object" ? item.face_detailer : {};
-    return {
-      enabled: Boolean(face.enabled),
-      mode: String(face.mode || "generation"),
-      detector: String(face.detector || "bbox/face_yolov8m.pt"),
-      steps: intFrom(face.steps, 12),
-      cfg: numberFrom(face.cfg, 4.0),
-      denoise: numberFrom(face.denoise, 0.3),
-      guide_size: intFrom(face.guide_size, 512),
-      max_size: intFrom(face.max_size, 1024),
-      bbox_threshold: numberFrom(face.bbox_threshold, 0.5),
-      bbox_dilation: intFrom(face.bbox_dilation, 10),
-      bbox_crop_factor: numberFrom(face.bbox_crop_factor, 3.0),
-      sam_enabled: Boolean(face.sam_enabled),
-      seed_policy: String(face.seed_policy || "image_seed_plus_offset"),
-      seed_offset: intFrom(face.seed_offset, 100000),
-    };
-  }
-
-  function historyHandDetailerRequest(item = {}) {
-    const hand = item.hand_detailer && typeof item.hand_detailer === "object" ? item.hand_detailer : {};
-    const lllite = hand.lllite && typeof hand.lllite === "object" ? hand.lllite : {};
-    return {
-      enabled: Boolean(hand.enabled),
-      mode: String(hand.mode || "generation"),
-      detector: String(hand.detector || "bbox/hand_yolov8s.pt"),
-      steps: intFrom(hand.steps, 14),
-      cfg: numberFrom(hand.cfg, 4.0),
-      denoise: numberFrom(hand.denoise, 0.45),
-      guide_size: intFrom(hand.guide_size, 512),
-      max_size: intFrom(hand.max_size, 1024),
-      bbox_threshold: numberFrom(hand.bbox_threshold, 0.35),
-      bbox_dilation: intFrom(hand.bbox_dilation, 16),
-      bbox_crop_factor: numberFrom(hand.bbox_crop_factor, 2.5),
-      drop_size: intFrom(hand.drop_size, 24),
-      sam_enabled: Boolean(hand.sam_enabled),
-      seed_policy: String(hand.seed_policy || "image_seed_plus_offset"),
-      seed_offset: intFrom(hand.seed_offset, 200000),
-      lllite_enabled: hand.lllite_enabled !== false && lllite.enabled !== false,
-      lllite_model: String(hand.lllite_model || lllite.model || "anima-lllite-inpainting-v2.safetensors"),
-      lllite_strength: numberFrom(hand.lllite_strength ?? lllite.strength, 0.85),
-      lllite_start: numberFrom(hand.lllite_start ?? lllite.start_percent, 0),
-      lllite_end: numberFrom(hand.lllite_end ?? lllite.end_percent, 1),
-    };
   }
 
   const HISTORY_QUALITY_PROMPTS = QUALITY_PROMPTS;
@@ -888,8 +762,8 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
       hires_fix: generationForm.historyHiresFix(item),
       image_to_image: i2i.history(item),
       reference_modules: reference.historyModules(item),
-      face_detailer: historyFaceDetailerRequest(item),
-      hand_detailer: historyHandDetailerRequest(item),
+      face_detailer: detailers.historyFaceRequest(item),
+      hand_detailer: detailers.historyHandRequest(item),
       source_item: item,
     };
   }
@@ -911,19 +785,7 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
     i2i.applyToForm(data.image_to_image || {}, { update: false });
     reference.applyModulesToForm(data.reference_modules || {}, { update: false });
 
-    const face = data.face_detailer || {};
-    setChecked("#fdEnabled", Boolean(face.enabled));
-    setValue("#fdSteps", face.steps ?? 12);
-    setValue("#fdCfg", face.cfg ?? 4.0);
-    setValue("#fdDenoise", face.denoise ?? 0.3);
-    setValue("#fdBbox", face.bbox_threshold ?? 0.5);
-    const hand = data.hand_detailer || {};
-    setChecked("#hdEnabled", Boolean(hand.enabled));
-    setValue("#hdSteps", hand.steps ?? 14);
-    setValue("#hdCfg", hand.cfg ?? 4.0);
-    setValue("#hdDenoise", hand.denoise ?? 0.45);
-    setValue("#hdBbox", hand.bbox_threshold ?? 0.35);
-    setValue("#hdLlliteStrength", hand.lllite_strength ?? hand.lllite?.strength ?? 0.85);
+    detailers.applyToForm(data);
     updateSummaries();
   }
 
@@ -973,8 +835,8 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
       hires_fix: generationForm.historyHiresFix({ hires_fix: req.hires_fix }),
       image_to_image: i2i.history({ image_to_image: req.image_to_image }),
       reference_modules: reference.historyModules({ reference_modules: req.reference_modules }),
-      face_detailer: historyFaceDetailerRequest({ face_detailer: req.face_detailer }),
-      hand_detailer: historyHandDetailerRequest({ hand_detailer: req.hand_detailer }),
+      face_detailer: detailers.historyFaceRequest({ face_detailer: req.face_detailer }),
+      hand_detailer: detailers.historyHandRequest({ hand_detailer: req.hand_detailer }),
       source_item: req,
     };
   }
@@ -1035,8 +897,8 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
       hires_fix: data.hires_fix,
       reference_assist: { enabled: false },
       image_to_image: i2i.history(item),
-      face_detailer: historyFaceDetailerRequest(item),
-      hand_detailer: historyHandDetailerRequest(item),
+      face_detailer: detailers.historyFaceRequest(item),
+      hand_detailer: detailers.historyHandRequest(item),
       reference_modules: reference.historyModules(item),
     };
   }
@@ -1114,8 +976,8 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
       loras: loras.collect(),
       prompt_random_collect: promptRandom.collect(),
       hires_fix: hiresFix,
-      face_detailer: collectFaceDetailerSettings(checked("#fdEnabled"), "generation"),
-      hand_detailer: collectHandDetailerSettings(checked("#hdEnabled"), "generation"),
+      face_detailer: detailers.collectFaceSettings(checked("#fdEnabled"), "generation"),
+      hand_detailer: detailers.collectHandSettings(checked("#hdEnabled"), "generation"),
       watermark: settingsFeature.collectWatermark(),
       public_save: {
         ...(next.public_save || {}),
@@ -1250,8 +1112,6 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
         if (state.detailItem) applyHistoryToForm(state.detailItem);
       },
       "frame-to-i2i": () => i2i.setFromHistoryItem(state.detailItem),
-      "frame-face-detail": () => queueFrameFaceDetailer(),
-      "frame-hand-detail": () => queueFrameHandDetailer(),
       "save-auto-prompts": () => saveAutoPrompts(),
     });
     registerActions(characters.actions);
@@ -1263,6 +1123,7 @@ import { createInitialState } from "./state.js?v=v1.34-character-module-20260620
     registerActions(queue.actions);
     registerActions(settingsFeature.actions);
     registerActions(promptLibrary.actions);
+    registerActions(detailers.actions);
   }
 
   function bindEvents() {
