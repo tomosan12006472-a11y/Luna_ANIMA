@@ -1,6 +1,6 @@
-import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.28-prompt-random-module-20260620";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.28-prompt-random-module-20260620";
-import { onDomReady } from "./bootstrap.js?v=v1.28-prompt-random-module-20260620";
+import { createApiClient, authExpiredMessage, errorMessage, isUnauthorized } from "./api.js?v=v1.29-lora-module-20260620";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.29-lora-module-20260620";
+import { onDomReady } from "./bootstrap.js?v=v1.29-lora-module-20260620";
 import {
   $,
   $$,
@@ -18,9 +18,10 @@ import {
   text,
   unique,
   value,
-} from "./dom.js?v=v1.28-prompt-random-module-20260620";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.28-prompt-random-module-20260620";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } from "./state.js?v=v1.28-prompt-random-module-20260620";
+} from "./dom.js?v=v1.29-lora-module-20260620";
+import { createLoraFeature } from "./loras.js?v=v1.29-lora-module-20260620";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.29-lora-module-20260620";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } from "./state.js?v=v1.29-lora-module-20260620";
 
 (() => {
   "use strict";
@@ -73,6 +74,11 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     updateSummaries: () => updateSummaries(),
     confirmDanger: (options) => confirmDanger(options),
     errorMessage,
+  });
+  const loras = createLoraFeature({
+    api,
+    state,
+    updateSummaries: () => updateSummaries(),
   });
 
   function fillSelect(selector, options, selected) {
@@ -145,36 +151,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     fillSelect("#hiresModel", state.models.upscale_models || [], next.upscale_model);
     setValue("#hiresTargetW", next.target_width);
     setValue("#hiresTargetH", next.target_height);
-  }
-
-  function collectOfficialLoras() {
-    return {
-      highres: {
-        enabled: checked("#officialHighresEnabled"),
-        strength: numberValue("#officialHighresStrength", 0.6),
-      },
-      turbo: {
-        enabled: checked("#officialTurboEnabled"),
-        version: "auto",
-        strength: numberValue("#officialTurboStrength", 0.6),
-      },
-    };
-  }
-
-  function collectLoras() {
-    return $$("[data-lora-row]", $("#loraSlots")).map((row) => {
-      const name = row.querySelector("[data-lora-field='name']")?.value || "";
-      const application = row.querySelector("[data-lora-field='application']")?.value || "model_clip";
-      const strengthModel = Number(row.querySelector("[data-lora-field='strength_model']")?.value || 1);
-      const strengthClip = Number(row.querySelector("[data-lora-field='strength_clip']")?.value || 1);
-      return {
-        enabled: true,
-        name,
-        application,
-        strength_model: Number.isFinite(strengthModel) ? strengthModel : 1,
-        strength_clip: Number.isFinite(strengthClip) ? strengthClip : 1,
-      };
-    }).filter((item) => item.name);
   }
 
   function slotRequestValue(slotName) {
@@ -369,8 +345,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       scheduler: value("#schedulerSelect", "simple"),
       seed: seedMode === "random" ? -1 : Math.trunc(numberValue("#seedInput", -1)),
       seed_mode: seedMode,
-      official_loras: collectOfficialLoras(),
-      loras: collectLoras(),
+      official_loras: loras.collectOfficial(),
+      loras: loras.collect(),
       count: selectedQueueCount(),
       wait: false,
       dynamic_prompt: { enabled: checked("#dynamicEnabled") },
@@ -1854,112 +1830,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     }, 250);
   }
 
-  function normalizeLoraApplication(value) {
-    const raw = String(value || "model_clip").toLowerCase();
-    if (raw === "model_only" || raw === "model") return "model_only";
-    return "model_clip";
-  }
-
-  function loraNameFromItem(item = {}) {
-    return String(item.name || item.relative_path || item.file_name || item.lora_id || "").trim();
-  }
-
-  function addLoraOption(select, value, label) {
-    if (!value) return;
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label || value;
-    select.appendChild(option);
-  }
-
-  function fillLoraSelect(select, selectedValue) {
-    const selected = String(selectedValue || "").trim();
-    select.replaceChildren();
-    addLoraOption(select, "", "LoRAを選択");
-    const seen = new Set([""]);
-    for (const item of state.loraSelectable) {
-      const optionValue = String(item.relative_path || item.file_name || item.name || item.lora_id || "").trim();
-      if (!optionValue || seen.has(optionValue)) continue;
-      seen.add(optionValue);
-      addLoraOption(select, optionValue, item.display_name || item.file_name || optionValue);
-    }
-    if (selected && !seen.has(selected)) addLoraOption(select, selected, selected);
-    select.value = selected;
-  }
-
-  function addLoraRow(initial = {}) {
-    const root = $("#loraSlots");
-    if (!root) return;
-    const row = document.createElement("div");
-    row.className = "tray";
-    row.dataset.loraRow = "1";
-
-    const grid = document.createElement("div");
-    grid.className = "grid2";
-
-    const nameLabel = document.createElement("label");
-    nameLabel.className = "field";
-    nameLabel.innerHTML = "<span class=\"lbl\">LORA</span>";
-    const select = document.createElement("select");
-    select.dataset.loraField = "name";
-    fillLoraSelect(select, loraNameFromItem(initial));
-    nameLabel.appendChild(select);
-
-    const modelLabel = document.createElement("label");
-    modelLabel.className = "field";
-    modelLabel.innerHTML = "<span class=\"lbl\">MODEL</span>";
-    const model = document.createElement("input");
-    model.type = "number";
-    model.min = "0";
-    model.max = "1";
-    model.step = "0.05";
-    model.value = initial.strength_model ?? initial.model_strength ?? initial.weight ?? "1";
-    model.dataset.loraField = "strength_model";
-    modelLabel.appendChild(model);
-
-    const clipLabel = document.createElement("label");
-    clipLabel.className = "field";
-    clipLabel.innerHTML = "<span class=\"lbl\">CLIP</span>";
-    const clip = document.createElement("input");
-    clip.type = "number";
-    clip.min = "0";
-    clip.max = "1";
-    clip.step = "0.05";
-    clip.value = initial.strength_clip ?? initial.clip_strength ?? initial.weight ?? "1";
-    clip.dataset.loraField = "strength_clip";
-    clipLabel.appendChild(clip);
-
-    const appLabel = document.createElement("label");
-    appLabel.className = "field";
-    appLabel.innerHTML = "<span class=\"lbl\">APPLY</span>";
-    const application = document.createElement("select");
-    application.dataset.loraField = "application";
-    addLoraOption(application, "model_clip", "model + clip");
-    addLoraOption(application, "model_only", "model only");
-    application.value = normalizeLoraApplication(initial.application || initial.mode);
-    appLabel.appendChild(application);
-
-    grid.append(nameLabel, modelLabel, clipLabel, appLabel);
-
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "ghost";
-    remove.dataset.action = "remove-lora";
-    remove.textContent = "削除";
-
-    row.append(grid, remove);
-    root.appendChild(row);
-    updateSummaries();
-  }
-
-  function renderConfiguredLoras(settings = state.appSettings) {
-    $("#loraSlots")?.replaceChildren();
-    const configured = Array.isArray(settings?.loras) && settings.loras.length
-      ? settings.loras
-      : (settings?.lora_settings?.slots || []).filter((item) => item?.enabled && item?.lora_id !== "none");
-    for (const lora of configured) addLoraRow(lora);
-  }
-
   function collectWatermark() {
     const previous = state.appSettings?.watermark || {};
     return {
@@ -2009,11 +1879,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     renderRatingPrompt();
     renderQualityPrompt();
 
-    const official = settings.official_loras || {};
-    setChecked("#officialHighresEnabled", official.highres?.enabled);
-    setValue("#officialHighresStrength", official.highres?.strength ?? 0.6);
-    setChecked("#officialTurboEnabled", official.turbo?.enabled);
-    setValue("#officialTurboStrength", official.turbo?.strength ?? 0.6);
+    loras.applyOfficialToForm(settings.official_loras || {});
     promptRandom.applyToForm(settings.prompt_random_collect || {});
     promptRandom.renderInstructionFavorites(settings);
     applyWatermark(settings.watermark || {});
@@ -2039,12 +1905,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     fillSelect("#schedulerSelect", data.schedulers || [], value("#schedulerSelect", state.defaults.scheduler || state.appSettings.scheduler || ""));
     fillSelect("#hiresMethod", data.upscale_methods || [], value("#hiresMethod", state.appSettings.hires_fix?.latent_upscale_method || state.appSettings.hires_fix?.upscale_method || "nearest-exact"));
     fillSelect("#hiresModel", data.upscale_models || [], value("#hiresModel", state.appSettings.hires_fix?.upscale_model || ""));
-    return data;
-  }
-
-  async function loadLoraCatalog() {
-    const data = await api("/api/loras/catalog");
-    state.loraSelectable = Array.isArray(data.selectable) ? data.selectable : [];
     return data;
   }
 
@@ -2552,16 +2412,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     }).filter(Boolean).join(", ") || "-";
   }
 
-  function loraSummary(loras = []) {
-    if (!Array.isArray(loras) || !loras.length) return "-";
-    return loras.map((lora) => {
-      const name = lora.name || lora.display_name || lora.relative_path || lora.file_name || "LoRA";
-      const model = lora.strength_model ?? lora.model_strength ?? lora.weight ?? "-";
-      const clip = lora.strength_clip ?? lora.clip_strength ?? lora.weight ?? "-";
-      return `${name} (M ${model} / C ${clip})`;
-    }).join(", ");
-  }
-
   function firstHistoryText(item, keys) {
     for (const key of keys) {
       const parts = key.split(".");
@@ -2643,7 +2493,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       addMetaRow(table, "MODEL", modelFileName(item.model));
       addMetaRow(table, "RATING", item.rating || "-");
       addMetaRow(table, "CHARACTERS", characterSummary(item));
-      addMetaRow(table, "LORA", loraSummary(item.loras || []));
+      addMetaRow(table, "LORA", loras.summary(item.loras || []));
       addMetaRow(table, "POSITIVE", historyPositiveText(item), true);
       addMetaRow(table, "NEGATIVE", historyNegativeText(item), true);
     }
@@ -2731,30 +2581,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     if (targetSlot === "original") return char.id || displayName;
     if (source === "original_character") return `original:${char.id || displayName}`;
     return char.prompt_tag || displayName;
-  }
-
-  function historyOfficialLoras(official = {}) {
-    return {
-      highres: {
-        enabled: Boolean(official.highres?.enabled),
-        strength: numberFrom(official.highres?.strength, 0.6),
-      },
-      turbo: {
-        enabled: Boolean(official.turbo?.enabled),
-        version: "auto",
-        strength: numberFrom(official.turbo?.strength, 0.6),
-      },
-    };
-  }
-
-  function historyLoras(loras = []) {
-    return (Array.isArray(loras) ? loras : []).filter((lora) => lora && typeof lora === "object").map((lora) => ({
-      enabled: true,
-      name: loraNameFromItem(lora),
-      application: normalizeLoraApplication(lora.application || lora.mode),
-      strength_model: numberFrom(lora.strength_model ?? lora.model_strength ?? lora.weight, 1),
-      strength_clip: numberFrom(lora.strength_clip ?? lora.clip_strength ?? lora.weight, 1),
-    })).filter((lora) => lora.name);
   }
 
   function historyHiresFixRequest(item = {}) {
@@ -3080,8 +2906,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       scheduler: item.scheduler || state.defaults.scheduler || "simple",
       seed: intFrom(item.seed, -1),
       seed_mode: "fixed",
-      official_loras: historyOfficialLoras(item.official_loras || {}),
-      loras: historyLoras(item.loras || []),
+      official_loras: loras.historyOfficial(item.official_loras || {}),
+      loras: loras.history(item.loras || []),
       dynamic_prompt: { enabled: false },
       prompt_random_collect: { ...promptRandom.historyCollect(item.prompt_random_collect), enabled: false },
       hires_fix: historyHiresFixRequest(item),
@@ -3131,12 +2957,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     setValue("#schedulerSelect", data.scheduler);
     setValue("#seedInput", data.seed);
     setValue("#seedModeSelect", data.seed_mode);
-    setChecked("#officialHighresEnabled", data.official_loras.highres.enabled);
-    setValue("#officialHighresStrength", data.official_loras.highres.strength);
-    setChecked("#officialTurboEnabled", data.official_loras.turbo.enabled);
-    setValue("#officialTurboStrength", data.official_loras.turbo.strength);
-    $("#loraSlots")?.replaceChildren();
-    for (const lora of data.loras || []) addLoraRow(lora);
+    loras.applyOfficialToForm(data.official_loras);
+    loras.renderRows(data.loras || []);
     setChecked("#dynamicEnabled", Boolean(data.dynamic_prompt?.enabled));
     promptRandom.applyToForm(data.prompt_random_collect || {});
     applyHiresFixToForm(data.hires_fix || {});
@@ -3247,8 +3069,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       scheduler: req.scheduler || state.appSettings.scheduler || state.defaults.scheduler || "simple",
       seed: intFrom(req.seed, intFrom(state.appSettings.seed ?? state.defaults.seed, -1)),
       seed_mode: req.seed_mode || state.appSettings.seed_mode || "fixed",
-      official_loras: historyOfficialLoras(req.official_loras || {}),
-      loras: historyLoras(req.loras || []),
+      official_loras: loras.historyOfficial(req.official_loras || {}),
+      loras: loras.history(req.loras || []),
       dynamic_prompt: req.dynamic_prompt && typeof req.dynamic_prompt === "object" ? req.dynamic_prompt : { enabled: false },
       prompt_random_collect: promptRandom.historyCollect(req.prompt_random_collect),
       hires_fix: historyHiresFixRequest({ hires_fix: req.hires_fix }),
@@ -3391,8 +3213,8 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       camera_prompt: value("#cameraPrompt", ""),
       lighting_prompt: value("#lightingPrompt", ""),
       natural_description: value("#naturalDescription", ""),
-      official_loras: collectOfficialLoras(),
-      loras: collectLoras(),
+      official_loras: loras.collectOfficial(),
+      loras: loras.collect(),
       prompt_random_collect: promptRandom.collect(),
       hires_fix: hiresFix,
       face_detailer: collectFaceDetailerSettings(checked("#fdEnabled"), "generation"),
@@ -3452,7 +3274,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     });
     state.appSettings = data.settings;
     applySettingsToForm(state.appSettings, state.defaults);
-    renderConfiguredLoras(state.appSettings);
+    loras.renderConfigured(state.appSettings);
     text("#settingsStatus", "保存しました");
     UI.toast("既定値を保存しました");
   }
@@ -3461,7 +3283,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     const data = await api("/api/settings/reset", { method: "POST", body: "{}" });
     state.appSettings = data.settings;
     applySettingsToForm(state.appSettings, state.defaults);
-    renderConfiguredLoras(state.appSettings);
+    loras.renderConfigured(state.appSettings);
     text("#settingsStatus", "リセットしました");
     UI.toast("既定値をリセットしました");
   }
@@ -3559,7 +3381,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
     text("#catalogCount", `${data.catalog_count || 0} chars + ${data.custom_count || 0} custom / original ${data.original_count || 0}`);
     applySettingsToForm(state.appSettings, state.defaults);
 
-    const modelResult = await Promise.allSettled([loadModels(false), loadLoraCatalog()]);
+    const modelResult = await Promise.allSettled([loadModels(false), loras.loadCatalog()]);
     if (modelResult[0].status === "rejected") {
       console.warn(modelResult[0].reason);
       fillSelect("#modelSelect", [], state.defaults.model || state.appSettings.model || "Anima\\anima-preview3-base.safetensors");
@@ -3570,7 +3392,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       { label: "モデル一覧", status: "#settingsStatus" },
       { label: "LoRA一覧", status: "#settingsStatus" },
     ]);
-    renderConfiguredLoras(state.appSettings);
+    loras.renderConfigured(state.appSettings);
     const optionalResults = await Promise.allSettled([
       loadFavorites(),
       searchCharacters(),
@@ -3604,14 +3426,6 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       "toggle-character-favorites": () => toggleCharacterFavorites(),
       "load-more-characters": () => loadMoreCharacters(),
       "toggle-favorite-slot": () => toggleFavoriteForArmedSlot(),
-      "add-lora": async () => {
-        if (!state.loraSelectable.length) await loadLoraCatalog().catch(() => {});
-        addLoraRow();
-      },
-      "remove-lora": (target) => {
-        target.closest("[data-lora-row]")?.remove();
-        updateSummaries();
-      },
       preview: () => previewPayload(),
       generate: () => generate(),
       "dynamic-wildcards": () => loadDynamicWildcards(),
@@ -3652,6 +3466,7 @@ import { CHARACTER_FAVORITES_COLLAPSED_KEY, createInitialState, storeBoolean } f
       "reload-models": () => reloadModels(),
       "reload-ui": () => reloadUi(),
     });
+    registerActions(loras.actions);
     registerActions(promptRandom.actions);
   }
 
