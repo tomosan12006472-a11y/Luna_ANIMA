@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.35-detailer-module-20260620";
+import { $, text } from "./dom.js?v=v1.36-main-shell-cleanup-20260620";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);

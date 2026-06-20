@@ -5,8 +5,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.35-detailer-module-20260620";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.35-detailer-module-20260620";
+} from "./dom.js?v=v1.36-main-shell-cleanup-20260620";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.36-main-shell-cleanup-20260620";
 
 const EMPTY_SLOT_LABELS = {
   character1: "未選択",
