@@ -1,4 +1,4 @@
-import { $, setValue, value } from "./dom.js?v=v1.38-prompt-library-split-20260620";
+import { $, setValue, value } from "./dom.js?v=v1.39-history-reuse-split-20260620";
 
 export function createPositivePromptHelpers({ updateSummaries = () => {} } = {}) {
   function insertPositivePromptText(insertText) {

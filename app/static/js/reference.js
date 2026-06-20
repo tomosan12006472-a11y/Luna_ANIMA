@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.38-prompt-library-split-20260620";
+} from "./dom.js?v=v1.39-history-reuse-split-20260620";
 
 const REFERENCE_MODULES = ["outfit", "pose"];
 const REFMOD_EMPTY_TEXT = {
