@@ -7,7 +7,7 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.39-history-reuse-split-20260620";
+} from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);

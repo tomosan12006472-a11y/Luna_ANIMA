@@ -286,7 +286,10 @@
         </div>
 
         <div class="tray-head" style="margin-top:14px"><h2>LoRAスロット</h2>
-          <button type="button" class="ghost" data-action="add-lora" style="min-height:32px;padding:4px 10px">+ 追加</button>
+          <div class="row" style="margin:0">
+            <button type="button" class="ghost" data-action="refresh-lora-catalog" style="min-height:32px;padding:4px 10px">LoRA一覧更新</button>
+            <button type="button" class="ghost" data-action="add-lora" style="min-height:32px;padding:4px 10px">+ 追加</button>
+          </div>
         </div>
         <div id="loraSlots"></div>
 
@@ -603,6 +606,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.39-history-reuse-split-20260620"></script>
+  <script src="/static/app.js?v=v1.40-lora-catalog-refresh-20260621"></script>
 </body>
 </html>

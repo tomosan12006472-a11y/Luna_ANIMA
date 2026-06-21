@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.39-history-reuse-split-20260620";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.39-history-reuse-split-20260620";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.39-history-reuse-split-20260620";
-import { onDomReady } from "./bootstrap.js?v=v1.39-history-reuse-split-20260620";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.40-lora-catalog-refresh-20260621";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.40-lora-catalog-refresh-20260621";
+import { onDomReady } from "./bootstrap.js?v=v1.40-lora-catalog-refresh-20260621";
 import {
   $,
   $$,
@@ -11,23 +11,23 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.39-history-reuse-split-20260620";
-import { createCharacterFeature } from "./characters.js?v=v1.39-history-reuse-split-20260620";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.39-history-reuse-split-20260620";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.39-history-reuse-split-20260620";
-import { createHistoryFeature } from "./history.js?v=v1.39-history-reuse-split-20260620";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.39-history-reuse-split-20260620";
-import { createI2iFeature } from "./i2i.js?v=v1.39-history-reuse-split-20260620";
-import { createLoraFeature } from "./loras.js?v=v1.39-history-reuse-split-20260620";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.39-history-reuse-split-20260620";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.39-history-reuse-split-20260620";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.39-history-reuse-split-20260620";
-import { createQueueFeature } from "./queue.js?v=v1.39-history-reuse-split-20260620";
-import { createReferenceFeature } from "./reference.js?v=v1.39-history-reuse-split-20260620";
-import { createSettingsFeature } from "./settings.js?v=v1.39-history-reuse-split-20260620";
-import { createInitialState } from "./state.js?v=v1.39-history-reuse-split-20260620";
-import { createDetailerFeature } from "./detailers.js?v=v1.39-history-reuse-split-20260620";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.39-history-reuse-split-20260620";
+} from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createCharacterFeature } from "./characters.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createHistoryFeature } from "./history.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createI2iFeature } from "./i2i.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createLoraFeature } from "./loras.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createQueueFeature } from "./queue.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createReferenceFeature } from "./reference.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createSettingsFeature } from "./settings.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createInitialState } from "./state.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createDetailerFeature } from "./detailers.js?v=v1.40-lora-catalog-refresh-20260621";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.40-lora-catalog-refresh-20260621";
 
 (() => {
   "use strict";

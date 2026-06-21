@@ -5,8 +5,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.39-history-reuse-split-20260620";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.39-history-reuse-split-20260620";
+} from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.40-lora-catalog-refresh-20260621";
 
 const EMPTY_SLOT_LABELS = {
   character1: "未選択",

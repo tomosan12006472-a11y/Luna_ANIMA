@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.39-history-reuse-split-20260620";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.39-history-reuse-split-20260620";
+import { $, text, value } from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v1.40-lora-catalog-refresh-20260621";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 

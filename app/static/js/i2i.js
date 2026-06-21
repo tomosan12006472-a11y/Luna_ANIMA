@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.39-history-reuse-split-20260620";
+} from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 

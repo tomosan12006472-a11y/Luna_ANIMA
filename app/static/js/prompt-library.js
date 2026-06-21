@@ -1,9 +1,9 @@
-import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.39-history-reuse-split-20260620";
-import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.39-history-reuse-split-20260620";
-import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.39-history-reuse-split-20260620";
-import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.39-history-reuse-split-20260620";
-import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.39-history-reuse-split-20260620";
-import { createRecipesFeature } from "./recipes.js?v=v1.39-history-reuse-split-20260620";
+import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createRecipesFeature } from "./recipes.js?v=v1.40-lora-catalog-refresh-20260621";
 
 export function createPromptLibraryFeature({
   api,

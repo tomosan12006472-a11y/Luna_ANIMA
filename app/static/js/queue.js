@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.39-history-reuse-split-20260620";
+import { $, text } from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);

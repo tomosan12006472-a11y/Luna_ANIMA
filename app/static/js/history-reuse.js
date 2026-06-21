@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.39-history-reuse-split-20260620";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.39-history-reuse-split-20260620";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.39-history-reuse-split-20260620";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.40-lora-catalog-refresh-20260621";
 
 export function createHistoryReuseFeature({
   state,

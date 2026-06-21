@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.39-history-reuse-split-20260620";
+} from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
@@ -64,7 +64,7 @@ export function createLoraFeature({
     };
   }
 
-  function collectLoras() {
+  function collectLoraRows() {
     return $$("[data-lora-row]", $("#loraSlots")).map((row) => {
       const name = row.querySelector("[data-lora-field='name']")?.value || "";
       const application = row.querySelector("[data-lora-field='application']")?.value || "model_clip";
@@ -77,7 +77,11 @@ export function createLoraFeature({
         strength_model: Number.isFinite(strengthModel) ? strengthModel : 1,
         strength_clip: Number.isFinite(strengthClip) ? strengthClip : 1,
       };
-    }).filter((item) => item.name);
+    });
+  }
+
+  function collectLoras() {
+    return collectLoraRows().filter((item) => item.name);
   }
 
   function applyOfficialToForm(official = {}) {
@@ -171,9 +175,10 @@ export function createLoraFeature({
   }
 
   async function refreshLoraCatalog() {
+    const currentLoras = collectLoraRows();
     const data = await api("/api/loras/catalog/refresh", { method: "POST", body: "{}" });
     state.loraSelectable = Array.isArray(data.selectable) ? data.selectable : [];
-    renderConfiguredLoras(state.appSettings);
+    renderLoraRows(currentLoras);
     return data;
   }
 
@@ -218,6 +223,7 @@ export function createLoraFeature({
 
   return {
     actions: {
+      "refresh-lora-catalog": () => refreshLoraCatalog(),
       "add-lora": async () => {
         if (!selectableLoras().length) await loadLoraCatalog().catch(() => {});
         addLoraRow();

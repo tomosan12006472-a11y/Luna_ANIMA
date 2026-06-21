@@ -33,7 +33,8 @@ def scan_local_loras() -> list[dict[str, Any]]:
             seen.add(key)
             lower_name = path.name.lower()
             parts = [part.lower() for part in Path(relative_path).parts]
-            is_anima = lower_name.startswith("anima-") or "anima" in parts
+            is_root_lora = len(parts) == 1
+            is_anima = is_root_lora or lower_name.startswith("anima-") or "anima" in parts
             app_scope = "anima" if is_anima else "unknown"
             category = _category_for_name(path.name)
             items.append(

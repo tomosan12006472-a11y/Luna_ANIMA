@@ -164,16 +164,22 @@ class LoraCatalogModuleTests(unittest.TestCase):
         anima_dir = self.lora_dir / "anima"
         anima_dir.mkdir()
         (anima_dir / "anima-sample.safetensors").write_bytes(b"fake")
+        (self.lora_dir / "rei_oba_v0_step300.safetensors").write_bytes(b"fake")
 
         payload = lora_catalog.refresh_catalog()
         stored = json.loads(self.catalog_path.read_text(encoding="utf-8"))
+        items_by_path = {item["relative_path"]: item for item in payload["items"]}
+        selectable_paths = {item["relative_path"] for item in lora_catalog.selectable_loras(payload)}
 
         self.assertEqual(payload["schema_version"], 1)
         self.assertEqual(payload["app_scope"], "anima")
         self.assertEqual(stored["schema_version"], 1)
-        self.assertEqual(len(payload["items"]), 1)
-        self.assertEqual(payload["items"][0]["status"], "available")
-        self.assertEqual(payload["items"][0]["relative_path"], "anima/anima-sample.safetensors")
+        self.assertEqual(len(payload["items"]), 2)
+        self.assertEqual(items_by_path["anima/anima-sample.safetensors"]["status"], "available")
+        self.assertEqual(items_by_path["rei_oba_v0_step300.safetensors"]["app_scope"], "anima")
+        self.assertEqual(items_by_path["rei_oba_v0_step300.safetensors"]["status"], "available")
+        self.assertIn("anima/anima-sample.safetensors", selectable_paths)
+        self.assertIn("rei_oba_v0_step300.safetensors", selectable_paths)
 
     def test_corrupted_catalog_refresh_does_not_overwrite(self) -> None:
         self.catalog_path.write_text("{", encoding="utf-8")
