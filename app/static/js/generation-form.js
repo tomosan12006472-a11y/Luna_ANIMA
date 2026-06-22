@@ -6,7 +6,7 @@ import {
   setChecked,
   setValue,
   value,
-} from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
+} from "./dom.js?v=v1.41-turbo-presets-20260622";
 
 const DEFAULT_MODEL = "Anima\\anima-preview3-base.safetensors";
 const DEFAULT_TEXT_ENCODER = "qwen_3_06b_base.safetensors";

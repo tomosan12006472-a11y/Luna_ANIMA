@@ -1,4 +1,4 @@
-import { $, numberValue, value } from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
+import { $, numberValue, value } from "./dom.js?v=v1.41-turbo-presets-20260622";
 
 export function createDynamicPromptFeature({
   api,

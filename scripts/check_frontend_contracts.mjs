@@ -225,6 +225,7 @@ for (const [file, apiPath] of apiPathContracts) {
 
 const requestBuilderFiles = [
   "app/static/js/generation-form.js",
+  "app/static/js/loras.js",
   "app/static/js/history-request.js",
   "app/static/js/generation-actions.js",
   "app/static/js/history-reuse-data.js",
@@ -256,6 +257,7 @@ const payloadKeys = [
   "seed",
   "seed_mode",
   "official_loras",
+  "preset_applied",
   "loras",
   "count",
   "wait",

@@ -7,7 +7,7 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
+} from "./dom.js?v=v1.41-turbo-presets-20260622";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);

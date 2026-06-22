@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
+} from "./dom.js?v=v1.41-turbo-presets-20260622";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
@@ -26,11 +26,20 @@ function addLoraOption(select, value, label) {
   select.appendChild(option);
 }
 
+const TURBO_RECOMMENDED_SETTINGS = Object.freeze({
+  steps: 10,
+  cfg: 1,
+  strength: 1,
+});
+
 export function createLoraFeature({
   api,
   state,
   updateSummaries = () => {},
 } = {}) {
+  let turboPresetSnapshot = null;
+  let turboPresetApplied = false;
+
   function selectableLoras() {
     return Array.isArray(state?.loraSelectable) ? state.loraSelectable : [];
   }
@@ -60,6 +69,7 @@ export function createLoraFeature({
         enabled: checked("#officialTurboEnabled"),
         version: "auto",
         strength: numberValue("#officialTurboStrength", 0.6),
+        preset_applied: checked("#officialTurboEnabled") && turboPresetApplied,
       },
     };
   }
@@ -89,6 +99,48 @@ export function createLoraFeature({
     setValue("#officialHighresStrength", official.highres?.strength ?? 0.6);
     setChecked("#officialTurboEnabled", official.turbo?.enabled);
     setValue("#officialTurboStrength", official.turbo?.strength ?? 0.6);
+    turboPresetSnapshot = null;
+    turboPresetApplied = Boolean(official.turbo?.enabled && official.turbo?.preset_applied);
+  }
+
+  function captureTurboPresetSnapshot() {
+    return {
+      steps: numberValue("#stepsInput", 32),
+      cfg: numberValue("#cfgInput", 4.5),
+      strength: numberValue("#officialTurboStrength", 0.6),
+    };
+  }
+
+  function applyTurboRecommendedSettings() {
+    if (!turboPresetSnapshot) turboPresetSnapshot = captureTurboPresetSnapshot();
+    setValue("#stepsInput", TURBO_RECOMMENDED_SETTINGS.steps);
+    setValue("#cfgInput", TURBO_RECOMMENDED_SETTINGS.cfg);
+    setValue("#officialTurboStrength", TURBO_RECOMMENDED_SETTINGS.strength);
+    turboPresetApplied = true;
+    updateSummaries();
+  }
+
+  function restoreTurboPresetSnapshot() {
+    if (turboPresetSnapshot) {
+      setValue("#stepsInput", turboPresetSnapshot.steps);
+      setValue("#cfgInput", turboPresetSnapshot.cfg);
+      setValue("#officialTurboStrength", turboPresetSnapshot.strength);
+    }
+    turboPresetSnapshot = null;
+    turboPresetApplied = false;
+    updateSummaries();
+  }
+
+  function handleTurboToggle() {
+    if (checked("#officialTurboEnabled")) {
+      applyTurboRecommendedSettings();
+    } else {
+      restoreTurboPresetSnapshot();
+    }
+  }
+
+  function bindEvents() {
+    $("#officialTurboEnabled")?.addEventListener("change", handleTurboToggle);
   }
 
   function addLoraRow(initial = {}) {
@@ -192,6 +244,7 @@ export function createLoraFeature({
         enabled: Boolean(official.turbo?.enabled),
         version: "auto",
         strength: numberFrom(official.turbo?.strength, 0.6),
+        preset_applied: Boolean(official.turbo?.preset_applied),
       },
     };
   }
@@ -232,6 +285,7 @@ export function createLoraFeature({
     },
     addLoraRow,
     applyOfficialToForm,
+    bindEvents,
     collect: collectLoras,
     collectOfficial: collectOfficialLoras,
     history: historyLoras,

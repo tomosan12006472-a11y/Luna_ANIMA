@@ -3,7 +3,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
+} from "./dom.js?v=v1.41-turbo-presets-20260622";
 
 const QUALITY_PROMPTS = Object.freeze({
   standard: "masterpiece, best quality, score_7",

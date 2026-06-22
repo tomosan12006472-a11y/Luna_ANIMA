@@ -1,5 +1,5 @@
-import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.40-lora-catalog-refresh-20260621";
-import { $, $$, text, value } from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
+import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.41-turbo-presets-20260622";
+import { $, $$, text, value } from "./dom.js?v=v1.41-turbo-presets-20260622";
 
 export function exitToLogin(message = "", { UI = window.UI } = {}) {
   UI.closeSheets();

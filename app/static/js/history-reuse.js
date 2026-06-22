@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.40-lora-catalog-refresh-20260621";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.40-lora-catalog-refresh-20260621";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.40-lora-catalog-refresh-20260621";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.41-turbo-presets-20260622";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.41-turbo-presets-20260622";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.41-turbo-presets-20260622";
 
 export function createHistoryReuseFeature({
   state,

@@ -1,4 +1,4 @@
-import { $, displayValue, unique } from "./dom.js?v=v1.40-lora-catalog-refresh-20260621";
+import { $, displayValue, unique } from "./dom.js?v=v1.41-turbo-presets-20260622";
 
 export function fillSelect(selector, options, selected) {
   const select = typeof selector === "string" ? $(selector) : selector;
