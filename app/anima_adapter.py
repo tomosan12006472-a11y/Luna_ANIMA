@@ -7,7 +7,12 @@ import random
 from pathlib import Path
 from typing import Any
 
-from .character_names import character_entry_payload, localized_search_text
+from .character_names import (
+    character_entry_payload,
+    display_name_ja,
+    localized_search_text,
+    prompt_safe_character_name,
+)
 from .config import (
     CHARACTER_CATALOG_ORIGINAL_PATH,
     CHARACTER_CATALOG_ROOT,
@@ -87,11 +92,144 @@ class CharacterEntry:
         return f"{self.display_name} {self.prompt_tag} {self.kind} {extra}".lower()
 
 
-def fate_search_aliases(prompt_tag: str) -> list[str]:
+BLUE_ARCHIVE_ALIASES = ["blue archive", "ブルーアーカイブ", "ブルアカ"]
+ZENLESS_ZONE_ZERO_ALIASES = ["zenless zone zero", "ゼンレスゾーンゼロ", "ゼンゼロ", "zzz"]
+
+BLUE_ARCHIVE_COLLAB_PROMPT_PREFIXES = {
+    "misaka mikoto",
+    "saten ruiko",
+    "shokuhou misaki",
+}
+
+BLUE_ARCHIVE_NAME_ALIASES = {
+    "asuna": ["アスナ", "一之瀬アスナ", "ichinose asuna"],
+    "hatsune miku": ["ミク", "初音ミク"],
+    "hoshino": ["ホシノ", "小鳥遊ホシノ", "takanashi hoshino"],
+    "juri": ["ジュリ", "牛牧ジュリ", "ushimaki juri"],
+    "juri (part-time)": ["アルバイト", "arbeit", "part-time job"],
+    "kikyou": ["キキョウ", "桐生キキョウ", "kikyo", "kiryuu kikyou"],
+    "misaka mikoto": ["ミコト", "御坂美琴"],
+    "rei": ["レイ", "野正レイ", "nomasa rei"],
+    "rio": ["リオ", "調月リオ", "tsukatsuki rio"],
+    "saten ruiko": ["サテン", "ルイコ", "佐天涙子"],
+    "shokuhou misaki": ["ショクホウ", "食蜂操祈"],
+    "shun": ["シュン", "春原シュン", "sunohara shun"],
+}
+
+ZENLESS_ZONE_ZERO_PROMPT_PREFIXES = {
+    "alexandrina sebastiane",
+    "anby demara",
+    "anton ivanov",
+    "asaba harumasa",
+    "astra yao",
+    "ben bigger",
+    "billy kid",
+    "burnice white",
+    "corin wickes",
+    "ellen joe",
+    "evelyn chevalier",
+    "grace howard",
+    "hoshimi miyabi",
+    "hugo vlad",
+    "koleda belobog",
+    "komano manato",
+    "lucia elowen",
+    "luciana de montefio",
+    "nekomiya mana",
+    "nangong yu",
+    "nicole demara",
+    "norma hollowell",
+    "pan yinhu",
+    "piper wheel",
+    "pulchra fellini",
+    "remielle dan",
+    "seth lowell",
+    "soldier 0 - anby",
+    "starlight - billy kid",
+    "tsukishiro yanagi",
+    "ukinami yuzuha",
+    "velina airgid",
+    "vivian banshee",
+    "von lycaon",
+    "yidhari murphy",
+    "zhu yuan",
+}
+
+
+def _append_unique(values: list[str], additions: list[str]) -> None:
+    seen = {value.lower() for value in values}
+    for addition in additions:
+        normalized = addition.strip()
+        if not normalized or normalized.lower() in seen:
+            continue
+        values.append(normalized)
+        seen.add(normalized.lower())
+
+
+def _matches_prompt_prefix(prompt_tag: str, prefixes: set[str]) -> bool:
+    return any(
+        prompt_tag == prefix or prompt_tag.startswith(f"{prefix} (")
+        for prefix in prefixes
+    )
+
+
+def character_search_aliases(prompt_tag: str, display_name: str = "") -> list[str]:
     tag = prompt_tag.lower()
+    display = display_name.lower()
+    aliases: list[str] = []
     if "(fate" in tag or "fate/" in tag or "fgo" in tag or "grand order" in tag:
-        return ["fate", "fgo", "fate grand order"]
-    return []
+        _append_unique(aliases, ["fate", "fgo", "fate grand order"])
+    is_blue_archive = (
+        "blue archive" in tag
+        or "ブルーアーカイブ" in display
+        or "ブルアカ" in display
+    )
+    is_blue_archive_collab = _matches_prompt_prefix(
+        tag,
+        BLUE_ARCHIVE_COLLAB_PROMPT_PREFIXES,
+    )
+    if is_blue_archive:
+        _append_unique(aliases, BLUE_ARCHIVE_ALIASES)
+    if is_blue_archive_collab:
+        _append_unique(aliases, BLUE_ARCHIVE_ALIASES)
+    if is_blue_archive or is_blue_archive_collab:
+        for prefix, name_aliases in BLUE_ARCHIVE_NAME_ALIASES.items():
+            if _matches_prompt_prefix(tag, {prefix}):
+                _append_unique(aliases, name_aliases)
+    if "zenless zone zero" in tag or "ゼンレスゾーンゼロ" in display or "ゼンゼロ" in display:
+        _append_unique(aliases, ZENLESS_ZONE_ZERO_ALIASES)
+    if _matches_prompt_prefix(tag, ZENLESS_ZONE_ZERO_PROMPT_PREFIXES):
+        _append_unique(aliases, ZENLESS_ZONE_ZERO_ALIASES)
+    return aliases
+
+
+def _compact_search_label(value: str) -> str:
+    return value.replace(" ", "").strip().lower()
+
+
+def _search_match_score(entry: CharacterEntry, tokens: list[str]) -> int:
+    display = display_name_ja(entry.display_name, entry.prompt_tag).lower()
+    display_base = display.split("（", 1)[0].strip()
+    prompt = entry.prompt_tag.lower()
+    prompt_base = prompt.split(" (", 1)[0].strip()
+    safe = prompt_safe_character_name(entry.display_name, entry.prompt_tag).lower()
+    labels = [display, display_base, prompt, prompt_base, safe]
+
+    score = 0
+    for token in tokens:
+        compact_token = _compact_search_label(token)
+        compact_labels = [_compact_search_label(label) for label in labels if label]
+        if token in {prompt, prompt_base}:
+            score += 120
+        if any(label == token for label in labels):
+            score += 100
+        if compact_token and any(label.endswith(compact_token) for label in compact_labels):
+            score += 70
+        if token and any(label.startswith(token) for label in labels):
+            score += 40
+        if token and token in display:
+            score += 20
+    return score
 
 
 def load_settings() -> dict[str, Any]:
@@ -124,7 +262,15 @@ def load_wai_characters() -> list[CharacterEntry]:
             display_name = row[0].strip()
             prompt_tag = row[1].strip()
             if display_name and prompt_tag:
-                entries.append(CharacterEntry(display_name, prompt_tag, "wai", source=source, tags=fate_search_aliases(prompt_tag)))
+                entries.append(
+                    CharacterEntry(
+                        display_name,
+                        prompt_tag,
+                        "wai",
+                        source=source,
+                        tags=character_search_aliases(prompt_tag, display_name),
+                    )
+                )
     return entries
 
 
@@ -159,7 +305,12 @@ def load_custom_characters(existing_prompt_tags: set[str]) -> list[CharacterEntr
                 kind="custom",
                 id=str(item.get("id") or prompt_tag),
                 source=str(item.get("source") or "custom_character_tags"),
-                tags=[str(tag).strip() for tag in item.get("tags") or [] if str(tag).strip()] + fate_search_aliases(prompt_tag),
+                tags=[
+                    str(tag).strip()
+                    for tag in item.get("tags") or []
+                    if str(tag).strip()
+                ]
+                + character_search_aliases(prompt_tag, display_name),
                 post_count=post_count,
                 verified=bool(item.get("verified", False)),
                 notes=str(item.get("notes") or ""),
@@ -247,7 +398,21 @@ class AnimaCatalog:
             matched = pools
         else:
             tokens = [token for token in query.split() if token]
-            matched = [entry for entry in pools if all(token in localized_search_text(entry) for token in tokens)]
+            matched = [
+                entry
+                for entry in pools
+                if all(token in localized_search_text(entry) for token in tokens)
+            ]
+            matched = [
+                entry
+                for _, entry in sorted(
+                    enumerate(matched),
+                    key=lambda item: (
+                        -_search_match_score(item[1], tokens),
+                        item[0],
+                    ),
+                )
+            ]
         page = matched[offset : offset + limit]
         total = len(matched)
         return {

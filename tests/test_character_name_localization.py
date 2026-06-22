@@ -86,11 +86,56 @@ class CharacterNameLocalizationTest(unittest.TestCase):
         ]
         for query, prompt_tag, display_name in cases:
             with self.subTest(query=query):
-                items = catalog.search(query, "all", 20)
+                items = catalog.search(query, "all", 120)
                 match = next((item for item in items if item["prompt_tag"] == prompt_tag), None)
                 self.assertIsNotNone(match)
                 self.assertEqual(match["kind"], "custom")
                 self.assertEqual(match["display_name_ja"], display_name)
+
+    def test_catalog_search_matches_series_aliases(self) -> None:
+        cases = [
+            ("ブルアカ", "aris (blue archive)", "アリス（ブルーアーカイブ）"),
+            ("ブルアカ アスナ", "asuna (blue archive)", "一之瀬アスナ（ブルーアーカイブ）"),
+            ("ブルアカ リオ", "rio (blue archive)", "調月リオ（ブルーアーカイブ）"),
+            ("ブルアカ ホシノ", "hoshino (blue archive)", "小鳥遊ホシノ（ブルーアーカイブ）"),
+            ("ブルアカ シュン", "shun (blue archive)", "春原シュン（ブルーアーカイブ）"),
+            ("ブルアカ レイ", "rei (blue archive)", "野正レイ（ブルーアーカイブ）"),
+            ("ブルアカ ミク", "hatsune miku (blue archive)", "初音ミク（ブルーアーカイブ）"),
+            ("ブルアカ ミコト", "misaka mikoto", "御坂美琴"),
+            ("ブルアカ ジュリ アルバイト", "juri (part-time) (blue archive)", "牛牧ジュリ（アルバイト）（ブルーアーカイブ）"),
+            ("ブルアカ キキョウ 水着", "kikyou (swimsuit) (blue archive)", "桐生キキョウ（水着）（ブルーアーカイブ）"),
+            ("ブルアカ izumi newyear", "izumi (new year) (blue archive)", "獅子堂イズミ（正月）（ブルーアーカイブ）"),
+            ("ブルアカ sumire arbeit", "sumire (part-time job) (blue archive)", "乙花スミレ（アルバイト）（ブルーアーカイブ）"),
+            ("ゼンレスゾーンゼロ anby", "anby demara", "アンビー・デマラ（ゼンゼロ）"),
+            ("zzz billy starlight", "billy kid (starlight)", "ビリー・キッド（スターライト）（ゼンゼロ）"),
+            ("ゼンゼロ sigrid", "sigrid (zenless zone zero)", "シグリッド（ゼンゼロ）"),
+            ("zenless zone zero pyrois", "pyrois (zenless zone zero)", "Pyrois（ゼンゼロ）"),
+        ]
+        for query, prompt_tag, display_name in cases:
+            with self.subTest(query=query):
+                items = catalog.search(query, "all", 30)
+                match = next((item for item in items if item["prompt_tag"] == prompt_tag), None)
+                self.assertIsNotNone(match)
+                self.assertEqual(match["display_name_ja"], display_name)
+
+    def test_series_aliases_do_not_change_generation_prompt_tags(self) -> None:
+        request = dict(BASE_REQUEST)
+        request["character1"] = "anby demara"
+        prompts = build_prompts(request)
+        self.assertIn("anby demara", prompts["positive"])
+        self.assertIn("Anby Demara", prompts["positive"])
+        self.assertEqual(prompts["characters"], ["アンビー・デマラ（ゼンゼロ）"])
+
+    def test_short_character_name_search_prioritizes_name_matches(self) -> None:
+        cases = [
+            ("ブルアカ アスナ", "asuna (blue archive)"),
+            ("ブルアカ リオ", "rio (blue archive)"),
+            ("rio blue archive", "rio (blue archive)"),
+        ]
+        for query, prompt_tag in cases:
+            with self.subTest(query=query):
+                items = catalog.search(query, "all", 5)
+                self.assertEqual(items[0]["prompt_tag"], prompt_tag)
 
     def test_expanded_danbooru_catalog_prompt_uses_prompt_safe_names(self) -> None:
         cases = [
