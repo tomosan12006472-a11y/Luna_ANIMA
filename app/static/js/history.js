@@ -7,7 +7,7 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.41-turbo-presets-20260622";
+} from "./dom.js?v=v1.41-background-reference-20260623";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);

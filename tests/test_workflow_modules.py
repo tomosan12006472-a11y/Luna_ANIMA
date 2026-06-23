@@ -139,6 +139,39 @@ class WorkflowModuleTests(unittest.TestCase):
                 ["8", 0],
                 {"model": ["9301", 0], "positive": ["11", 0], "negative": ["12", 0], "latent_image": ["28", 0]},
             ),
+            "background_reference_noop": (
+                {**base_request(), "reference_modules": {"enabled": True, "outfit": {"enabled": False}, "pose": {"enabled": False}, "background": {"enabled": True, "apply_to_payload": False, "image_id": "bg_1"}}},
+                ["1", "11", "12", "15", "19", "28", "44", "45", "46", "8"],
+                ["8", 0],
+                {"model": ["46", 0], "positive": ["11", 0], "negative": ["12", 0], "latent_image": ["28", 0]},
+            ),
+            "background_reference": (
+                {
+                    **base_request(),
+                    "reference_modules": {
+                        "enabled": True,
+                        "outfit": {"enabled": False},
+                        "pose": {"enabled": False},
+                        "background": {
+                            "enabled": True,
+                            "apply_to_payload": True,
+                            "comfyui_image": image_ref,
+                            "mode": "depth",
+                            "strength": 0.45,
+                            "start_at": 0.0,
+                            "end_at": 0.75,
+                            "controlnet_model": "anima-depth-controlnet.safetensors",
+                            "preprocessor_node_class": "DepthAnythingV2Preprocessor",
+                            "preprocessor_inputs": {"image": "__image__", "resolution": 1024},
+                            "image_resize_node_class": "ImageScale",
+                            "resize_mode": "crop",
+                        },
+                    },
+                },
+                ["1", "11", "12", "15", "19", "28", "44", "45", "46", "8", "9500", "9501", "9502", "9503", "9504"],
+                ["8", 0],
+                {"model": ["46", 0], "positive": ["9504", 0], "negative": ["9504", 1], "latent_image": ["28", 0]},
+            ),
             "face_detailer": (
                 {**base_request(), "face_detailer": {"enabled": True, "steps": 10, "cfg": 4.5, "denoise": 0.28, "guide_size": 512, "max_size": 1024, "bbox_threshold": 0.45}},
                 ["1", "11", "12", "15", "19", "28", "44", "45", "46", "8", "9300", "9301"],
@@ -162,6 +195,14 @@ class WorkflowModuleTests(unittest.TestCase):
                 self.assertEqual(facade_summary["node_ids"], expected_nodes)
                 self.assertEqual(facade_summary["save_images"], save_images)
                 self.assertEqual(facade_summary["ksampler"], ksampler)
+                if _name == "background_reference":
+                    workflow = facade_payload["prompt"]
+                    self.assertEqual(workflow["9501"]["class_type"], "ImageScale")
+                    self.assertEqual(workflow["9501"]["inputs"]["image"], ["9500", 0])
+                    self.assertEqual(workflow["9501"]["inputs"]["width"], 896)
+                    self.assertEqual(workflow["9501"]["inputs"]["height"], 1280)
+                    self.assertEqual(workflow["9501"]["inputs"]["crop"], "center")
+                    self.assertEqual(workflow["9502"]["inputs"]["image"], ["9501", 0])
 
     def test_detailer_postprocess_payloads_match_facade(self) -> None:
         face_request = {

@@ -2,7 +2,7 @@ import {
   $,
   checked,
   text,
-} from "./dom.js?v=v1.41-turbo-presets-20260622";
+} from "./dom.js?v=v1.41-background-reference-20260623";
 
 export function createGenerationActionsFeature({
   api,
@@ -29,6 +29,11 @@ export function createGenerationActionsFeature({
     if (checked("#poseEnabled") && !state.refmod.pose.imageId) {
       text("#refModStatus", "Pose参照が未選択です");
       UI.toast("Pose参照が未選択です", "error");
+      return false;
+    }
+    if (checked("#backgroundEnabled") && !state.refmod.background.imageId) {
+      text("#refModStatus", "Background Referenceが未選択です");
+      UI.toast("Background Referenceが未選択です", "error");
       return false;
     }
     return true;

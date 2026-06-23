@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.41-turbo-presets-20260622";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.41-turbo-presets-20260622";
+import { $, text, value } from "./dom.js?v=v1.41-background-reference-20260623";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v1.41-background-reference-20260623";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 

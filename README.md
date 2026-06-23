@@ -77,6 +77,7 @@ Frontend modules live under `app/static/js`. `app/static/app.js` is a compatibil
 After the PR that adds the frontend contract check is merged green, the large structural refactoring is considered complete. Future work should be treated as feature improvement, observability, regression hardening, or bugfix work. Further module splits should stay small and needs-driven.
 
 See `docs/frontend_modules.md` for the current frontend module map and maintenance boundaries.
+See `docs/background_reference.md` for Background Reference v1 setup notes, expected ComfyUI nodes, and current limitations.
 
 ## Notes
 

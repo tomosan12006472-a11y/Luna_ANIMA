@@ -105,6 +105,34 @@
     "node_id": "19",
     "input": "denoise"
   },
+  "background_reference": {
+    "enabled": true,
+    "loader_node_class": "ControlNetLoader",
+    "apply_node_class": "ControlNetApplyAdvanced",
+    "image_resize_node_class": "ImageScale",
+    "modes": {
+      "depth": {
+        "preprocessor_node_class": "DepthAnythingV2Preprocessor",
+        "controlnet_model": "auto"
+      },
+      "canny": {
+        "preprocessor_node_class": "CannyEdgePreprocessor",
+        "controlnet_model": "auto"
+      },
+      "lineart": {
+        "preprocessor_node_class": "LineArtPreprocessor",
+        "controlnet_model": "auto"
+      },
+      "softedge": {
+        "preprocessor_node_class": "HEDPreprocessor",
+        "controlnet_model": "auto"
+      },
+      "mlsd": {
+        "preprocessor_node_class": "MLSDPreprocessor",
+        "controlnet_model": "auto"
+      }
+    }
+  },
   "save_prefix": {
     "node_id": "1",
     "input": "filename_prefix",

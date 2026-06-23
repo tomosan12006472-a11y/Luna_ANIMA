@@ -22,7 +22,7 @@ from ..diagnostics_helpers import (
     workflow_source_diagnostics,
 )
 from ..face_detailer import face_detailer_capabilities
-from ..generation_prepare import face_detailer_capability_payload, reference_capability_payload
+from ..generation_prepare import face_detailer_capability_payload, reference_capability_payload, reference_modules_availability_payload
 from ..history_store import list_history
 from ..model_info_cache import _object_choice, cached_object_info, model_cache_status as _model_cache_status
 
@@ -59,6 +59,7 @@ def diagnostics(anima_claude_session: str | None = Cookie(default=None)) -> dict
         "models_cache": _model_cache_status(addr),
         "anima_shift": anima_shift_capability(addr),
         "reference_assist": reference_capability_payload(addr).get("reference_assist", {}),
+        "background_reference": (reference_modules_availability_payload(addr).get("reference_modules") or {}).get("background", {}),
         "face_detailer": face_detailer_capability_payload(addr).get("face_detailer", {}),
         "history_count": len(list_history(500)),
         "settings_path": str(ROOT_DIR / "user_data" / "settings.json"),
@@ -102,6 +103,7 @@ def diagnostics_full(anima_claude_session: str | None = Cookie(default=None)) ->
         "models": model_status,
         "anima_shift": shift_info,
         "reference_assist": reference_store.reference_capabilities(info or {}).get("reference_assist", {}) if info else reference_capability_payload(addr).get("reference_assist", {}),
+        "background_reference": (reference_modules_availability_payload(addr).get("reference_modules") or {}).get("background", {}),
         "face_detailer": face_detailer_capabilities(info or {}) if info else face_detailer_capability_payload(addr).get("face_detailer", {}),
         "official_loras": official_loras,
         "highres_lora_found": official_loras["highres_lora_found"],

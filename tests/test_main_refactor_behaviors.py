@@ -33,6 +33,33 @@ class MainRefactorBehaviorTests(unittest.TestCase):
         self.assertEqual(body["stage"], "validate_reference_modules")
         self.assertEqual(body["comfy_node_errors"]["missing"], "reference_modules.outfit.image_id")
 
+    def test_validate_reference_modules_rejects_enabled_background_without_image(self) -> None:
+        response = validators.validate_reference_modules(
+            main.GenerateRequest(reference_modules={"enabled": True, "background": {"enabled": True}}),
+            "127.0.0.1:8188",
+        )
+
+        self.assertIsNotNone(response)
+        self.assertEqual(response.status_code, 400)
+        body = json.loads(response.body.decode("utf-8"))
+        self.assertEqual(body["stage"], "validate_reference_modules")
+        self.assertEqual(body["comfy_node_errors"]["missing"], "reference_modules.background.image_id")
+
+    def test_validate_reference_modules_allows_background_when_nodes_missing(self) -> None:
+        def fake_availability(addr: str) -> dict:
+            return {"reference_modules": {"background": {"available": False, "missing_nodes": ["ControlNetLoader"]}}}
+
+        with (
+            mock.patch.object(validators, "reference_modules_availability_payload", side_effect=fake_availability),
+            mock.patch.object(validators.reference_store, "get_reference_image", return_value={"image_id": "bg_1"}),
+        ):
+            response = validators.validate_reference_modules(
+                main.GenerateRequest(reference_modules={"enabled": True, "background": {"enabled": True, "image_id": "bg_1"}}),
+                "127.0.0.1:8188",
+            )
+
+        self.assertIsNone(response)
+
     def test_reference_modules_separates_anima_lllite_from_pose_controlnet(self) -> None:
         info = {
             "LoadImage": {},
@@ -73,6 +100,41 @@ class MainRefactorBehaviorTests(unittest.TestCase):
         self.assertEqual(modules["anima_lllite"]["inpainting_model"], "anima-lllite-inpainting-v2.safetensors")
         self.assertEqual(modules["anima_lllite"]["regional_model"], "anima-lllite-regional-exp-v3.safetensors")
         self.assertTrue(modules["anima_lllite"]["mask_supported"])
+
+    def test_reference_modules_detects_background_reference_capability(self) -> None:
+        info = {
+            "LoadImage": {},
+            "ControlNetLoader": {
+                "input": {
+                    "required": {
+                        "control_net_name": [[
+                            "anima-depth-controlnet.safetensors",
+                            "anima-canny-controlnet.safetensors",
+                        ]]
+                    }
+                }
+            },
+            "ControlNetApplyAdvanced": {},
+            "ImageScale": {},
+            "DepthAnythingV2Preprocessor": {
+                "input": {
+                    "required": {
+                        "image": ["IMAGE"],
+                    },
+                    "optional": {
+                        "resolution": ["INT"],
+                    },
+                }
+            },
+        }
+
+        background = reference_modules.reference_module_capabilities(info, app_scope="anima")["reference_modules"]["background"]
+
+        self.assertTrue(background["implemented"])
+        self.assertIn("depth", background["supported_modes"])
+        self.assertTrue(background["modes"]["depth"]["available"])
+        self.assertEqual(background["modes"]["depth"]["controlnet_model"], "anima-depth-controlnet.safetensors")
+        self.assertEqual(background["image_resize_node"], "ImageScale")
 
     def test_diagnostics_requires_auth(self) -> None:
         with self.assertRaises(HTTPException) as cm:

@@ -5,8 +5,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.41-turbo-presets-20260622";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.41-turbo-presets-20260622";
+} from "./dom.js?v=v1.41-background-reference-20260623";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.41-background-reference-20260623";
 
 const EMPTY_SLOT_LABELS = {
   character1: "未選択",

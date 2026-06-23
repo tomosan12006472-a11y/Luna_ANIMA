@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.41-turbo-presets-20260622";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.41-turbo-presets-20260622";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.41-turbo-presets-20260622";
-import { onDomReady } from "./bootstrap.js?v=v1.41-turbo-presets-20260622";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.41-background-reference-20260623";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.41-background-reference-20260623";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.41-background-reference-20260623";
+import { onDomReady } from "./bootstrap.js?v=v1.41-background-reference-20260623";
 import {
   $,
   $$,
@@ -11,23 +11,23 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.41-turbo-presets-20260622";
-import { createCharacterFeature } from "./characters.js?v=v1.41-turbo-presets-20260622";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.41-turbo-presets-20260622";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.41-turbo-presets-20260622";
-import { createHistoryFeature } from "./history.js?v=v1.41-turbo-presets-20260622";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.41-turbo-presets-20260622";
-import { createI2iFeature } from "./i2i.js?v=v1.41-turbo-presets-20260622";
-import { createLoraFeature } from "./loras.js?v=v1.41-turbo-presets-20260622";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.41-turbo-presets-20260622";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.41-turbo-presets-20260622";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.41-turbo-presets-20260622";
-import { createQueueFeature } from "./queue.js?v=v1.41-turbo-presets-20260622";
-import { createReferenceFeature } from "./reference.js?v=v1.41-turbo-presets-20260622";
-import { createSettingsFeature } from "./settings.js?v=v1.41-turbo-presets-20260622";
-import { createInitialState } from "./state.js?v=v1.41-turbo-presets-20260622";
-import { createDetailerFeature } from "./detailers.js?v=v1.41-turbo-presets-20260622";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.41-turbo-presets-20260622";
+} from "./dom.js?v=v1.41-background-reference-20260623";
+import { createCharacterFeature } from "./characters.js?v=v1.41-background-reference-20260623";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.41-background-reference-20260623";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.41-background-reference-20260623";
+import { createHistoryFeature } from "./history.js?v=v1.41-background-reference-20260623";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.41-background-reference-20260623";
+import { createI2iFeature } from "./i2i.js?v=v1.41-background-reference-20260623";
+import { createLoraFeature } from "./loras.js?v=v1.41-background-reference-20260623";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.41-background-reference-20260623";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.41-background-reference-20260623";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.41-background-reference-20260623";
+import { createQueueFeature } from "./queue.js?v=v1.41-background-reference-20260623";
+import { createReferenceFeature } from "./reference.js?v=v1.41-background-reference-20260623";
+import { createSettingsFeature } from "./settings.js?v=v1.41-background-reference-20260623";
+import { createInitialState } from "./state.js?v=v1.41-background-reference-20260623";
+import { createDetailerFeature } from "./detailers.js?v=v1.41-background-reference-20260623";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.41-background-reference-20260623";
 
 (() => {
   "use strict";
@@ -252,6 +252,7 @@ import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=
     const refParts = [];
     if (checked("#outfitEnabled")) refParts.push("OUTFIT");
     if (checked("#poseEnabled")) refParts.push("POSE");
+    if (checked("#backgroundEnabled")) refParts.push("BG");
     text("#refModSummary", refParts.length ? refParts.join("+") : "OFF");
     text("#fdSummary", checked("#fdEnabled") ? `ON · ${Number(req.face_detailer.denoise).toFixed(2)}` : "OFF");
     text("#hdSummary", checked("#hdEnabled") ? `ON · ${Number(req.hand_detailer.denoise).toFixed(2)} · L${Number(req.hand_detailer.lllite_strength).toFixed(2)}` : "OFF");
@@ -367,7 +368,7 @@ import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=
         UI.toast(errorMessage(error), "error");
         if (action?.startsWith("frame-")) text("#frameActionStatus", errorMessage(error));
         if (action?.startsWith("i2i-")) text("#i2iStatus", errorMessage(error));
-        if (action?.startsWith("outfit-") || action?.startsWith("pose-")) text("#refModStatus", errorMessage(error));
+        if (action?.startsWith("outfit-") || action?.startsWith("pose-") || action?.startsWith("background-")) text("#refModStatus", errorMessage(error));
         if (action?.startsWith("prompt-convert")) text("#promptConverterStatus", errorMessage(error));
         if (action?.startsWith("prompt-random")) text("#promptRandomStatus", errorMessage(error));
         if (action === "save-auto-prompts") text("#autoPromptStatus", errorMessage(error));

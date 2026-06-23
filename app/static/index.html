@@ -387,6 +387,34 @@
           <button type="button" class="ghost" data-action="pose-clear">解除</button>
         </div>
         <div id="posePreview" class="i2i-preview is-empty">Pose参照は未選択です。</div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+        <div class="switchline">
+          <input id="backgroundEnabled" type="checkbox">
+          <span class="grow">Background Reference(背景の構図・奥行き・輪郭を参照)</span>
+        </div>
+        <div class="grid2">
+          <label class="field"><span class="lbl">MODE</span>
+            <select id="backgroundMode">
+              <option value="depth">Depth</option>
+              <option value="canny">Canny</option>
+              <option value="lineart">Lineart</option>
+              <option value="softedge">SoftEdge</option>
+              <option value="mlsd">MLSD</option>
+            </select>
+          </label>
+          <label class="field"><span class="lbl">STRENGTH</span><input id="backgroundStrength" type="number" min="0" max="1.5" step="0.05" value="0.45"></label>
+          <label class="field"><span class="lbl">START</span><input id="backgroundStart" type="number" min="0" max="1" step="0.05" value="0"></label>
+          <label class="field"><span class="lbl">END</span><input id="backgroundEnd" type="number" min="0" max="1" step="0.05" value="0.75"></label>
+          <label class="field"><span class="lbl">RESIZE</span>
+            <select id="backgroundResize"><option value="crop">Crop</option><option value="fit">Fit</option><option value="stretch">Stretch</option></select>
+          </label>
+        </div>
+        <input id="backgroundFile" type="file" accept="image/png,image/jpeg,image/webp">
+        <div class="row">
+          <button type="button" class="ghost" data-action="background-upload">Upload Background</button>
+          <button type="button" class="ghost" data-action="background-clear">Clear</button>
+        </div>
+        <div id="backgroundPreview" class="i2i-preview is-empty">Background Referenceは未選択です。</div>
         <p id="refModStatus" class="hint" aria-live="polite"></p>
       </details>
 
@@ -606,6 +634,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.41-turbo-presets-20260622"></script>
+  <script src="/static/app.js?v=v1.41-background-reference-20260623"></script>
 </body>
 </html>

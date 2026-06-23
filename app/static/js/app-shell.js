@@ -1,5 +1,5 @@
-import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.41-turbo-presets-20260622";
-import { $, $$, text, value } from "./dom.js?v=v1.41-turbo-presets-20260622";
+import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.41-background-reference-20260623";
+import { $, $$, text, value } from "./dom.js?v=v1.41-background-reference-20260623";
 
 export function exitToLogin(message = "", { UI = window.UI } = {}) {
   UI.closeSheets();

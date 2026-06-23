@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.41-turbo-presets-20260622";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.41-turbo-presets-20260622";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.41-turbo-presets-20260622";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.41-background-reference-20260623";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.41-background-reference-20260623";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.41-background-reference-20260623";
 
 export function createHistoryReuseFeature({
   state,

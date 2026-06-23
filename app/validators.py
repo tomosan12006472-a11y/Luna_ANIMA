@@ -240,38 +240,57 @@ def validate_reference_modules(data: Any, addr: str) -> JSONResponse | None:
                 retryable=False,
             )
     pose = modules.get("pose") if isinstance(modules.get("pose"), dict) else {}
-    if not pose.get("enabled"):
-        return None
-    if not pose.get("image_id"):
-        return error_response(
-            status_code=400,
-            message="Pose固定がONですが、参照画像が選択されていません。参照画像を選ぶか、Pose固定をOFFにしてください。",
-            stage="validate_reference_modules",
-            data=data,
-            comfy_node_errors={"missing": "reference_modules.pose.image_id"},
-            retryable=False,
-        )
-    if not reference_store.get_reference_image(pose["image_id"]):
-        return error_response(
-            status_code=400,
-            message="Pose固定の参照画像が見つかりません。参照画像を選び直すか、Pose固定をOFFにしてください。",
-            stage="validate_reference_modules",
-            data=data,
-            comfy_node_errors={"missing": "reference_modules.pose.image"},
-            retryable=False,
-        )
-    pose_caps = (caps.get("reference_modules") or {}).get("pose") or {}
-    mode = str(pose.get("mode") or "pose_image")
-    mode_caps = (pose_caps.get("modes") or {}).get(mode) or {}
-    if not mode_caps.get("available"):
-        return error_response(
-            status_code=400,
-            message="ANIMAのPose固定は、互換ControlNet経路が確認できるまで無効です。Pose固定をOFFにすると通常生成できます。",
-            stage="validate_reference_modules",
-            data=data,
-            comfy_node_errors={"missing": mode_caps.get("missing_nodes") or pose_caps.get("missing_nodes") or ["pose_controlnet"], "warnings": pose_caps.get("warnings") or []},
-            retryable=False,
-        )
+    if pose.get("enabled"):
+        if not pose.get("image_id"):
+            return error_response(
+                status_code=400,
+                message="Pose固定がONですが、参照画像が選択されていません。参照画像を選ぶか、Pose固定をOFFにしてください。",
+                stage="validate_reference_modules",
+                data=data,
+                comfy_node_errors={"missing": "reference_modules.pose.image_id"},
+                retryable=False,
+            )
+        if not reference_store.get_reference_image(pose["image_id"]):
+            return error_response(
+                status_code=400,
+                message="Pose固定の参照画像が見つかりません。参照画像を選び直すか、Pose固定をOFFにしてください。",
+                stage="validate_reference_modules",
+                data=data,
+                comfy_node_errors={"missing": "reference_modules.pose.image"},
+                retryable=False,
+            )
+        pose_caps = (caps.get("reference_modules") or {}).get("pose") or {}
+        mode = str(pose.get("mode") or "pose_image")
+        mode_caps = (pose_caps.get("modes") or {}).get(mode) or {}
+        if not mode_caps.get("available"):
+            return error_response(
+                status_code=400,
+                message="ANIMAのPose固定は、互換ControlNet経路が確認できるまで無効です。Pose固定をOFFにすると通常生成できます。",
+                stage="validate_reference_modules",
+                data=data,
+                comfy_node_errors={"missing": mode_caps.get("missing_nodes") or pose_caps.get("missing_nodes") or ["pose_controlnet"], "warnings": pose_caps.get("warnings") or []},
+                retryable=False,
+            )
+    background = modules.get("background") if isinstance(modules.get("background"), dict) else {}
+    if background.get("enabled"):
+        if not background.get("image_id"):
+            return error_response(
+                status_code=400,
+                message="Background ReferenceがONですが、参照画像が選択されていません。参照画像を選ぶか、Background ReferenceをOFFにしてください。",
+                stage="validate_reference_modules",
+                data=data,
+                comfy_node_errors={"missing": "reference_modules.background.image_id"},
+                retryable=False,
+            )
+        if not reference_store.get_reference_image(background["image_id"]):
+            return error_response(
+                status_code=400,
+                message="Background Referenceの参照画像が見つかりません。参照画像を選び直すか、Background ReferenceをOFFにしてください。",
+                stage="validate_reference_modules",
+                data=data,
+                comfy_node_errors={"missing": "reference_modules.background.image"},
+                retryable=False,
+            )
     return None
 
 

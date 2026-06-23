@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Callable
 
-from .schemas.reference import ReferenceModulesSettings
+from .config import ANIMA_MAPPING_PATH
+from .schemas.reference import BACKGROUND_REFERENCE_MODE_DEFAULTS, ReferenceModulesSettings
 
 
 DEFAULT_REFERENCE_MODULES: dict[str, Any] = {
@@ -35,7 +37,26 @@ DEFAULT_REFERENCE_MODULES: dict[str, Any] = {
         "union_type": "openpose",
         "comfyui_image": {"name": None, "subfolder": "", "type": "input"},
     },
+    "background": {
+        "enabled": False,
+        "image_id": "",
+        "image_name": "",
+        "mode": "depth",
+        "strength": 0.45,
+        "start_at": 0.0,
+        "end_at": 0.75,
+        "resize_mode": "crop",
+        "strategy": "controlnet_background",
+        "controlnet_model": "auto",
+        "preprocessor_node_class": "",
+        "apply_node_class": "ControlNetApplyAdvanced",
+        "loader_node_class": "ControlNetLoader",
+        "image_resize_node_class": "ImageScale",
+        "comfyui_image": {"name": None, "subfolder": "", "type": "input"},
+    },
 }
+
+REFERENCE_MODULE_NAMES = {"outfit", "pose", "background"}
 
 
 def clamp_float(value: Any, default: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
@@ -132,6 +153,162 @@ def _select_pose_controlnet_model(models: list[str]) -> tuple[str, bool]:
     return "", False
 
 
+BACKGROUND_PREPROCESSOR_NODES: dict[str, tuple[str, ...]] = {
+    "depth": (
+        "DepthAnythingV2Preprocessor",
+        "DepthAnythingPreprocessor",
+        "MiDaS-DepthMapPreprocessor",
+        "Zoe-DepthMapPreprocessor",
+        "LeReS-DepthMapPreprocessor",
+    ),
+    "canny": ("CannyEdgePreprocessor", "CannyPreprocessor", "Canny"),
+    "lineart": ("LineArtPreprocessor", "LineartPreprocessor", "LineArt_Preprocessor"),
+    "softedge": ("HEDPreprocessor", "SoftEdgePreprocessor", "HEDPreprocessor_safe"),
+    "mlsd": ("MLSDPreprocessor", "M-LSDPreprocessor", "M-LSDPreprocessor Provider"),
+}
+
+BACKGROUND_MODEL_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "depth": ("depth", "zoe", "midas"),
+    "canny": ("canny",),
+    "lineart": ("lineart", "line"),
+    "softedge": ("softedge", "hed", "scribble"),
+    "mlsd": ("mlsd", "m-lsd"),
+}
+
+
+def _background_reference_mapping() -> dict[str, Any]:
+    try:
+        mapping = json.loads(ANIMA_MAPPING_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    background = mapping.get("background_reference") if isinstance(mapping, dict) else {}
+    return background if isinstance(background, dict) else {}
+
+
+def _background_mode_mapping(mapping: dict[str, Any], mode: str) -> dict[str, Any]:
+    modes = mapping.get("modes") if isinstance(mapping.get("modes"), dict) else {}
+    value = modes.get(mode) if isinstance(modes.get(mode), dict) else {}
+    return value
+
+
+def _node_input_sections(info: dict[str, Any], class_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    node = info.get(class_name) if isinstance(info.get(class_name), dict) else {}
+    inputs = node.get("input") if isinstance(node.get("input"), dict) else {}
+    required = inputs.get("required") if isinstance(inputs.get("required"), dict) else {}
+    optional = inputs.get("optional") if isinstance(inputs.get("optional"), dict) else {}
+    return required, optional
+
+
+def _default_preprocessor_value(name: str, mode: str) -> Any:
+    if name == "image":
+        return "__image__"
+    if name in {"resolution", "detect_resolution", "image_resolution"}:
+        return 1024
+    if name == "safe":
+        return "enable"
+    if name == "low_threshold":
+        return 100
+    if name == "high_threshold":
+        return 200
+    if name in {"score_threshold", "thr_v"}:
+        return 0.1
+    if name in {"dist_threshold", "thr_d"}:
+        return 0.1
+    if name in {"mode", "preprocessor"}:
+        return mode
+    return None
+
+
+def _preprocessor_input_defaults(info: dict[str, Any], class_name: str, mode: str, configured: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str]]:
+    required, optional = _node_input_sections(info, class_name)
+    names = [*required.keys(), *optional.keys()]
+    defaults = dict(configured or {})
+    for name in names:
+        if name in defaults:
+            continue
+        default = _default_preprocessor_value(name, mode)
+        if default is not None:
+            defaults[name] = default
+    missing_required = [name for name in required if name not in defaults]
+    return defaults, missing_required
+
+
+def _select_background_model(models: list[str], mode: str, configured: str) -> tuple[str, list[str]]:
+    configured = str(configured or "").strip()
+    if configured and configured.lower() != "auto":
+        missing = ["background_controlnet_model"] if models and configured not in models else []
+        return configured, missing
+    keywords = BACKGROUND_MODEL_KEYWORDS.get(mode, ())
+    for model in models:
+        lower = model.lower()
+        if any(keyword in lower for keyword in keywords):
+            return model, []
+    return "", ["compatible_background_controlnet_model"]
+
+
+def _background_capability(info: dict[str, Any], *, app_scope: str) -> dict[str, Any]:
+    node_names = set(info.keys())
+    mapping = _background_reference_mapping()
+    mapping_enabled = bool(mapping.get("enabled"))
+    loader_node = str(mapping.get("loader_node_class") or "ControlNetLoader")
+    apply_node = str(mapping.get("apply_node_class") or "ControlNetApplyAdvanced")
+    resize_node = str(mapping.get("image_resize_node_class") or "")
+    models = _regular_controlnet_choices(info)
+    warnings: list[str] = []
+    if not mapping_enabled:
+        warnings.append("background_reference mapping is not configured or disabled.")
+    required = ["LoadImage", loader_node, apply_node]
+    if resize_node:
+        required.append(resize_node)
+    missing_base = [name for name in required if name and name not in node_names]
+    modes: dict[str, Any] = {}
+    for mode in BACKGROUND_REFERENCE_MODE_DEFAULTS:
+        mode_mapping = _background_mode_mapping(mapping, mode)
+        configured_preprocessor = str(mode_mapping.get("preprocessor_node_class") or "").strip()
+        preprocessor = ""
+        if configured_preprocessor and configured_preprocessor in node_names:
+            preprocessor = configured_preprocessor
+        elif configured_preprocessor:
+            preprocessor = configured_preprocessor
+        else:
+            preprocessor = next((name for name in BACKGROUND_PREPROCESSOR_NODES.get(mode, ()) if name in node_names), "")
+        configured_inputs = mode_mapping.get("preprocessor_inputs") if isinstance(mode_mapping.get("preprocessor_inputs"), dict) else {}
+        preprocessor_inputs, missing_inputs = _preprocessor_input_defaults(info, preprocessor, mode, configured_inputs) if preprocessor in node_names else ({}, [])
+        model, missing_model = _select_background_model(models, mode, str(mode_mapping.get("controlnet_model") or "auto"))
+        missing = [*missing_base]
+        if not preprocessor or preprocessor not in node_names:
+            missing.append("background_preprocessor")
+        missing.extend(missing_inputs)
+        missing.extend(missing_model)
+        modes[mode] = {
+            "available": bool(mapping_enabled and not missing),
+            "preprocessor_node_class": preprocessor,
+            "preprocessor_inputs": preprocessor_inputs,
+            "controlnet_model": model,
+            "missing_nodes": missing,
+            "defaults": BACKGROUND_REFERENCE_MODE_DEFAULTS[mode],
+        }
+    available_modes = [mode for mode, data in modes.items() if data.get("available")]
+    if app_scope != "anima":
+        warnings.append("Background Reference v1 is tuned for Luna ANIMA workflows.")
+    if not models:
+        warnings.append("No regular ControlNet models were found.")
+    return {
+        "implemented": True,
+        "available": bool(available_modes),
+        "strategy": "controlnet_background",
+        "modes": modes,
+        "supported_modes": available_modes,
+        "apply_node": apply_node if apply_node in node_names else "",
+        "loader_node": loader_node if loader_node in node_names else "",
+        "image_resize_node": resize_node if resize_node in node_names else "",
+        "controlnet_models": models,
+        "required_nodes": required,
+        "missing_nodes": sorted({item for mode in modes.values() for item in mode.get("missing_nodes", [])}),
+        "warnings": warnings,
+    }
+
+
 def _pose_capability(info: dict[str, Any], *, app_scope: str) -> dict[str, Any]:
     node_names = set(info.keys())
     models = _regular_controlnet_choices(info)
@@ -194,6 +371,7 @@ def reference_module_capabilities(info: dict[str, Any] | None, *, cache: dict[st
     if app_scope == "anima":
         warnings.append("ANIMA outfit reference uses a generic IP-Adapter node; image-model compatibility depends on the local ComfyUI setup.")
     pose_capability = _pose_capability(info, app_scope=app_scope)
+    background_capability = _background_capability(info, app_scope=app_scope)
     return {
         "reference_modules": {
             "outfit": {
@@ -210,9 +388,9 @@ def reference_module_capabilities(info: dict[str, Any] | None, *, cache: dict[st
                 "cache": cache or {},
             },
             "pose": pose_capability,
+            "background": background_capability,
             "anima_lllite": _anima_lllite_capability(info, app_scope=app_scope),
             "character": {"implemented": False, "available": False, "strategy": "future", "warnings": ["Character module is not implemented in this MVP."]},
-            "background": {"implemented": False, "available": False, "strategy": "future", "warnings": ["Background module is not implemented in this MVP."]},
             "composition": {"implemented": False, "available": False, "strategy": "future", "warnings": ["Composition module is not implemented in this MVP."]},
         }
     }
@@ -254,6 +432,12 @@ def reference_module_model_status(info: dict[str, Any] | None, *, comfyui_roots:
                 "models": {
                     "controlnet": {**_scan_model_dir(existing_models_root / "controlnet"), "object_info_choices": controlnet_choices, "lllite_choices": _lllite_choices(info)},
                     "controlnet_aux_ckpts": _scan_model_dir(next((root / "custom_nodes" / "comfyui_controlnet_aux" / "ckpts" for root in comfyui_roots if (root / "custom_nodes").exists()), comfyui_roots[0] / "custom_nodes" / "comfyui_controlnet_aux" / "ckpts" if comfyui_roots else Path("custom_nodes/comfyui_controlnet_aux/ckpts"))),
+                },
+            },
+            "background": {
+                **(caps.get("background") or {}),
+                "models": {
+                    "controlnet": {**_scan_model_dir(existing_models_root / "controlnet"), "object_info_choices": controlnet_choices},
                 },
             },
             "anima_lllite": caps.get("anima_lllite") or _anima_lllite_capability(info, app_scope=app_scope),
@@ -400,3 +584,125 @@ def apply_pose_reference_to_workflow(
         }
     )
     modules["pose"] = pose
+
+
+def _workflow_input_value(value: Any, image_output: list[Any]) -> Any:
+    return image_output if value == "__image__" else value
+
+
+def _int_dimension(value: Any, default: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(8, number)
+
+
+def _background_resize_crop(resize_mode: Any) -> str:
+    mode = str(resize_mode or "crop").lower()
+    return "center" if mode == "crop" else "disabled"
+
+
+def apply_background_reference_to_workflow(
+    workflow: dict[str, Any],
+    modules: dict[str, Any],
+    *,
+    request: dict[str, Any],
+    sampler_ids: list[str],
+    next_node_id: Callable[[dict[str, Any], int], str],
+) -> None:
+    background = modules.get("background") if isinstance(modules.get("background"), dict) else {}
+    if not background.get("apply_to_payload"):
+        return
+    image_name = str((background.get("comfyui_image") or {}).get("name") or background.get("image_name") or "")
+    controlnet_model = str(background.get("controlnet_model") or "")
+    preprocessor = str(background.get("preprocessor_node_class") or "")
+    if not image_name or not controlnet_model or not preprocessor:
+        return
+    load_id = next_node_id(workflow, 9500)
+    next_seed = int(load_id) + 1
+    workflow[load_id] = {
+        "class_type": "LoadImage",
+        "inputs": {"image": image_name},
+        "_meta": {"title": "Background Reference Image"},
+    }
+    image_output: list[Any] = [load_id, 0]
+    resize_node = str(background.get("image_resize_node_class") or "")
+    if resize_node:
+        resize_id = next_node_id(workflow, next_seed)
+        next_seed = int(resize_id) + 1
+        workflow[resize_id] = {
+            "class_type": resize_node,
+            "inputs": {
+                "image": image_output,
+                "width": _int_dimension(request.get("width"), 1024),
+                "height": _int_dimension(request.get("height"), 1536),
+                "upscale_method": "lanczos",
+                "crop": _background_resize_crop(background.get("resize_mode")),
+            },
+            "_meta": {"title": "Background Reference Resize"},
+        }
+        image_output = [resize_id, 0]
+    preprocessor_id = next_node_id(workflow, next_seed)
+    control_id = next_node_id(workflow, int(preprocessor_id) + 1)
+    configured_inputs = background.get("preprocessor_inputs") if isinstance(background.get("preprocessor_inputs"), dict) else {}
+    preprocessor_inputs = {
+        key: _workflow_input_value(value, image_output)
+        for key, value in configured_inputs.items()
+    }
+    preprocessor_inputs.setdefault("image", image_output)
+    workflow[preprocessor_id] = {
+        "class_type": preprocessor,
+        "inputs": preprocessor_inputs,
+        "_meta": {"title": "Background Reference Preprocessor"},
+    }
+    loader_node = str(background.get("loader_node_class") or "ControlNetLoader")
+    workflow[control_id] = {
+        "class_type": loader_node,
+        "inputs": {"control_net_name": controlnet_model},
+        "_meta": {"title": "Background Reference ControlNet"},
+    }
+    strength = clamp_float(background.get("strength"), 0.45, 0.0, 1.5)
+    start_at = clamp_float(background.get("start_at"), 0.0)
+    end_at = clamp_float(background.get("end_at"), 0.75)
+    if end_at < start_at:
+        end_at = start_at
+    apply_node = str(background.get("apply_node_class") or "ControlNetApplyAdvanced")
+    wrapped: dict[str, tuple[list[Any], list[Any]]] = {}
+    for sampler_id in sampler_ids:
+        sampler = workflow.get(str(sampler_id))
+        inputs = sampler.get("inputs") if isinstance(sampler, dict) else None
+        if not isinstance(inputs, dict) or "positive" not in inputs or "negative" not in inputs:
+            continue
+        key = repr((inputs.get("positive"), inputs.get("negative")))
+        if key not in wrapped:
+            apply_id = next_node_id(workflow, int(control_id) + len(wrapped) + 1)
+            workflow[apply_id] = {
+                "class_type": apply_node,
+                "inputs": {
+                    "positive": inputs.get("positive"),
+                    "negative": inputs.get("negative"),
+                    "control_net": [control_id, 0],
+                    "image": [preprocessor_id, 0],
+                    "strength": strength,
+                    "start_percent": start_at,
+                    "end_percent": end_at,
+                },
+                "_meta": {"title": "Background Reference Apply"},
+            }
+            wrapped[key] = ([apply_id, 0], [apply_id, 1])
+        inputs["positive"], inputs["negative"] = wrapped[key]
+    background.update(
+        {
+            "applied": bool(wrapped),
+            "image_name": image_name,
+            "controlnet_model": controlnet_model,
+            "preprocessor_node_class": preprocessor,
+            "image_resize_node_class": resize_node,
+            "resize_mode": str(background.get("resize_mode") or "crop").lower(),
+            "strength": strength,
+            "start_at": start_at,
+            "end_at": end_at,
+        }
+    )
+    modules["background"] = background

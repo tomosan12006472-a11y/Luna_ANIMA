@@ -77,6 +77,7 @@ export function createInitialState() {
     refmod: {
       outfit: { imageId: "", thumb: "", name: "" },
       pose: { imageId: "", thumb: "", name: "" },
+      background: { imageId: "", thumb: "", name: "" },
     },
   };
 }

@@ -70,6 +70,12 @@ def reference_modules_availability_payload(addr: str, refresh: bool = False) -> 
                     "strategy": "controlnet_openpose",
                     "warnings": [str(exc)],
                 },
+                "background": {
+                    "implemented": True,
+                    "available": False,
+                    "strategy": "controlnet_background",
+                    "warnings": [str(exc)],
+                },
             },
         }
     return {"ok": True, **reference_module_capabilities(info, cache=cache, app_scope="anima")}
@@ -349,6 +355,7 @@ def prepare_reference_modules_request(request_data: dict[str, Any], addr: str, *
     caps = reference_modules_availability_payload(addr)
     outfit_caps = (caps.get("reference_modules") or {}).get("outfit") or {}
     pose_caps = (caps.get("reference_modules") or {}).get("pose") or {}
+    background_caps = (caps.get("reference_modules") or {}).get("background") or {}
     outfit = modules.get("outfit") if isinstance(modules.get("outfit"), dict) else {}
     outfit["availability"] = outfit_caps
     outfit["available"] = bool(outfit_caps.get("available"))
@@ -437,6 +444,72 @@ def prepare_reference_modules_request(request_data: dict[str, Any], addr: str, *
         pose["apply_to_payload"] = False
     pose["warnings"] = pose_warnings
     modules["pose"] = pose
+    background = modules.get("background") if isinstance(modules.get("background"), dict) else {}
+    background["availability"] = background_caps
+    background["available"] = bool(background_caps.get("available"))
+    background_warnings = list(background_caps.get("warnings") or [])
+    background_mode = str(background.get("mode") or "depth")
+    background_mode_caps = (background_caps.get("modes") or {}).get(background_mode) or {}
+    background["controlnet_model"] = (
+        background.get("controlnet_model")
+        if background.get("controlnet_model") and str(background.get("controlnet_model")).lower() != "auto"
+        else background_mode_caps.get("controlnet_model") or ""
+    )
+    background["preprocessor_node_class"] = background_mode_caps.get("preprocessor_node_class") or background.get("preprocessor_node_class") or ""
+    background["preprocessor_inputs"] = background_mode_caps.get("preprocessor_inputs") or background.get("preprocessor_inputs") or {}
+    background["apply_node_class"] = background_caps.get("apply_node") or background.get("apply_node_class") or "ControlNetApplyAdvanced"
+    background["loader_node_class"] = background_caps.get("loader_node") or background.get("loader_node_class") or "ControlNetLoader"
+    background["image_resize_node_class"] = background_caps.get("image_resize_node") or background.get("image_resize_node_class") or ""
+    if background.get("enabled") and background.get("resize_mode") == "fit" and background.get("image_resize_node_class") == "ImageScale":
+        background_warnings.append("Background resize fit uses ImageScale without padding; use crop for center crop or stretch for exact scaling.")
+    if background.get("enabled"):
+        if not background_mode_caps.get("available"):
+            reason_parts = [*background_warnings, *(background_mode_caps.get("missing_nodes") or background_caps.get("missing_nodes") or ["background_controlnet"])]
+            background["unsupported_reason"] = "; ".join(str(item) for item in reason_parts if item)
+        if background.get("image_id"):
+            image = reference_store.get_reference_image(background["image_id"])
+            if image:
+                background["image_name"] = image.get("filename") or ""
+                background["image_filename"] = image.get("filename") or ""
+                background["thumbnail_url"] = image.get("thumbnail_url") or ""
+                background["image_url"] = image.get("image_url") or ""
+                background["comfyui_image"] = image.get("comfyui_image") or background.get("comfyui_image") or {}
+                comfy_name = str((background.get("comfyui_image") or {}).get("name") or "")
+                if upload and not comfy_name:
+                    image_path = Path(str(image.get("path") or ""))
+                    if image_path.exists():
+                        result = comfy_client.upload_image(addr, filename=image.get("filename") or image_path.name, data=image_path.read_bytes())
+                        background["comfyui_upload"] = {"ok": result.get("ok"), "status": result.get("status"), "message": result.get("text", "")[:500]}
+                        if result.get("ok"):
+                            updated = reference_store.update_comfy_upload(background["image_id"], result) or image
+                            background["comfyui_image"] = updated.get("comfyui_image") or {}
+                            background["image_name"] = updated.get("filename") or background.get("image_name") or ""
+        comfy_name = str((background.get("comfyui_image") or {}).get("name") or "")
+        background["apply_to_payload"] = bool(
+            background.get("available")
+            and background_mode_caps.get("available")
+            and background.get("image_id")
+            and comfy_name
+            and background.get("controlnet_model")
+            and background.get("preprocessor_node_class")
+        )
+        missing = []
+        if not background.get("image_id"):
+            missing.append("background_reference_image")
+        if background.get("image_id") and not comfy_name:
+            missing.append("comfyui_image_upload")
+        if not background_mode_caps.get("available"):
+            missing.extend(background_mode_caps.get("missing_nodes") or background_caps.get("missing_nodes") or ["background_controlnet"])
+        if not background.get("controlnet_model"):
+            missing.append("controlnet_model")
+        if not background.get("preprocessor_node_class"):
+            missing.append("background_preprocessor")
+        if missing:
+            background["unsupported_reason"] = ", ".join(str(item) for item in missing if item)
+    else:
+        background["apply_to_payload"] = False
+    background["warnings"] = background_warnings
+    modules["background"] = background
     request_data["reference_modules"] = modules
     return request_data
 

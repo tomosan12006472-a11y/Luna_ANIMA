@@ -3,13 +3,14 @@ from __future__ import annotations
 from typing import Any
 
 from .._shared_utils import next_node_id
-from ..reference_modules import apply_outfit_reference_to_workflow, apply_pose_reference_to_workflow
+from ..reference_modules import apply_background_reference_to_workflow, apply_outfit_reference_to_workflow, apply_pose_reference_to_workflow
 
 
 def apply_reference_modules(workflow: dict[str, Any], request: dict[str, Any]) -> None:
     modules = request.get("reference_modules") if isinstance(request.get("reference_modules"), dict) else {}
     apply_outfit_reference_to_workflow(workflow, modules, sampler_ids=["19"], next_node_id=next_node_id)
     apply_pose_reference_to_workflow(workflow, modules, sampler_ids=["19"], next_node_id=next_node_id)
+    apply_background_reference_to_workflow(workflow, modules, request=request, sampler_ids=["19"], next_node_id=next_node_id)
     request["reference_modules"] = modules
 
 def apply_reference_assist(workflow: dict[str, Any], request: dict[str, Any]) -> None:

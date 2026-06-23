@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.41-turbo-presets-20260622";
+} from "./dom.js?v=v1.41-background-reference-20260623";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 

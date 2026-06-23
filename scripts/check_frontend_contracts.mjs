@@ -141,6 +141,8 @@ const actionContracts = [
   "outfit-clear",
   "pose-upload",
   "pose-clear",
+  "background-upload",
+  "background-clear",
   "save-defaults",
   "reset-defaults",
   "reload-models",
@@ -229,6 +231,7 @@ const requestBuilderFiles = [
   "app/static/js/history-request.js",
   "app/static/js/generation-actions.js",
   "app/static/js/history-reuse-data.js",
+  "app/static/js/reference.js",
 ];
 const payloadKeys = [
   "workflow_mode",
@@ -269,6 +272,7 @@ const payloadKeys = [
   "face_detailer",
   "hand_detailer",
   "reference_modules",
+  "background",
 ];
 
 // These hints are deliberately string-based; future snapshot tests can tighten values.
@@ -292,6 +296,9 @@ const domIds = [
   "#favRow",
   "#i2iStatus",
   "#refModStatus",
+  "#backgroundEnabled",
+  "#backgroundMode",
+  "#backgroundPreview",
   "#frameActionStatus",
   "#queueStatus",
   "#settingsStatus",

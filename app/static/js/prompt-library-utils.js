@@ -1,4 +1,4 @@
-import { $, setValue, value } from "./dom.js?v=v1.41-turbo-presets-20260622";
+import { $, setValue, value } from "./dom.js?v=v1.41-background-reference-20260623";
 
 export function createPositivePromptHelpers({ updateSummaries = () => {} } = {}) {
   function insertPositivePromptText(insertText) {

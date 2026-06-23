@@ -38,7 +38,7 @@ Refactors must preserve API paths, request bodies, response shapes, `user_data` 
 - `characters.js`: character search, favorites, slots, and random slot selection.
 - `loras.js`: LoRA catalog loading, configured LoRAs, rows, and request collection.
 - `i2i.js`: image-to-image upload, history source, preview state, and request collection.
-- `reference.js`: outfit/pose reference module upload, preview state, and request collection.
+- `reference.js`: outfit/pose/background reference module upload, preview state, and request collection.
 - `detailers.js`: face and hand detailer settings and postprocess actions.
 - `settings.js`: settings, diagnostics, watermark, model reload, reset, and UI reload.
 - `queue.js`: queue sheet, queue polling, cancel, refresh, and interrupt actions.

@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.41-turbo-presets-20260622";
+} from "./dom.js?v=v1.41-background-reference-20260623";
 
 const PROMPT_RANDOM_MODES = new Set(["random", "positive_completion"]);
 const PROMPT_RANDOM_DEFAULT_INSTRUCTIONS = {

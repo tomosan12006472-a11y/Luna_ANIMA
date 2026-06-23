@@ -16,6 +16,7 @@ from ..generation_prepare import (
     reference_modules_availability_payload,
     reference_modules_model_status_payload,
 )
+from ..reference_modules import REFERENCE_MODULE_NAMES
 
 router = APIRouter()
 
@@ -93,12 +94,12 @@ async def reference_upload(file: UploadFile = File(...), anima_claude_session: s
 @router.post("/api/reference-modules/upload")
 async def reference_module_upload(file: UploadFile = File(...), module: str = "outfit", anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
     require_auth(anima_claude_session)
-    if module not in {"outfit", "pose"}:
-        raise HTTPException(status_code=400, detail="Only outfit and pose reference module uploads are implemented.")
+    if module not in REFERENCE_MODULE_NAMES:
+        raise HTTPException(status_code=400, detail="Only outfit, pose, and background reference module uploads are implemented.")
     try:
         filename = file.filename or ""
         raw = await file.read()
-        default_name = "pose_reference.png" if module == "pose" else "outfit_reference.png"
+        default_name = f"{module}_reference.png"
         item = reference_store.save_reference_upload(filename or default_name, raw, app_scope="anima", module=module)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -122,8 +123,8 @@ async def reference_module_upload(file: UploadFile = File(...), module: str = "o
 @router.post("/api/reference-modules/clear")
 def reference_module_clear(module: str = "outfit", anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
     require_auth(anima_claude_session)
-    if module not in {"outfit", "pose"}:
-        raise HTTPException(status_code=400, detail="Only outfit and pose reference modules are implemented.")
+    if module not in REFERENCE_MODULE_NAMES:
+        raise HTTPException(status_code=400, detail="Only outfit, pose, and background reference modules are implemented.")
     return {"ok": True, "module": module, "items": reference_store.list_reference_images(module=module)}
 
 

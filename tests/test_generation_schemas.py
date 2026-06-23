@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import unittest
 from unittest import mock
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from app import payload_builder
 from app.api import generation as generation_api
+from app.api import reference as reference_api
 from app.config import APP_PIN
 from app.generation_prepare import generation_request_dict
 from app.main import app
@@ -29,7 +31,7 @@ class GenerationSchemaTests(unittest.TestCase):
             hires_fix={"enabled": True, "mode": "latent", "upscale_factor": "1.5", "latent_upscale_method": "bicubic"},
             official_loras={"highres": {"enabled": True, "strength": "0.55"}, "turbo": {"enabled": True, "version": "v0.2"}},
             reference_assist={"enabled": True, "image_id": "ref_1", "strength": "0.4", "start_percent": "0.1", "end_percent": "0.8"},
-            reference_modules={"enabled": True, "outfit": {"enabled": True, "image_id": "outfit_1"}, "pose": {"enabled": False}},
+            reference_modules={"enabled": True, "outfit": {"enabled": True, "image_id": "outfit_1"}, "pose": {"enabled": False}, "background": {"enabled": True, "image_id": "bg_1", "mode": "canny"}},
             image_to_image={"enabled": True, "image_id": "i2i_1", "denoise": "0.42", "resize_mode": "cover", "allow_with_hires_fix": True},
             dynamic_prompt={"enabled": True, "wildcard_seed": "123"},
             prompt_random_collect={"enabled": True, "mode": "positive_completion", "include_characters": "false"},
@@ -40,6 +42,7 @@ class GenerationSchemaTests(unittest.TestCase):
         dumped = data.model_dump()
         self.assertTrue(dumped["hires_fix"]["enabled"])
         self.assertEqual(dumped["reference_modules"]["outfit"]["image_id"], "outfit_1")
+        self.assertEqual(dumped["reference_modules"]["background"]["mode"], "canny")
         self.assertEqual(dumped["image_to_image"]["resize_mode"], "cover")
         self.assertFalse(dumped["prompt_random_collect"]["include_characters"])
 
@@ -63,6 +66,33 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(data.strength, 1.0)
         self.assertEqual(data.start_percent, 0.0)
         self.assertEqual(data.end_percent, 1.0)
+
+    def test_background_reference_defaults_and_clamps(self) -> None:
+        data = GenerateRequest(
+            reference_modules={
+                "enabled": True,
+                "outfit": {"enabled": True, "strength": 9},
+                "pose": {"enabled": True, "strength": 9},
+                "background": {
+                    "enabled": True,
+                    "image_id": "bg_1",
+                    "mode": "unknown",
+                    "strength": 9,
+                    "start_at": 2,
+                    "end_at": -1,
+                    "resize_mode": "bad",
+                },
+            }
+        )
+
+        background = data.model_dump()["reference_modules"]["background"]
+        self.assertEqual(data.reference_modules.outfit.strength, 1.0)
+        self.assertEqual(data.reference_modules.pose.strength, 1.0)
+        self.assertEqual(background["mode"], "depth")
+        self.assertEqual(background["strength"], 1.5)
+        self.assertEqual(background["start_at"], 1.0)
+        self.assertEqual(background["end_at"], 1.0)
+        self.assertEqual(background["resize_mode"], "crop")
 
     def test_official_loras_turbo_version_fallback(self) -> None:
         data = OfficialLorasSettings.model_validate({"turbo": {"enabled": True, "version": "bad", "strength": 2}})
@@ -96,6 +126,8 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(request_data["reference_assist"]["app_scope"], "anima")
         self.assertEqual(request_data["image_to_image"]["resize_mode"], "fit")
         self.assertEqual(request_data["reference_modules"]["preset"], "off")
+        self.assertIn("background", request_data["reference_modules"])
+        self.assertFalse(request_data["reference_modules"]["background"]["enabled"])
 
     def test_payload_preview_major_structure_is_stable(self) -> None:
         client = TestClient(app)
@@ -136,6 +168,33 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(sorted(payload["19"]["inputs"].keys()), ["cfg", "denoise", "latent_image", "model", "negative", "positive", "sampler_name", "scheduler", "seed", "steps"])
         self.assertEqual(body["size"]["final_width"], 1024)
         self.assertEqual(body["official_loras"]["turbo"]["version"], "v0.2")
+
+    def test_reference_module_upload_accepts_background(self) -> None:
+        client = TestClient(app)
+        client.post("/api/login", json={"pin": APP_PIN})
+        item = {
+            "image_id": "bg_1",
+            "filename": "background_reference.png",
+            "path": str(Path(__file__)),
+            "thumbnail_url": "/api/reference/images/bg_1/thumbnail",
+            "image_url": "/api/reference/images/bg_1/image",
+            "module": "background",
+        }
+        with (
+            mock.patch.object(reference_api.reference_store, "save_reference_upload", return_value=item) as save_upload,
+            mock.patch.object(reference_api.reference_store, "list_reference_images", return_value=[item]),
+            mock.patch.object(reference_api.comfy_client, "upload_image", return_value={"ok": False, "status": 503, "text": "offline"}),
+        ):
+            response = client.post(
+                "/api/reference-modules/upload?module=background",
+                files={"file": ("bg.png", b"fake image", "image/png")},
+            )
+
+        body = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["item"]["module"], "background")
+        save_upload.assert_called_once()
 
 
 if __name__ == "__main__":

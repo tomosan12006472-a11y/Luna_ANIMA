@@ -1,4 +1,4 @@
-import { $, escapePathSegment, text } from "./dom.js?v=v1.41-turbo-presets-20260622";
+import { $, escapePathSegment, text } from "./dom.js?v=v1.41-background-reference-20260623";
 
 export function createRecipesFeature({
   api,
