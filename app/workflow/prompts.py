@@ -209,8 +209,10 @@ def build_natural_description(character_names: list[str], request: dict[str, Any
     manual = str(request.get("natural_description") or "").strip()
     parts = [item for item in natural_parts or [] if item]
     generated = generated_natural_description(character_names)
-    if manual and character_names and is_generated_natural_description(manual):
-        if normalize_natural_description(manual) != normalize_natural_description(generated):
+    if manual and is_generated_natural_description(manual):
+        if not character_names:
+            manual = ""
+        elif normalize_natural_description(manual) != normalize_natural_description(generated):
             manual = ""
     if manual:
         return " ".join([*parts, manual])

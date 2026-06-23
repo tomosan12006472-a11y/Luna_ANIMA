@@ -192,12 +192,26 @@ class PayloadGoldenTests(unittest.TestCase):
         )
         self.assertEqual(result, "An anime illustration of 埃列什基伽勒（Fate） in a clean, expressive composition.")
 
+    def test_stale_generated_natural_description_is_dropped_without_characters(self) -> None:
+        result = payload_builder.build_natural_description(
+            [],
+            {"natural_description": "An anime illustration of Jeanne D'arc from Fate in a clean, expressive composition."},
+        )
+        self.assertEqual(result, "")
+
     def test_manual_natural_description_is_preserved(self) -> None:
         result = payload_builder.build_natural_description(
             ["埃列什基伽勒（Fate）"],
             {"natural_description": "Morgan stands behind her in the background."},
         )
         self.assertEqual(result, "Morgan stands behind her in the background.")
+
+    def test_manual_natural_description_is_preserved_without_characters(self) -> None:
+        result = payload_builder.build_natural_description(
+            [],
+            {"natural_description": "A white-haired woman drinks at an izakaya."},
+        )
+        self.assertEqual(result, "A white-haired woman drinks at an izakaya.")
 
     def test_build_lora_sample_prompts(self) -> None:
         request = {
