@@ -166,6 +166,7 @@ class PayloadGoldenTests(unittest.TestCase):
             payload_builder.ANIMA_HIGHRES_LORA_NAME: "D:/golden/lora/highres.safetensors",
             payload_builder.ANIMA_TURBO_LORA_V01_NAME: "D:/golden/lora/turbo_v01.safetensors",
             payload_builder.ANIMA_TURBO_LORA_V02_NAME: "D:/golden/lora/turbo_v02.safetensors",
+            payload_builder.ANIMA_COLORFIX_LORA_NAME: "D:/golden/lora/colorfix.safetensors",
         }
         payload_builder.find_lora_file = lambda name: paths.get(name, "")
         try:
@@ -173,6 +174,7 @@ class PayloadGoldenTests(unittest.TestCase):
                 "official_loras": {
                     "highres": {"enabled": True, "strength": 0.55},
                     "turbo": {"enabled": True, "version": "auto", "strength": 0.45, "preset_applied": True},
+                    "colorfix": {"enabled": True, "strength": 0.6},
                 }
             }
             assert_matches_golden(self, "resolve_official_loras", payload_builder.resolve_official_loras(request))

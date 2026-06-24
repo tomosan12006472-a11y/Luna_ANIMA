@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.42-lora-ux-controls-20260624";
+import { $, text } from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);

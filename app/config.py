@@ -32,6 +32,7 @@ COMFYUI_LORA_DIRS = [
 ANIMA_HIGHRES_LORA_NAME = "anima-highres-aesthetic-boost.safetensors"
 ANIMA_TURBO_LORA_V02_NAME = "anima-turbo-lora-v0.2.safetensors"
 ANIMA_TURBO_LORA_V01_NAME = "anima-turbo-lora-v0.1.safetensors"
+ANIMA_COLORFIX_LORA_NAME = os.environ.get("ANIMA_COLORFIX_LORA_NAME", r"anima\Anima_colorfix_v1_by_Volnovik.safetensors")
 COMFYUI_ANIMA_TEMPLATE_PATH = Path(os.environ.get("COMFYUI_ANIMA_TEMPLATE_PATH", r"D:\AI\ComfyUI\ComfyUI\user\default\workflows\Anima_テンプレ.json"))
 
 for path in (

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import (
+    ANIMA_COLORFIX_LORA_NAME,
     ANIMA_HIGHRES_LORA_NAME,
     ANIMA_MAPPING_PATH,
     ANIMA_TURBO_LORA_V01_NAME,
@@ -87,6 +88,7 @@ def official_lora_diagnostics(info: dict[str, Any] | None = None) -> dict[str, A
     highres_path = find_lora_file(ANIMA_HIGHRES_LORA_NAME)
     turbo_v02_path = find_lora_file(ANIMA_TURBO_LORA_V02_NAME)
     turbo_v01_path = find_lora_file(ANIMA_TURBO_LORA_V01_NAME)
+    colorfix_path = find_lora_file(ANIMA_COLORFIX_LORA_NAME)
     turbo_file = ANIMA_TURBO_LORA_V02_NAME if turbo_v02_path else ANIMA_TURBO_LORA_V01_NAME
     lora_loader = ""
     visible: list[str] = []
@@ -107,6 +109,10 @@ def official_lora_diagnostics(info: dict[str, Any] | None = None) -> dict[str, A
         "turbo_lora_path": turbo_v02_path or turbo_v01_path,
         "turbo_lora_version": "v0.2" if turbo_v02_path else "v0.1" if turbo_v01_path else "",
         "turbo_visible_to_comfy": turbo_file in visible if visible else False,
+        "colorfix_lora_found": bool(colorfix_path),
+        "colorfix_lora_file": ANIMA_COLORFIX_LORA_NAME,
+        "colorfix_lora_path": colorfix_path,
+        "colorfix_visible_to_comfy": ANIMA_COLORFIX_LORA_NAME in visible if visible else False,
         "lora_loader_node_type": lora_loader,
         "lora_dirs": [str(path) for path in COMFYUI_LORA_DIRS],
     }

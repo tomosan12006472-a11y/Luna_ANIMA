@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import unittest
 from unittest import mock
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from app import diagnostics_helpers
 from app import payload_builder
+from app import validators
 from app.api import generation as generation_api
 from app.api import reference as reference_api
 from app.config import APP_PIN
@@ -100,6 +103,15 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(data.turbo.version, "auto")
         self.assertEqual(data.turbo.strength, 1.0)
 
+    def test_official_loras_colorfix_defaults_and_clamps(self) -> None:
+        default_data = OfficialLorasSettings.model_validate({"highres": {"enabled": True}})
+        colorfix_data = OfficialLorasSettings.model_validate({"colorfix": {"enabled": "true", "strength": 2}})
+
+        self.assertFalse(default_data.colorfix.enabled)
+        self.assertEqual(default_data.colorfix.strength, 0.6)
+        self.assertTrue(colorfix_data.colorfix.enabled)
+        self.assertEqual(colorfix_data.colorfix.strength, 1.0)
+
     def test_generation_request_dict_keeps_plain_dict_structure(self) -> None:
         data = GenerateRequest(
             character1="None",
@@ -140,6 +152,8 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(request_data["loras"][1]["application"], "model_only")
         self.assertFalse(request_data["loras"][2]["enabled"])
         self.assertEqual(request_data["loras"][2]["application"], "off")
+        self.assertFalse(request_data["official_loras"]["colorfix"]["enabled"])
+        self.assertEqual(request_data["official_loras"]["colorfix"]["strength"], 0.6)
 
     def test_payload_preview_major_structure_is_stable(self) -> None:
         client = TestClient(app)
@@ -183,8 +197,52 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(sorted(payload["19"]["inputs"].keys()), ["cfg", "denoise", "latent_image", "model", "negative", "positive", "sampler_name", "scheduler", "seed", "steps"])
         self.assertEqual(body["size"]["final_width"], 1024)
         self.assertEqual(body["official_loras"]["turbo"]["version"], "v0.2")
+        self.assertIn("colorfix", body["official_loras"])
+        self.assertFalse(body["official_loras"]["colorfix"]["enabled"])
         self.assertEqual(body["loras"][0]["name"], "style/off.safetensors")
         self.assertFalse(body["loras"][0]["enabled"])
+
+    def test_validate_official_loras_reports_missing_colorfix_when_enabled(self) -> None:
+        data = GenerateRequest(official_loras={"colorfix": {"enabled": True, "strength": 0.55}})
+        object_info = {
+            "LoraLoaderModelOnly": {
+                "input": {
+                    "required": {
+                        "lora_name": [["other.safetensors"]],
+                    }
+                }
+            }
+        }
+
+        with (
+            mock.patch.object(payload_builder, "find_lora_file", return_value=""),
+            mock.patch.object(validators.comfy_client, "object_info", return_value=object_info),
+        ):
+            response = validators.validate_official_loras(data, "127.0.0.1:8188")
+
+        self.assertIsNotNone(response)
+        body = json.loads(response.body)
+        self.assertIn(payload_builder.ANIMA_COLORFIX_LORA_NAME, body["comfy_node_errors"]["missing_files"])
+        self.assertIn("missing_files", body["comfy_node_errors"])
+
+    def test_official_lora_diagnostics_reports_colorfix_visibility(self) -> None:
+        object_info = {
+            "LoraLoaderModelOnly": {
+                "input": {
+                    "required": {
+                        "lora_name": [[payload_builder.ANIMA_COLORFIX_LORA_NAME]],
+                    }
+                }
+            }
+        }
+        fake_find_lora = lambda name: "D:/test/lora/colorfix.safetensors" if name == payload_builder.ANIMA_COLORFIX_LORA_NAME else ""
+
+        with mock.patch.object(diagnostics_helpers, "find_lora_file", side_effect=fake_find_lora):
+            diagnostics = diagnostics_helpers.official_lora_diagnostics(object_info)
+
+        self.assertTrue(diagnostics["colorfix_lora_found"])
+        self.assertEqual(diagnostics["colorfix_lora_file"], payload_builder.ANIMA_COLORFIX_LORA_NAME)
+        self.assertTrue(diagnostics["colorfix_visible_to_comfy"])
 
     def test_reference_module_upload_accepts_background(self) -> None:
         client = TestClient(app)

@@ -135,6 +135,7 @@ class OfficialTurboLoraSettings(OfficialHighresLoraSettings):
 class OfficialLorasSettings(CompatSettingsModel):
     highres: OfficialHighresLoraSettings = Field(default_factory=OfficialHighresLoraSettings)
     turbo: OfficialTurboLoraSettings = Field(default_factory=OfficialTurboLoraSettings)
+    colorfix: OfficialHighresLoraSettings = Field(default_factory=OfficialHighresLoraSettings)
 
     @model_validator(mode="before")
     @classmethod

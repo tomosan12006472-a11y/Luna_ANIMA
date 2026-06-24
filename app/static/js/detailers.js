@@ -6,7 +6,7 @@ import {
   setChecked,
   setValue,
   text,
-} from "./dom.js?v=v1.42-lora-ux-controls-20260624";
+} from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
 
 export function createDetailerFeature({
   api,

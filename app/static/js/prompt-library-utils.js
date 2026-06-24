@@ -1,4 +1,4 @@
-import { $, setValue, value } from "./dom.js?v=v1.42-lora-ux-controls-20260624";
+import { $, setValue, value } from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
 
 export function createPositivePromptHelpers({ updateSummaries = () => {} } = {}) {
   function insertPositivePromptText(insertText) {

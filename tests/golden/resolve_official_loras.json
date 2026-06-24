@@ -1,4 +1,10 @@
 {
+  "colorfix": {
+    "enabled": true,
+    "file": "anima\\Anima_colorfix_v1_by_Volnovik.safetensors",
+    "path": "D:/golden/lora/colorfix.safetensors",
+    "strength": 0.6
+  },
   "highres": {
     "enabled": true,
     "file": "anima-highres-aesthetic-boost.safetensors",

@@ -58,7 +58,8 @@ def build_face_detailer_postprocess_request(item: dict[str, Any], settings: dict
         "rating": item.get("rating") or "safe",
         "natural_description": item.get("natural_description") or "",
         "loras": item.get("loras") or [],
-        "official_loras": item.get("official_loras") or {"highres": {"enabled": False}, "turbo": {"enabled": False}},
+        "official_loras": item.get("official_loras")
+        or {"highres": {"enabled": False}, "turbo": {"enabled": False}, "colorfix": {"enabled": False}},
         "hires_fix": {"enabled": False},
         "reference_assist": {"enabled": False},
         "dynamic_prompt": dynamic_prompt if dynamic_prompt else {"enabled": False},
@@ -116,7 +117,8 @@ def build_hand_detailer_postprocess_request(item: dict[str, Any], settings: dict
         "rating": item.get("rating") or "safe",
         "natural_description": item.get("natural_description") or "",
         "loras": item.get("loras") or [],
-        "official_loras": item.get("official_loras") or {"highres": {"enabled": False}, "turbo": {"enabled": False}},
+        "official_loras": item.get("official_loras")
+        or {"highres": {"enabled": False}, "turbo": {"enabled": False}, "colorfix": {"enabled": False}},
         "hires_fix": {"enabled": False},
         "reference_assist": {"enabled": False},
         "dynamic_prompt": dynamic_prompt if dynamic_prompt else {"enabled": False},

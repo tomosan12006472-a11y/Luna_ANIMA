@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.42-lora-ux-controls-20260624";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.42-lora-ux-controls-20260624";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.42-lora-ux-controls-20260624";
-import { onDomReady } from "./bootstrap.js?v=v1.42-lora-ux-controls-20260624";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.43-colorfix-official-lora-20260625";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.43-colorfix-official-lora-20260625";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.43-colorfix-official-lora-20260625";
+import { onDomReady } from "./bootstrap.js?v=v1.43-colorfix-official-lora-20260625";
 import {
   $,
   $$,
@@ -11,23 +11,23 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.42-lora-ux-controls-20260624";
-import { createCharacterFeature } from "./characters.js?v=v1.42-lora-ux-controls-20260624";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.42-lora-ux-controls-20260624";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.42-lora-ux-controls-20260624";
-import { createHistoryFeature } from "./history.js?v=v1.42-lora-ux-controls-20260624";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.42-lora-ux-controls-20260624";
-import { createI2iFeature } from "./i2i.js?v=v1.42-lora-ux-controls-20260624";
-import { createLoraFeature } from "./loras.js?v=v1.42-lora-ux-controls-20260624";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.42-lora-ux-controls-20260624";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.42-lora-ux-controls-20260624";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.42-lora-ux-controls-20260624";
-import { createQueueFeature } from "./queue.js?v=v1.42-lora-ux-controls-20260624";
-import { createReferenceFeature } from "./reference.js?v=v1.42-lora-ux-controls-20260624";
-import { createSettingsFeature } from "./settings.js?v=v1.42-lora-ux-controls-20260624";
-import { createInitialState } from "./state.js?v=v1.42-lora-ux-controls-20260624";
-import { createDetailerFeature } from "./detailers.js?v=v1.42-lora-ux-controls-20260624";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.42-lora-ux-controls-20260624";
+} from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
+import { createCharacterFeature } from "./characters.js?v=v1.43-colorfix-official-lora-20260625";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.43-colorfix-official-lora-20260625";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.43-colorfix-official-lora-20260625";
+import { createHistoryFeature } from "./history.js?v=v1.43-colorfix-official-lora-20260625";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.43-colorfix-official-lora-20260625";
+import { createI2iFeature } from "./i2i.js?v=v1.43-colorfix-official-lora-20260625";
+import { createLoraFeature } from "./loras.js?v=v1.43-colorfix-official-lora-20260625";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.43-colorfix-official-lora-20260625";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.43-colorfix-official-lora-20260625";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.43-colorfix-official-lora-20260625";
+import { createQueueFeature } from "./queue.js?v=v1.43-colorfix-official-lora-20260625";
+import { createReferenceFeature } from "./reference.js?v=v1.43-colorfix-official-lora-20260625";
+import { createSettingsFeature } from "./settings.js?v=v1.43-colorfix-official-lora-20260625";
+import { createInitialState } from "./state.js?v=v1.43-colorfix-official-lora-20260625";
+import { createDetailerFeature } from "./detailers.js?v=v1.43-colorfix-official-lora-20260625";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.43-colorfix-official-lora-20260625";
 
 (() => {
   "use strict";
@@ -225,9 +225,20 @@ import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=
     return data;
   }
 
+  function officialLoraSummaryParts(official = {}) {
+    const parts = [];
+    if (official.highres?.enabled) parts.push(`Highres ${Number(official.highres.strength || 0).toFixed(2)}`);
+    if (official.turbo?.enabled) parts.push(`Turbo ${Number(official.turbo.strength || 0).toFixed(2)}`);
+    if (official.colorfix?.enabled) parts.push(`ColorFix ${Number(official.colorfix.strength || 0).toFixed(2)}`);
+    return parts;
+  }
+
   function updateSummaries() {
     const req = collectRequest();
-    text("#techSummary", `${req.width}×${req.height} · ${req.steps} · ${req.cfg} · shift${req.shift}`);
+    text("#techSummary", [
+      `${req.width}×${req.height} · ${req.steps} · ${req.cfg} · shift${req.shift}`,
+      ...officialLoraSummaryParts(req.official_loras),
+    ].join(" · "));
     const sceneParts = [
       req.outfit_prompt,
       req.expression_prompt,

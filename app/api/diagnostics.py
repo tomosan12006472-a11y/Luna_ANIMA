@@ -44,6 +44,7 @@ def diagnostics(anima_claude_session: str | None = Cookie(default=None)) -> dict
     require_auth(anima_claude_session)
     settings = load_settings()
     addr = settings.get("api_addr") or COMFYUI_ADDR_DEFAULT
+    official_loras = official_lora_diagnostics()
     return {
         "ok": True,
         "diagnostics_mode": "light",
@@ -61,6 +62,9 @@ def diagnostics(anima_claude_session: str | None = Cookie(default=None)) -> dict
         "reference_assist": reference_capability_payload(addr).get("reference_assist", {}),
         "background_reference": (reference_modules_availability_payload(addr).get("reference_modules") or {}).get("background", {}),
         "face_detailer": face_detailer_capability_payload(addr).get("face_detailer", {}),
+        "official_loras": official_loras,
+        "colorfix_lora_found": official_loras["colorfix_lora_found"],
+        "colorfix_lora_file": official_loras["colorfix_lora_file"],
         "history_count": len(list_history(500)),
         "settings_path": str(ROOT_DIR / "user_data" / "settings.json"),
     }
@@ -111,6 +115,9 @@ def diagnostics_full(anima_claude_session: str | None = Cookie(default=None)) ->
         "turbo_lora_found": official_loras["turbo_lora_found"],
         "turbo_lora_file": official_loras["turbo_lora_file"],
         "turbo_lora_version": official_loras["turbo_lora_version"],
+        "colorfix_lora_found": official_loras["colorfix_lora_found"],
+        "colorfix_lora_file": official_loras["colorfix_lora_file"],
+        "colorfix_visible_to_comfy": official_loras["colorfix_visible_to_comfy"],
         "lora_loader_node_type": official_loras["lora_loader_node_type"],
         "workflow_mode": "ANIMA txt2img queue-only workflow",
         "luna_features": "not used",
