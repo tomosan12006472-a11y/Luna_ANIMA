@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.41-background-reference-20260623";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.41-background-reference-20260623";
+import { $, text, value } from "./dom.js?v=v1.42-lora-ux-controls-20260624";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v1.42-lora-ux-controls-20260624";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 

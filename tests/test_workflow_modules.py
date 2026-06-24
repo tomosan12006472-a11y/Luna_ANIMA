@@ -117,6 +117,30 @@ class WorkflowModuleTests(unittest.TestCase):
             self.assertEqual(payload_builder.resolve_official_loras(deepcopy(lora_request)), workflow_loras.resolve_official_loras(deepcopy(lora_request)))
             self.assertEqual(payload_builder.official_lora_summary(deepcopy(lora_request)), workflow_loras.official_lora_summary(deepcopy(lora_request)))
 
+    def test_catalog_loras_skip_disabled_and_off_application(self) -> None:
+        request = {
+            **base_request(),
+            "loras": [
+                {"enabled": False, "name": "style/disabled.safetensors", "application": "model_clip", "strength_model": 0.4, "strength_clip": 0.2},
+                {"enabled": True, "name": "style/off.safetensors", "application": "off", "strength_model": 0.8, "strength_clip": 0.8},
+                {"name": "style/legacy-enabled.safetensors", "application": "model_only", "strength_model": 0.6, "strength_clip": 0.6},
+            ],
+        }
+
+        with self.output_prefix_patches()[0], self.output_prefix_patches()[1], self.output_prefix_patches()[2]:
+            payload = payload_builder.build_prompt_payload(deepcopy(request), "module-client")
+
+        workflow = payload["prompt"]
+        lora_nodes = {
+            node_id: node
+            for node_id, node in workflow.items()
+            if isinstance(node, dict) and node.get("class_type") in {"LoraLoader", "LoraLoaderModelOnly"}
+        }
+        self.assertEqual(list(lora_nodes), ["9051"])
+        self.assertEqual(lora_nodes["9051"]["class_type"], "LoraLoaderModelOnly")
+        self.assertEqual(lora_nodes["9051"]["inputs"]["lora_name"], "style\\legacy-enabled.safetensors")
+        self.assertEqual(workflow["46"]["inputs"]["model"], ["9051", 0])
+
     def test_generation_workflow_snapshots_match_facade(self) -> None:
         image_ref = {"name": "module.png", "subfolder": "", "type": "input"}
         cases: dict[str, tuple[dict[str, object], list[str], object, dict[str, object]]] = {

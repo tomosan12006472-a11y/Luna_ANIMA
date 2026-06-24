@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.41-background-reference-20260623";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.41-background-reference-20260623";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.41-background-reference-20260623";
-import { onDomReady } from "./bootstrap.js?v=v1.41-background-reference-20260623";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.42-lora-ux-controls-20260624";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.42-lora-ux-controls-20260624";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.42-lora-ux-controls-20260624";
+import { onDomReady } from "./bootstrap.js?v=v1.42-lora-ux-controls-20260624";
 import {
   $,
   $$,
@@ -11,23 +11,23 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.41-background-reference-20260623";
-import { createCharacterFeature } from "./characters.js?v=v1.41-background-reference-20260623";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.41-background-reference-20260623";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.41-background-reference-20260623";
-import { createHistoryFeature } from "./history.js?v=v1.41-background-reference-20260623";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.41-background-reference-20260623";
-import { createI2iFeature } from "./i2i.js?v=v1.41-background-reference-20260623";
-import { createLoraFeature } from "./loras.js?v=v1.41-background-reference-20260623";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.41-background-reference-20260623";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.41-background-reference-20260623";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.41-background-reference-20260623";
-import { createQueueFeature } from "./queue.js?v=v1.41-background-reference-20260623";
-import { createReferenceFeature } from "./reference.js?v=v1.41-background-reference-20260623";
-import { createSettingsFeature } from "./settings.js?v=v1.41-background-reference-20260623";
-import { createInitialState } from "./state.js?v=v1.41-background-reference-20260623";
-import { createDetailerFeature } from "./detailers.js?v=v1.41-background-reference-20260623";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.41-background-reference-20260623";
+} from "./dom.js?v=v1.42-lora-ux-controls-20260624";
+import { createCharacterFeature } from "./characters.js?v=v1.42-lora-ux-controls-20260624";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.42-lora-ux-controls-20260624";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.42-lora-ux-controls-20260624";
+import { createHistoryFeature } from "./history.js?v=v1.42-lora-ux-controls-20260624";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.42-lora-ux-controls-20260624";
+import { createI2iFeature } from "./i2i.js?v=v1.42-lora-ux-controls-20260624";
+import { createLoraFeature } from "./loras.js?v=v1.42-lora-ux-controls-20260624";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.42-lora-ux-controls-20260624";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.42-lora-ux-controls-20260624";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.42-lora-ux-controls-20260624";
+import { createQueueFeature } from "./queue.js?v=v1.42-lora-ux-controls-20260624";
+import { createReferenceFeature } from "./reference.js?v=v1.42-lora-ux-controls-20260624";
+import { createSettingsFeature } from "./settings.js?v=v1.42-lora-ux-controls-20260624";
+import { createInitialState } from "./state.js?v=v1.42-lora-ux-controls-20260624";
+import { createDetailerFeature } from "./detailers.js?v=v1.42-lora-ux-controls-20260624";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.42-lora-ux-controls-20260624";
 
 (() => {
   "use strict";
@@ -249,11 +249,14 @@ import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=
     promptRandom.renderSummary(req.prompt_random_collect.enabled);
     text("#hiresSummary", req.hires_fix.enabled ? `ON · ×${Number(req.hires_fix.upscale_factor || 1.5)} · ${req.hires_fix.mode || "latent"}` : "OFF");
     text("#i2iSummary", checked("#i2iEnabled") ? `ON · ${req.image_to_image.denoise}` : "OFF");
-    const refParts = [];
-    if (checked("#outfitEnabled")) refParts.push("OUTFIT");
-    if (checked("#poseEnabled")) refParts.push("POSE");
-    if (checked("#backgroundEnabled")) refParts.push("BG");
-    text("#refModSummary", refParts.length ? refParts.join("+") : "OFF");
+    const modules = req.reference_modules || {};
+    const background = modules.background || {};
+    const refParts = [
+      modules.outfit?.enabled ? "OUTFIT ON" : "OUTFIT OFF",
+      modules.pose?.enabled ? "POSE ON" : "POSE OFF",
+      background.enabled ? `BG ${background.mode || "depth"} ${Number(background.strength || 0).toFixed(2)}` : "BG OFF",
+    ];
+    text("#refModSummary", refParts.join(" / "));
     text("#fdSummary", checked("#fdEnabled") ? `ON · ${Number(req.face_detailer.denoise).toFixed(2)}` : "OFF");
     text("#hdSummary", checked("#hdEnabled") ? `ON · ${Number(req.hand_detailer.denoise).toFixed(2)} · L${Number(req.hand_detailer.lllite_strength).toFixed(2)}` : "OFF");
     updateSizeChips();

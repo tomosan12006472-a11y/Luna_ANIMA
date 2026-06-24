@@ -1,4 +1,4 @@
-import { $, numberValue, value } from "./dom.js?v=v1.41-background-reference-20260623";
+import { $, numberValue, value } from "./dom.js?v=v1.42-lora-ux-controls-20260624";
 
 export function createDynamicPromptFeature({
   api,

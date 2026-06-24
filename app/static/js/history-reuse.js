@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.41-background-reference-20260623";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.41-background-reference-20260623";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.41-background-reference-20260623";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.42-lora-ux-controls-20260624";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.42-lora-ux-controls-20260624";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.42-lora-ux-controls-20260624";
 
 export function createHistoryReuseFeature({
   state,

@@ -199,6 +199,13 @@ button.ghost:active { border-color: var(--safelight); color: var(--safelight); }
 .switchline input[type="checkbox"]:checked { border-color: var(--safelight-deep); }
 .switchline input[type="checkbox"]:checked::after { left: 18px; background: var(--safelight); }
 .switchline .grow { flex: 1; }
+.tray[data-lora-row].is-disabled {
+  opacity: 0.58;
+  border-style: dashed;
+}
+.lora-actions button.ghost {
+  min-width: 42px;
+}
 
 /* character slots */
 #charSlots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

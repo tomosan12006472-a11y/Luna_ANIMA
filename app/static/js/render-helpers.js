@@ -1,4 +1,4 @@
-import { $, displayValue, unique } from "./dom.js?v=v1.41-background-reference-20260623";
+import { $, displayValue, unique } from "./dom.js?v=v1.42-lora-ux-controls-20260624";
 
 export function fillSelect(selector, options, selected) {
   const select = typeof selector === "string" ? $(selector) : selector;

@@ -4,14 +4,14 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.41-background-reference-20260623";
+} from "./dom.js?v=v1.42-lora-ux-controls-20260624";
 import {
   parsePromptTags,
   promptExcerpt,
   promptItemPrompt,
   promptItemTagsText,
   promptItemTitle,
-} from "./prompt-library-utils.js?v=v1.41-background-reference-20260623";
+} from "./prompt-library-utils.js?v=v1.42-lora-ux-controls-20260624";
 
 export function createPositivePromptsFeature({
   api,

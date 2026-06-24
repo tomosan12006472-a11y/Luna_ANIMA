@@ -103,6 +103,11 @@ class GenerationSchemaTests(unittest.TestCase):
     def test_generation_request_dict_keeps_plain_dict_structure(self) -> None:
         data = GenerateRequest(
             character1="None",
+            loras=[
+                {"enabled": False, "name": "style/off.safetensors", "application": "model_clip", "strength_model": "0.4", "strength_clip": "0.2"},
+                {"name": "style/on.safetensors", "application": "model_only", "strength_model": "0.5"},
+                {"enabled": True, "name": "style/legacy-off.safetensors", "application": "", "mode": "OFF"},
+            ],
             reference_modules={"enabled": True, "outfit": {"enabled": False}, "pose": {"enabled": False}},
             image_to_image={"enabled": False},
             dynamic_prompt={"enabled": False},
@@ -128,6 +133,13 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(request_data["reference_modules"]["preset"], "off")
         self.assertIn("background", request_data["reference_modules"])
         self.assertFalse(request_data["reference_modules"]["background"]["enabled"])
+        self.assertEqual(len(request_data["loras"]), 3)
+        self.assertFalse(request_data["loras"][0]["enabled"])
+        self.assertEqual(request_data["loras"][0]["application"], "model_clip")
+        self.assertTrue(request_data["loras"][1]["enabled"])
+        self.assertEqual(request_data["loras"][1]["application"], "model_only")
+        self.assertFalse(request_data["loras"][2]["enabled"])
+        self.assertEqual(request_data["loras"][2]["application"], "off")
 
     def test_payload_preview_major_structure_is_stable(self) -> None:
         client = TestClient(app)
@@ -140,6 +152,9 @@ class GenerationSchemaTests(unittest.TestCase):
             "original_character": "None",
             "seed_mode": "fixed",
             "seed": 123456789,
+            "loras": [
+                {"enabled": False, "name": "style/off.safetensors", "application": "model_clip", "strength_model": 0.4, "strength_clip": 0.2}
+            ],
             "reference_modules": {"enabled": False},
             "dynamic_prompt": {"enabled": False},
             "prompt_random_collect": {"enabled": False},
@@ -168,6 +183,8 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(sorted(payload["19"]["inputs"].keys()), ["cfg", "denoise", "latent_image", "model", "negative", "positive", "sampler_name", "scheduler", "seed", "steps"])
         self.assertEqual(body["size"]["final_width"], 1024)
         self.assertEqual(body["official_loras"]["turbo"]["version"], "v0.2")
+        self.assertEqual(body["loras"][0]["name"], "style/off.safetensors")
+        self.assertFalse(body["loras"][0]["enabled"])
 
     def test_reference_module_upload_accepts_background(self) -> None:
         client = TestClient(app)

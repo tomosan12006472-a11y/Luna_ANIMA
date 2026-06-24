@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.14-random-collect-20260616">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.42-lora-ux-controls-20260624">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -281,7 +281,7 @@
         </div>
         <div class="switchline">
           <input id="officialTurboEnabled" type="checkbox">
-          <span class="grow">Turbo <span class="lbl">AUTO→V0.2</span></span>
+          <span class="grow">Turbo <span class="lbl">AUTO→V0.2</span><br><span class="hint">ONでsteps/cfg/strengthを推奨値へ調整します</span></span>
           <input id="officialTurboStrength" type="number" min="0" max="1" step="0.05" value="0.6" style="width:72px">
         </div>
 
@@ -408,6 +408,9 @@
           <label class="field"><span class="lbl">RESIZE</span>
             <select id="backgroundResize"><option value="crop">Crop</option><option value="fit">Fit</option><option value="stretch">Stretch</option></select>
           </label>
+        </div>
+        <div class="row">
+          <button type="button" class="ghost" data-action="background-apply-mode-defaults">推奨値を適用</button>
         </div>
         <input id="backgroundFile" type="file" accept="image/png,image/jpeg,image/webp">
         <div class="row">
@@ -634,6 +637,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.41-background-reference-20260623"></script>
+  <script src="/static/app.js?v=v1.42-lora-ux-controls-20260624"></script>
 </body>
 </html>

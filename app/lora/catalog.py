@@ -121,17 +121,33 @@ def _find_selectable_lora_without_favorites(query: dict[str, Any]) -> dict[str, 
     return None
 
 
+def _bool_enabled(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() not in {"", "0", "false", "off", "no", "disabled"}
+    return bool(value)
+
+
+def _normalize_lora_application(value: Any) -> str:
+    text = str(value or "model_clip").strip().lower()
+    if text in {"off", "none", "disabled"}:
+        return "off"
+    if text in {"base", "model", "model_only"}:
+        return "model_only"
+    return "model_clip"
+
+
 def normalize_lora_slots(loras: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     catalog_items = {str(item.get("lora_id")): item for item in selectable_loras()}
     normalized: list[dict[str, Any]] = []
     for raw in loras or []:
         if not isinstance(raw, dict):
             continue
-        enabled = bool(raw.get("enabled", True))
-        mode = str(raw.get("mode") or "ALL")
+        application = _normalize_lora_application(raw.get("application") or raw.get("mode"))
+        enabled = _bool_enabled(raw.get("enabled", True)) and application != "off"
+        mode = str(raw.get("mode") or ("OFF" if application == "off" else "ALL"))
         lora_id = str(raw.get("lora_id") or "").strip()
         name = str(raw.get("name") or "").strip()
-        if not enabled or mode == "OFF" or lora_id == "none":
+        if lora_id == "none" and not name:
             continue
         source = "manual"
         display_name = name
@@ -153,11 +169,12 @@ def normalize_lora_slots(loras: list[dict[str, Any]] | None) -> list[dict[str, A
         normalized.append(
             {
                 "slot": str(raw.get("slot") or "custom"),
-                "enabled": True,
+                "enabled": enabled,
                 "lora_id": lora_id or slug(relative_path),
                 "display_name": display_name,
                 "name": relative_path,
                 "relative_path": relative_path,
+                "application": application,
                 "model": model_strength,
                 "clip": clip_strength,
                 "model_strength": model_strength,

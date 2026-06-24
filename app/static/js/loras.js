@@ -6,12 +6,25 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.41-background-reference-20260623";
+} from "./dom.js?v=v1.42-lora-ux-controls-20260624";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
-  if (raw === "model_only" || raw === "model") return "model_only";
+  if (raw === "model_only" || raw === "model" || raw === "base") return "model_only";
   return "model_clip";
+}
+
+function isLoraApplicationOff(value) {
+  return String(value || "").trim().toLowerCase() === "off";
+}
+
+function loraEnabledValue(value) {
+  if (typeof value === "string") return !["", "0", "false", "off", "no", "disabled"].includes(value.trim().toLowerCase());
+  return value !== false;
+}
+
+function loraEnabledFromItem(item = {}) {
+  return loraEnabledValue(item.enabled) && !isLoraApplicationOff(item.application || item.mode);
 }
 
 function loraNameFromItem(item = {}) {
@@ -81,7 +94,7 @@ export function createLoraFeature({
       const strengthModel = Number(row.querySelector("[data-lora-field='strength_model']")?.value || 1);
       const strengthClip = Number(row.querySelector("[data-lora-field='strength_clip']")?.value || 1);
       return {
-        enabled: true,
+        enabled: row.querySelector("[data-lora-field='enabled']")?.checked !== false,
         name,
         application,
         strength_model: Number.isFinite(strengthModel) ? strengthModel : 1,
@@ -143,12 +156,45 @@ export function createLoraFeature({
     $("#officialTurboEnabled")?.addEventListener("change", handleTurboToggle);
   }
 
-  function addLoraRow(initial = {}) {
+  function syncLoraRowEnabledState(row) {
+    const enabled = row.querySelector("[data-lora-field='enabled']")?.checked !== false;
+    row.classList.toggle("is-disabled", !enabled);
+  }
+
+  function loraDataFromRow(row) {
+    const name = row.querySelector("[data-lora-field='name']")?.value || "";
+    const application = row.querySelector("[data-lora-field='application']")?.value || "model_clip";
+    const strengthModel = Number(row.querySelector("[data-lora-field='strength_model']")?.value || 1);
+    const strengthClip = Number(row.querySelector("[data-lora-field='strength_clip']")?.value || 1);
+    return {
+      enabled: row.querySelector("[data-lora-field='enabled']")?.checked !== false,
+      name,
+      application,
+      strength_model: Number.isFinite(strengthModel) ? strengthModel : 1,
+      strength_clip: Number.isFinite(strengthClip) ? strengthClip : 1,
+    };
+  }
+
+  function addLoraRow(initial = {}, options = {}) {
     const root = $("#loraSlots");
     if (!root) return;
     const row = document.createElement("div");
     row.className = "tray";
     row.dataset.loraRow = "1";
+
+    const enabledLine = document.createElement("label");
+    enabledLine.className = "switchline lora-toggle";
+    const enabled = document.createElement("input");
+    enabled.type = "checkbox";
+    enabled.dataset.loraField = "enabled";
+    enabled.checked = loraEnabledFromItem(initial);
+    const enabledText = document.createElement("span");
+    enabledText.className = "grow";
+    enabledText.textContent = "このLoRAを適用";
+    const enabledState = document.createElement("span");
+    enabledState.className = "lbl";
+    enabledState.textContent = "ON/OFF";
+    enabledLine.append(enabled, enabledText, enabledState);
 
     const grid = document.createElement("div");
     grid.className = "grid2";
@@ -197,14 +243,46 @@ export function createLoraFeature({
 
     grid.append(nameLabel, modelLabel, clipLabel, appLabel);
 
+    const actions = document.createElement("div");
+    actions.className = "row lora-actions";
+
+    const duplicate = document.createElement("button");
+    duplicate.type = "button";
+    duplicate.className = "ghost";
+    duplicate.dataset.action = "duplicate-lora";
+    duplicate.textContent = "複製";
+
+    const moveUp = document.createElement("button");
+    moveUp.type = "button";
+    moveUp.className = "ghost";
+    moveUp.dataset.action = "move-lora-up";
+    moveUp.textContent = "↑";
+
+    const moveDown = document.createElement("button");
+    moveDown.type = "button";
+    moveDown.className = "ghost";
+    moveDown.dataset.action = "move-lora-down";
+    moveDown.textContent = "↓";
+
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "ghost";
     remove.dataset.action = "remove-lora";
     remove.textContent = "削除";
+    actions.append(duplicate, moveUp, moveDown, remove);
 
-    row.append(grid, remove);
-    root.appendChild(row);
+    enabled.addEventListener("change", () => {
+      syncLoraRowEnabledState(row);
+      updateSummaries();
+    });
+
+    row.append(enabledLine, grid, actions);
+    if (options.after?.parentElement === root) {
+      options.after.after(row);
+    } else {
+      root.appendChild(row);
+    }
+    syncLoraRowEnabledState(row);
     updateSummaries();
   }
 
@@ -251,7 +329,7 @@ export function createLoraFeature({
 
   function historyLoras(loras = []) {
     return (Array.isArray(loras) ? loras : []).filter((lora) => lora && typeof lora === "object").map((lora) => ({
-      enabled: true,
+      enabled: loraEnabledFromItem(lora),
       name: loraNameFromItem(lora),
       application: normalizeLoraApplication(lora.application || lora.mode),
       strength_model: numberFrom(lora.strength_model ?? lora.model_strength ?? lora.weight, 1),
@@ -265,12 +343,32 @@ export function createLoraFeature({
       const name = lora.name || lora.display_name || lora.relative_path || lora.file_name || "LoRA";
       const model = lora.strength_model ?? lora.model_strength ?? lora.weight ?? "-";
       const clip = lora.strength_clip ?? lora.clip_strength ?? lora.weight ?? "-";
-      return `${name} (M ${model} / C ${clip})`;
+      const state = loraEnabledFromItem(lora) ? "" : " (OFF)";
+      return `${name}${state} (M ${model} / C ${clip})`;
     }).join(", ");
   }
 
   function removeLoraRow(target) {
     target.closest("[data-lora-row]")?.remove();
+    updateSummaries();
+  }
+
+  function duplicateLoraRow(target) {
+    const row = target.closest("[data-lora-row]");
+    if (!row) return;
+    addLoraRow(loraDataFromRow(row), { after: row });
+  }
+
+  function moveLoraRow(target, direction) {
+    const row = target.closest("[data-lora-row]");
+    if (!row) return;
+    if (direction < 0) {
+      const previous = row.previousElementSibling;
+      if (previous?.matches("[data-lora-row]")) row.parentElement.insertBefore(row, previous);
+    } else {
+      const next = row.nextElementSibling;
+      if (next?.matches("[data-lora-row]")) next.after(row);
+    }
     updateSummaries();
   }
 
@@ -282,6 +380,9 @@ export function createLoraFeature({
         addLoraRow();
       },
       "remove-lora": (target) => removeLoraRow(target),
+      "duplicate-lora": (target) => duplicateLoraRow(target),
+      "move-lora-up": (target) => moveLoraRow(target, -1),
+      "move-lora-down": (target) => moveLoraRow(target, 1),
     },
     addLoraRow,
     applyOfficialToForm,

@@ -1,4 +1,4 @@
-import { $, escapePathSegment, text } from "./dom.js?v=v1.41-background-reference-20260623";
+import { $, escapePathSegment, text } from "./dom.js?v=v1.42-lora-ux-controls-20260624";
 
 export function createRecipesFeature({
   api,
