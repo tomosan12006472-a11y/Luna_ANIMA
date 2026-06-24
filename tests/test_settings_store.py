@@ -6,6 +6,16 @@ from app import settings_store
 
 
 class SettingsStoreTests(unittest.TestCase):
+    def test_official_colorfix_settings_are_sanitized(self) -> None:
+        defaulted = settings_store.sanitize_app_settings({"official_loras": {"highres": {"enabled": True}}})
+        clamped = settings_store.sanitize_app_settings({"official_loras": {"colorfix": {"enabled": True, "strength": 2}}})
+
+        self.assertIn("colorfix", defaulted["official_loras"])
+        self.assertFalse(defaulted["official_loras"]["colorfix"]["enabled"])
+        self.assertEqual(defaulted["official_loras"]["colorfix"]["strength"], 0.6)
+        self.assertTrue(clamped["official_loras"]["colorfix"]["enabled"])
+        self.assertEqual(clamped["official_loras"]["colorfix"]["strength"], 1.0)
+
     def test_prompt_random_instruction_favorites_are_sanitized(self) -> None:
         settings = settings_store.sanitize_app_settings(
             {

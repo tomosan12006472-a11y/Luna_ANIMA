@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .config import (
+    ANIMA_COLORFIX_LORA_NAME,
     ANIMA_HIGHRES_LORA_NAME,
     ANIMA_TURBO_LORA_V01_NAME,
     ANIMA_TURBO_LORA_V02_NAME,
@@ -133,6 +134,7 @@ def build_hand_detailer_postprocess_payload(request: dict[str, object], client_i
 
 
 __all__ = [
+    "ANIMA_COLORFIX_LORA_NAME",
     "ANIMA_HIGHRES_LORA_NAME",
     "ANIMA_TURBO_LORA_V01_NAME",
     "ANIMA_TURBO_LORA_V02_NAME",

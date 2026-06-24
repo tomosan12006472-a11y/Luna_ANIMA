@@ -97,6 +97,10 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
             "strength": 0.6,
             "preset_applied": True,
         },
+        "colorfix": {
+            "enabled": False,
+            "strength": 0.6,
+        },
     },
     "reference_assist": {
         "enabled": False,
@@ -247,12 +251,15 @@ def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     official = result.setdefault("official_loras", {})
     highres = official.setdefault("highres", {})
     turbo = official.setdefault("turbo", {})
+    colorfix = official.setdefault("colorfix", {})
     highres["enabled"] = bool(highres.get("enabled"))
     highres["strength"] = float(highres.get("strength") or 1.0)
     turbo["enabled"] = bool(turbo.get("enabled"))
     turbo["version"] = str(turbo.get("version") or "auto")
     turbo["strength"] = clamp_strength(turbo.get("strength"), 0.6)
     turbo["preset_applied"] = bool(turbo.get("preset_applied", True))
+    colorfix["enabled"] = bool(colorfix.get("enabled"))
+    colorfix["strength"] = clamp_strength(colorfix.get("strength"), 0.6)
     highres["strength"] = clamp_strength(highres.get("strength"), 0.6)
     result["loras"] = sanitize_lora_list(result.get("loras"))
     lora_settings = result.setdefault("lora_settings", {})

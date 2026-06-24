@@ -5,8 +5,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.42-lora-ux-controls-20260624";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.42-lora-ux-controls-20260624";
+} from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.43-colorfix-official-lora-20260625";
 
 const EMPTY_SLOT_LABELS = {
   character1: "未選択",

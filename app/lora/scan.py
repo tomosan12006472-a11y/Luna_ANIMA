@@ -4,16 +4,22 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from ..config import ANIMA_HIGHRES_LORA_NAME, ANIMA_TURBO_LORA_V01_NAME, ANIMA_TURBO_LORA_V02_NAME
+from ..config import ANIMA_COLORFIX_LORA_NAME, ANIMA_HIGHRES_LORA_NAME, ANIMA_TURBO_LORA_V01_NAME, ANIMA_TURBO_LORA_V02_NAME
 from .paths import APP_SCOPE, lora_dirs, safe_relative, slug
+
+
+def _configured_file_name(name: str) -> str:
+    return name.replace("\\", "/").rsplit("/", 1)[-1].lower()
 
 
 def _category_for_name(file_name: str) -> str:
     lower = file_name.lower()
-    if lower == ANIMA_HIGHRES_LORA_NAME.lower():
+    if lower == _configured_file_name(ANIMA_HIGHRES_LORA_NAME):
         return "hires"
-    if lower in {ANIMA_TURBO_LORA_V01_NAME.lower(), ANIMA_TURBO_LORA_V02_NAME.lower()}:
+    if lower in {_configured_file_name(ANIMA_TURBO_LORA_V01_NAME), _configured_file_name(ANIMA_TURBO_LORA_V02_NAME)}:
         return "turbo"
+    if lower == _configured_file_name(ANIMA_COLORFIX_LORA_NAME):
+        return "colorfix"
     if lower.startswith("anima-"):
         return "official"
     return "unknown"
@@ -53,7 +59,7 @@ def scan_local_loras() -> list[dict[str, Any]]:
                     "nsfw": False,
                     "rating": "unknown",
                     "trained_words": [],
-                    "default_model_strength": 0.6 if category in {"hires", "turbo"} else 0.7,
+                    "default_model_strength": 0.6 if category in {"hires", "turbo", "colorfix"} else 0.7,
                     "default_clip_strength": 0.0,
                     "max_strength": 1.0,
                     "thumbnail": None,

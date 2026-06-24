@@ -1,5 +1,5 @@
-import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.42-lora-ux-controls-20260624";
-import { $, $$, text, value } from "./dom.js?v=v1.42-lora-ux-controls-20260624";
+import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.43-colorfix-official-lora-20260625";
+import { $, $$, text, value } from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
 
 export function exitToLogin(message = "", { UI = window.UI } = {}) {
   UI.closeSheets();

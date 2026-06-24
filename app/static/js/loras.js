@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.42-lora-ux-controls-20260624";
+} from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
@@ -84,6 +84,10 @@ export function createLoraFeature({
         strength: numberValue("#officialTurboStrength", 0.6),
         preset_applied: checked("#officialTurboEnabled") && turboPresetApplied,
       },
+      colorfix: {
+        enabled: checked("#officialColorfixEnabled"),
+        strength: numberValue("#officialColorfixStrength", 0.6),
+      },
     };
   }
 
@@ -112,6 +116,8 @@ export function createLoraFeature({
     setValue("#officialHighresStrength", official.highres?.strength ?? 0.6);
     setChecked("#officialTurboEnabled", official.turbo?.enabled);
     setValue("#officialTurboStrength", official.turbo?.strength ?? 0.6);
+    setChecked("#officialColorfixEnabled", official.colorfix?.enabled);
+    setValue("#officialColorfixStrength", official.colorfix?.strength ?? 0.6);
     turboPresetSnapshot = null;
     turboPresetApplied = Boolean(official.turbo?.enabled && official.turbo?.preset_applied);
   }
@@ -154,6 +160,8 @@ export function createLoraFeature({
 
   function bindEvents() {
     $("#officialTurboEnabled")?.addEventListener("change", handleTurboToggle);
+    $("#officialColorfixEnabled")?.addEventListener("change", updateSummaries);
+    $("#officialColorfixStrength")?.addEventListener("input", updateSummaries);
   }
 
   function syncLoraRowEnabledState(row) {
@@ -323,6 +331,10 @@ export function createLoraFeature({
         version: "auto",
         strength: numberFrom(official.turbo?.strength, 0.6),
         preset_applied: Boolean(official.turbo?.preset_applied),
+      },
+      colorfix: {
+        enabled: Boolean(official.colorfix?.enabled),
+        strength: numberFrom(official.colorfix?.strength, 0.6),
       },
     };
   }

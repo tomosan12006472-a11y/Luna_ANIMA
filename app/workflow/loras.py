@@ -4,6 +4,7 @@ from typing import Any
 
 from .._shared_utils import normalize_lora_strengths
 from ..config import (
+    ANIMA_COLORFIX_LORA_NAME,
     ANIMA_HIGHRES_LORA_NAME,
     ANIMA_TURBO_LORA_V01_NAME,
     ANIMA_TURBO_LORA_V02_NAME,
@@ -24,6 +25,14 @@ def comfy_lora_name(name: str) -> str:
     return name.replace("/", "\\")
 
 
+def _official_strength(value: Any, default: float = 0.6) -> float:
+    try:
+        number = float(default if value in (None, "") else value)
+    except (TypeError, ValueError):
+        number = default
+    return max(0.0, min(1.0, number))
+
+
 def resolve_official_loras(request: dict[str, Any]) -> dict[str, Any]:
     if is_lora_sample_mode(request):
         return {
@@ -36,10 +45,12 @@ def resolve_official_loras(request: dict[str, Any]) -> dict[str, Any]:
                 "strength": 0.0,
                 "preset_applied": False,
             },
+            "colorfix": {"enabled": False, "file": ANIMA_COLORFIX_LORA_NAME, "path": "", "strength": 0.0},
         }
     official = request.get("official_loras") or {}
     highres = official.get("highres") if isinstance(official.get("highres"), dict) else {}
     turbo = official.get("turbo") if isinstance(official.get("turbo"), dict) else {}
+    colorfix = official.get("colorfix") if isinstance(official.get("colorfix"), dict) else {}
     turbo_v02_path = find_lora_file(ANIMA_TURBO_LORA_V02_NAME)
     turbo_v01_path = find_lora_file(ANIMA_TURBO_LORA_V01_NAME)
     requested_version = str(turbo.get("version") or "auto")
@@ -57,15 +68,21 @@ def resolve_official_loras(request: dict[str, Any]) -> dict[str, Any]:
             "enabled": bool(highres.get("enabled")),
             "file": ANIMA_HIGHRES_LORA_NAME,
             "path": find_lora_file(ANIMA_HIGHRES_LORA_NAME),
-            "strength": max(0.0, min(1.0, float(highres.get("strength") or 0.6))),
+            "strength": _official_strength(highres.get("strength"), 0.6),
         },
         "turbo": {
             "enabled": bool(turbo.get("enabled")),
             "file": turbo_name,
             "path": turbo_path,
             "version": "v0.2" if turbo_name == ANIMA_TURBO_LORA_V02_NAME else "v0.1",
-            "strength": max(0.0, min(1.0, float(turbo.get("strength") or 0.6))),
+            "strength": _official_strength(turbo.get("strength"), 0.6),
             "preset_applied": bool(turbo.get("preset_applied")),
+        },
+        "colorfix": {
+            "enabled": bool(colorfix.get("enabled")),
+            "file": ANIMA_COLORFIX_LORA_NAME,
+            "path": find_lora_file(ANIMA_COLORFIX_LORA_NAME),
+            "strength": _official_strength(colorfix.get("strength"), 0.6),
         },
     }
 
@@ -87,6 +104,12 @@ def official_lora_summary(request: dict[str, Any]) -> dict[str, Any]:
             "strength": resolved["turbo"]["strength"],
             "preset_applied": resolved["turbo"]["preset_applied"],
         },
+        "colorfix": {
+            "enabled": resolved["colorfix"]["enabled"],
+            "file": resolved["colorfix"]["file"] if resolved["colorfix"]["enabled"] else "",
+            "found": bool(resolved["colorfix"]["path"]),
+            "strength": resolved["colorfix"]["strength"],
+        },
     }
 
 
@@ -103,7 +126,7 @@ def apply_official_loras(workflow: dict[str, Any], request: dict[str, Any]) -> l
     resolved = resolve_official_loras(request)
     previous_model: list[Any] = ["44", 0]
     next_node_id = 9001
-    for key in ("highres", "turbo"):
+    for key in ("highres", "turbo", "colorfix"):
         item = resolved[key]
         if not item["enabled"]:
             continue

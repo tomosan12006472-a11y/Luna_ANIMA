@@ -105,17 +105,57 @@ class WorkflowModuleTests(unittest.TestCase):
             payload_builder.ANIMA_HIGHRES_LORA_NAME: "D:/golden/lora/highres.safetensors",
             payload_builder.ANIMA_TURBO_LORA_V01_NAME: "D:/golden/lora/turbo_v01.safetensors",
             payload_builder.ANIMA_TURBO_LORA_V02_NAME: "D:/golden/lora/turbo_v02.safetensors",
+            payload_builder.ANIMA_COLORFIX_LORA_NAME: "D:/golden/lora/colorfix.safetensors",
         }
         fake_find = lambda name: paths.get(name, "")
         lora_request = {
             "official_loras": {
                 "highres": {"enabled": True, "strength": 0.55},
                 "turbo": {"enabled": True, "version": "auto", "strength": 0.45, "preset_applied": True},
+                "colorfix": {"enabled": True, "strength": 0.6},
             }
         }
         with mock.patch.object(payload_builder, "find_lora_file", fake_find), mock.patch.object(workflow_loras, "find_lora_file", fake_find):
             self.assertEqual(payload_builder.resolve_official_loras(deepcopy(lora_request)), workflow_loras.resolve_official_loras(deepcopy(lora_request)))
             self.assertEqual(payload_builder.official_lora_summary(deepcopy(lora_request)), workflow_loras.official_lora_summary(deepcopy(lora_request)))
+
+    def test_official_colorfix_lora_adds_model_only_node(self) -> None:
+        request = {
+            **base_request(),
+            "official_loras": {
+                "highres": {"enabled": False},
+                "turbo": {"enabled": False},
+                "colorfix": {"enabled": True, "strength": 0.55},
+            },
+        }
+        paths = {payload_builder.ANIMA_COLORFIX_LORA_NAME: "D:/golden/lora/colorfix.safetensors"}
+        fake_find = lambda name: paths.get(name, "")
+
+        with (
+            mock.patch.object(payload_builder, "find_lora_file", fake_find),
+            mock.patch.object(workflow_loras, "find_lora_file", fake_find),
+            self.output_prefix_patches()[0],
+            self.output_prefix_patches()[1],
+            self.output_prefix_patches()[2],
+        ):
+            payload = payload_builder.build_prompt_payload(deepcopy(request), "module-client")
+
+        workflow = payload["prompt"]
+        self.assertEqual(workflow["9001"]["class_type"], "LoraLoaderModelOnly")
+        self.assertEqual(workflow["9001"]["inputs"]["lora_name"], payload_builder.ANIMA_COLORFIX_LORA_NAME)
+        self.assertEqual(workflow["9001"]["inputs"]["strength_model"], 0.55)
+        self.assertEqual(workflow["46"]["inputs"]["model"], ["9001", 0])
+
+    def test_lora_sample_mode_disables_official_colorfix(self) -> None:
+        request = {
+            "workflow_mode": payload_builder.LORA_SAMPLE_WORKFLOW_MODE,
+            "official_loras": {"colorfix": {"enabled": True, "strength": 0.9}},
+        }
+
+        resolved = payload_builder.resolve_official_loras(request)
+
+        self.assertFalse(resolved["colorfix"]["enabled"])
+        self.assertEqual(resolved["colorfix"]["strength"], 0.0)
 
     def test_catalog_loras_skip_disabled_and_off_application(self) -> None:
         request = {
