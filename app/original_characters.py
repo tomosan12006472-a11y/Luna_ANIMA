@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime
-import json
 import re
+from threading import RLock
 from typing import Any
 
 from .config import USER_DATA_DIR
+from .storage.json_store import JsonStore
 
 
 ORIGINAL_CHARACTERS_PATH = USER_DATA_DIR / "original_characters.json"
 
 DEFAULT_ORIGINAL_CHARACTERS: list[dict[str, Any]] = []
+_ORIGINAL_CHARACTERS_LOCK = RLock()
 
 
 def now_iso() -> str:
@@ -65,14 +67,46 @@ def _items_from_raw(raw: Any) -> list[dict[str, Any]]:
     return []
 
 
-def load_user_original_characters() -> list[dict[str, Any]]:
-    if not ORIGINAL_CHARACTERS_PATH.exists():
-        return []
-    try:
-        raw = json.loads(ORIGINAL_CHARACTERS_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return []
-    return [normalize_original_character(item) for item in _items_from_raw(raw)]
+def _empty_payload() -> dict[str, Any]:
+    return {"schema_version": 1, "items": []}
+
+
+def _normalize_payload(raw: Any) -> dict[str, Any]:
+    data = _empty_payload()
+    if isinstance(raw, dict) and raw.get("updated_at"):
+        data["updated_at"] = str(raw.get("updated_at"))
+    data["items"] = [normalize_original_character(item) for item in _items_from_raw(raw)]
+    return data
+
+
+def _original_characters_store() -> JsonStore:
+    return JsonStore(
+        ORIGINAL_CHARACTERS_PATH,
+        default_factory=_empty_payload,
+        label="original characters",
+        lock=_ORIGINAL_CHARACTERS_LOCK,
+        validator=_normalize_payload,
+    )
+
+
+def _load_payload_unlocked(*, strict: bool = False) -> dict[str, Any]:
+    return _original_characters_store().read(strict=strict)
+
+
+def _save_payload_unlocked(items: list[dict[str, Any]]) -> dict[str, Any]:
+    data = {
+        "schema_version": 1,
+        "updated_at": now_iso(),
+        "items": [normalize_original_character(item) for item in items],
+    }
+    _original_characters_store().write(data)
+    return data
+
+
+def load_user_original_characters(*, strict: bool = False) -> list[dict[str, Any]]:
+    with _ORIGINAL_CHARACTERS_LOCK:
+        payload = _load_payload_unlocked(strict=strict)
+        return [dict(item) for item in payload.get("items", []) if isinstance(item, dict)]
 
 
 def load_original_characters(include_defaults: bool = True) -> list[dict[str, Any]]:
@@ -87,18 +121,17 @@ def load_original_characters(include_defaults: bool = True) -> list[dict[str, An
 
 
 def save_user_original_characters(items: list[dict[str, Any]]) -> dict[str, Any]:
-    normalized = [normalize_original_character(item) for item in items]
-    data = {"schema_version": 1, "updated_at": now_iso(), "items": normalized}
-    ORIGINAL_CHARACTERS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ORIGINAL_CHARACTERS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    return data
+    with _ORIGINAL_CHARACTERS_LOCK:
+        return _save_payload_unlocked(items)
 
 
 def upsert_original_character(item: dict[str, Any]) -> dict[str, Any]:
     normalized = normalize_original_character(item)
-    items = {entry["id"]: entry for entry in load_user_original_characters()}
-    items[normalized["id"]] = normalized
-    save_user_original_characters(list(items.values()))
+    with _ORIGINAL_CHARACTERS_LOCK:
+        payload = _load_payload_unlocked(strict=True)
+        items = {entry["id"]: entry for entry in payload.get("items", []) if isinstance(entry, dict)}
+        items[normalized["id"]] = normalized
+        _save_payload_unlocked(list(items.values()))
     return normalized
 
 
