@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.41-background-reference-20260623";
+} from "./dom.js?v=v1.42-lora-ux-controls-20260624";
 
 const REFERENCE_MODULES = ["outfit", "pose", "background"];
 const REFMOD_EMPTY_TEXT = {
@@ -20,6 +20,13 @@ const REFMOD_PREVIEW_IDS = {
   pose: "#posePreview",
   background: "#backgroundPreview",
 };
+const BACKGROUND_MODE_DEFAULTS = Object.freeze({
+  depth: { strength: 0.45, start_at: 0.0, end_at: 0.75 },
+  canny: { strength: 0.35, start_at: 0.0, end_at: 0.65 },
+  lineart: { strength: 0.30, start_at: 0.0, end_at: 0.60 },
+  softedge: { strength: 0.35, start_at: 0.0, end_at: 0.70 },
+  mlsd: { strength: 0.35, start_at: 0.0, end_at: 0.70 },
+});
 
 function refmodLabel(module) {
   if (module === "pose") return "Pose";
@@ -219,6 +226,15 @@ export function createReferenceFeature({
     updateSummaries();
   }
 
+  function applyBackgroundModeDefaults() {
+    const defaults = BACKGROUND_MODE_DEFAULTS[value("#backgroundMode", "depth")] || BACKGROUND_MODE_DEFAULTS.depth;
+    setValue("#backgroundStrength", defaults.strength);
+    setValue("#backgroundStart", defaults.start_at);
+    setValue("#backgroundEnd", defaults.end_at);
+    text("#refModStatus", "Background Referenceの推奨値を適用しました");
+    updateSummaries();
+  }
+
   async function uploadModuleImage(module) {
     if (!state.refmod[module]) return;
     const label = refmodLabel(module);
@@ -241,7 +257,11 @@ export function createReferenceFeature({
     UI.toast(`${label}参照を設定しました`);
   }
 
-  function bindEvents() {}
+  function bindEvents() {
+    ["#backgroundMode", "#backgroundStrength", "#backgroundStart", "#backgroundEnd", "#backgroundResize"].forEach((selector) => {
+      $(selector)?.addEventListener("change", updateSummaries);
+    });
+  }
 
   return {
     actions: {
@@ -251,6 +271,7 @@ export function createReferenceFeature({
       "pose-clear": () => clearModuleImage("pose"),
       "background-upload": () => uploadModuleImage("background"),
       "background-clear": () => clearModuleImage("background"),
+      "background-apply-mode-defaults": () => applyBackgroundModeDefaults(),
     },
     applyItem,
     applyModulesToForm,
