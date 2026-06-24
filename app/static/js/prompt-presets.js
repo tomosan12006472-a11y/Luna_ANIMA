@@ -3,7 +3,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
+} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
 
 const QUALITY_PROMPTS = Object.freeze({
   standard: "masterpiece, best quality, score_7",

@@ -136,6 +136,7 @@ def payload_preview(data: GenerateRequest, anima_claude_session: str | None = Co
         "prompts": prompts,
         "size": size,
         "official_loras": official_lora_summary(request_data),
+        "official_lora_preset": request_data.get("official_lora_preset", "off"),
         "loras": request_data.get("loras", []),
         "reference_assist": request_data.get("reference_assist", {"enabled": False}),
         "reference_modules": request_data.get("reference_modules", {}),

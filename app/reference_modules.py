@@ -175,6 +175,34 @@ BACKGROUND_MODEL_KEYWORDS: dict[str, tuple[str, ...]] = {
     "mlsd": ("mlsd", "m-lsd"),
 }
 
+IPADAPTER_APPLY_NODE_CANDIDATES = (
+    "easy ipadapterApply",
+    "IPAdapter Advanced",
+    "IPAdapterAdvanced",
+    "IPAdapterApply",
+    "IPAdapterApplyAdvanced",
+    "IPAdapter Unified Loader",
+    "IPAdapterUnifiedLoader",
+)
+
+IPADAPTER_MODEL_NODE_CANDIDATES = (
+    "IPAdapterModelLoader",
+    "IPAdapter Unified Loader",
+    "IPAdapterUnifiedLoader",
+    "IPAdapter Advanced",
+    "IPAdapterAdvanced",
+)
+
+CLIP_VISION_NODE_CANDIDATES = (
+    "CLIPVisionLoader",
+    "CLIPVisionLoaderLTX",
+    "Load CLIP Vision",
+)
+
+CONTROLNET_AUX_PREPROCESSOR_NODES = tuple(
+    sorted({*POSE_PREPROCESSOR_NODES, *(node for nodes in BACKGROUND_PREPROCESSOR_NODES.values() for node in nodes)})
+)
+
 
 def _background_reference_mapping() -> dict[str, Any]:
     try:
@@ -236,7 +264,7 @@ def _preprocessor_input_defaults(info: dict[str, Any], class_name: str, mode: st
 def _select_background_model(models: list[str], mode: str, configured: str) -> tuple[str, list[str]]:
     configured = str(configured or "").strip()
     if configured and configured.lower() != "auto":
-        missing = ["background_controlnet_model"] if models and configured not in models else []
+        missing = [] if configured in models else [f"background_controlnet_model:{configured}"]
         return configured, missing
     keywords = BACKGROUND_MODEL_KEYWORDS.get(mode, ())
     for model in models:
@@ -442,6 +470,194 @@ def reference_module_model_status(info: dict[str, Any] | None, *, comfyui_roots:
             },
             "anima_lllite": caps.get("anima_lllite") or _anima_lllite_capability(info, app_scope=app_scope),
         },
+    }
+
+
+def _matching_nodes(info: dict[str, Any], candidates: tuple[str, ...], *, contains: str = "") -> list[str]:
+    node_names = set(info.keys())
+    found = [name for name in candidates if name in node_names]
+    if contains:
+        needle = contains.lower()
+        found.extend(sorted(name for name in node_names if needle in name.lower() and name not in found))
+    return found
+
+
+def _choices_from_nodes(info: dict[str, Any], class_names: list[str], input_names: tuple[str, ...]) -> list[str]:
+    values: list[str] = []
+    seen: set[str] = set()
+    for class_name in class_names:
+        for input_name in input_names:
+            for choice in _input_choices(info, class_name, input_name):
+                if choice in seen:
+                    continue
+                seen.add(choice)
+                values.append(choice)
+    return values
+
+
+def _split_missing_setup_items(items: list[str]) -> tuple[list[str], list[str]]:
+    missing_nodes: list[str] = []
+    missing_models: list[str] = []
+    for item in items:
+        name = str(item or "")
+        if not name:
+            continue
+        if "model" in name.lower():
+            missing_models.append(name)
+        else:
+            missing_nodes.append(name)
+    return missing_nodes, missing_models
+
+
+def _setup_summary_state(available: bool, missing_nodes: list[str], missing_models: list[str], warnings: list[str]) -> str:
+    if available:
+        return "available"
+    if missing_nodes or missing_models:
+        return "missing"
+    return "warning" if warnings else "unknown"
+
+
+def reference_setup_diagnostics(info: dict[str, Any] | None, *, comfyui_roots: list[Path], app_scope: str = "anima") -> dict[str, Any]:
+    info = info or {}
+    node_names = set(info.keys())
+    caps = reference_module_capabilities(info, app_scope=app_scope).get("reference_modules", {})
+    model_status = reference_module_model_status(info, comfyui_roots=comfyui_roots, app_scope=app_scope).get("modules", {})
+    mapping = _background_reference_mapping()
+    mapping_enabled = bool(mapping.get("enabled"))
+
+    ipadapter_apply_nodes = [name for name in IPADAPTER_APPLY_NODE_CANDIDATES if name in node_names]
+    ipadapter_nodes = _matching_nodes(info, IPADAPTER_APPLY_NODE_CANDIDATES, contains="ipadapter")
+    clip_vision_nodes = _matching_nodes(info, CLIP_VISION_NODE_CANDIDATES, contains="clipvision")
+    controlnet_nodes = _matching_nodes(
+        info,
+        ("ControlNetLoader", "ControlNetApplyAdvanced", "ControlNetApply", "SetUnionControlNetType"),
+        contains="controlnet",
+    )
+    aux_nodes = [name for name in CONTROLNET_AUX_PREPROCESSOR_NODES if name in node_names]
+
+    outfit_models = ((model_status.get("outfit") or {}).get("models") or {}) if isinstance(model_status.get("outfit"), dict) else {}
+    clip_vision_scan = outfit_models.get("clip_vision") if isinstance(outfit_models.get("clip_vision"), dict) else {}
+    ipadapter_scan = outfit_models.get("ipadapter") if isinstance(outfit_models.get("ipadapter"), dict) else {}
+    ipadapter_flux_scan = outfit_models.get("ipadapter_flux") if isinstance(outfit_models.get("ipadapter_flux"), dict) else {}
+    clip_vision_choices = _choices_from_nodes(info, clip_vision_nodes, ("clip_name", "clip_vision_name", "model_name"))
+    ipadapter_model_choices = _choices_from_nodes(
+        info,
+        _matching_nodes(info, IPADAPTER_MODEL_NODE_CANDIDATES, contains="ipadapter"),
+        ("ipadapter_file", "ipadapter_name", "model_name", "lora_name"),
+    )
+
+    outfit_caps = caps.get("outfit") if isinstance(caps.get("outfit"), dict) else {}
+    workflow_outfit_available = bool(outfit_caps.get("available"))
+    outfit_missing_nodes = [name for name in list(outfit_caps.get("missing_nodes") or []) if name != "easy ipadapterApply" or not ipadapter_nodes]
+    if "LoadImage" not in node_names and "LoadImage" not in outfit_missing_nodes:
+        outfit_missing_nodes.append("LoadImage")
+    if not ipadapter_apply_nodes and "IPAdapter apply node" not in outfit_missing_nodes:
+        outfit_missing_nodes.append("IPAdapter apply node")
+    outfit_missing_models: list[str] = []
+    if not clip_vision_choices and not clip_vision_scan.get("found"):
+        outfit_missing_models.append("clip_vision model")
+    if not ipadapter_model_choices and not ipadapter_scan.get("found") and not ipadapter_flux_scan.get("found"):
+        outfit_missing_models.append("ipadapter model")
+    setup_outfit_available = bool("LoadImage" in node_names and ipadapter_apply_nodes and not outfit_missing_models)
+    outfit_warnings = list(outfit_caps.get("warnings") or [])
+    if ipadapter_nodes and not workflow_outfit_available:
+        outfit_warnings.append("IPAdapter nodes are installed, but Luna ANIMA workflow application currently uses easy ipadapterApply.")
+
+    pose_caps = caps.get("pose") if isinstance(caps.get("pose"), dict) else {}
+    pose_raw_missing = list(pose_caps.get("missing_nodes") or [])
+    pose_missing_nodes, pose_missing_models = _split_missing_setup_items(pose_raw_missing)
+    if "ControlNetLoader" not in node_names and "ControlNetLoader" not in pose_missing_nodes:
+        pose_missing_nodes.append("ControlNetLoader")
+    if "ControlNetApplyAdvanced" not in node_names and "ControlNetApply" not in node_names and "ControlNetApplyAdvanced" not in pose_missing_nodes:
+        pose_missing_nodes.append("ControlNetApplyAdvanced")
+
+    background_caps = caps.get("background") if isinstance(caps.get("background"), dict) else {}
+    background_modes: dict[str, Any] = {}
+    background_missing_nodes: list[str] = []
+    background_missing_models: list[str] = []
+    for mode, data in (background_caps.get("modes") or {}).items():
+        mode_missing_nodes, mode_missing_models = _split_missing_setup_items(list(data.get("missing_nodes") or []))
+        background_missing_nodes.extend(mode_missing_nodes)
+        background_missing_models.extend(mode_missing_models)
+        background_modes[mode] = {
+            "available": bool(data.get("available")),
+            "preprocessor_node_class": data.get("preprocessor_node_class") or "",
+            "controlnet_model": data.get("controlnet_model") or "",
+            "missing_nodes": sorted(set(mode_missing_nodes)),
+            "missing_models": sorted(set(mode_missing_models)),
+        }
+    if not mapping_enabled:
+        background_missing_nodes.append("background_reference mapping")
+
+    controlnet_scan = (((model_status.get("background") or {}).get("models") or {}).get("controlnet") or {}) if isinstance(model_status.get("background"), dict) else {}
+    aux_scan = (((model_status.get("pose") or {}).get("models") or {}).get("controlnet_aux_ckpts") or {}) if isinstance(model_status.get("pose"), dict) else {}
+    missing_nodes = sorted(set(outfit_missing_nodes + pose_missing_nodes + background_missing_nodes))
+    missing_models = sorted(set(outfit_missing_models + pose_missing_models + background_missing_models))
+    warnings = sorted(
+        set(
+            [
+                *(outfit_caps.get("warnings") or []),
+                *(pose_caps.get("warnings") or []),
+                *(background_caps.get("warnings") or []),
+            ]
+        )
+    )
+
+    outfit_state = _setup_summary_state(setup_outfit_available, outfit_missing_nodes, outfit_missing_models, outfit_warnings)
+    pose_state = _setup_summary_state(bool(pose_caps.get("available")), pose_missing_nodes, pose_missing_models, list(pose_caps.get("warnings") or []))
+    background_state = _setup_summary_state(bool(background_caps.get("available")), background_missing_nodes, background_missing_models, list(background_caps.get("warnings") or []))
+    return {
+        "ok": True,
+        "docs": "docs/reference_setup.md",
+        "object_info_node_count": len(node_names),
+        "comfyui_roots": [{"path": str(root), "exists": root.exists()} for root in comfyui_roots],
+        "summary": {
+            "outfit": outfit_state,
+            "pose": pose_state,
+            "background": background_state,
+            "controlnet_aux": "available" if aux_nodes else "missing",
+        },
+        "outfit": {
+            "available": setup_outfit_available,
+            "workflow_apply_available": workflow_outfit_available,
+            "workflow_apply_node": outfit_caps.get("apply_node") or "",
+            "ipadapter_apply_nodes": ipadapter_apply_nodes,
+            "ipadapter_nodes": ipadapter_nodes,
+            "clip_vision_nodes": clip_vision_nodes,
+            "clip_vision_models": {"object_info_choices": clip_vision_choices, **clip_vision_scan},
+            "ipadapter_models": {
+                "object_info_choices": ipadapter_model_choices,
+                "ipadapter_dir": ipadapter_scan,
+                "ipadapter_flux_dir": ipadapter_flux_scan,
+            },
+            "missing_nodes": sorted(set(outfit_missing_nodes)),
+            "missing_models": sorted(set(outfit_missing_models)),
+            "warnings": outfit_warnings,
+        },
+        "pose": {
+            "available": bool(pose_caps.get("available")),
+            "controlnet_nodes": controlnet_nodes,
+            "preprocessor_nodes": [name for name in POSE_PREPROCESSOR_NODES if name in node_names],
+            "controlnet_models": controlnet_scan,
+            "missing_nodes": sorted(set(pose_missing_nodes)),
+            "missing_models": sorted(set(pose_missing_models)),
+            "warnings": pose_caps.get("warnings") or [],
+        },
+        "background": {
+            "available": bool(background_caps.get("available")),
+            "mapping": {"enabled": mapping_enabled, "path": str(ANIMA_MAPPING_PATH)},
+            "controlnet_nodes": controlnet_nodes,
+            "controlnet_aux_nodes": aux_nodes,
+            "controlnet_models": controlnet_scan,
+            "controlnet_aux_ckpts": aux_scan,
+            "modes": background_modes,
+            "missing_nodes": sorted(set(background_missing_nodes)),
+            "missing_models": sorted(set(background_missing_models)),
+            "warnings": background_caps.get("warnings") or [],
+        },
+        "missing_nodes": missing_nodes,
+        "missing_models": missing_models,
+        "warnings": warnings,
     }
 
 

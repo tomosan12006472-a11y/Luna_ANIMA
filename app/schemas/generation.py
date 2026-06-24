@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..official_lora_presets import normalize_official_lora_preset_id
 from .reference import ImageToImageSettings, ReferenceAssistSettings, ReferenceModulesSettings
 
 
@@ -426,6 +427,7 @@ class GenerateRequest(BaseModel):
     loras: list[dict[str, Any]] = Field(default_factory=list)
     hires_fix: HiresFixSettings = Field(default_factory=HiresFixSettings)
     official_loras: OfficialLorasSettings = Field(default_factory=OfficialLorasSettings)
+    official_lora_preset: str = "off"
     reference_assist: ReferenceAssistSettings = Field(default_factory=ReferenceAssistSettings)
     reference_modules: ReferenceModulesSettings = Field(default_factory=ReferenceModulesSettings)
     image_to_image: ImageToImageSettings = Field(default_factory=ImageToImageSettings)
@@ -436,6 +438,11 @@ class GenerateRequest(BaseModel):
     reset_comfy_cache: bool = False
     wait: bool = False
     count: int = 1
+
+    @field_validator("official_lora_preset", mode="before")
+    @classmethod
+    def _normalize_official_lora_preset(cls, value: Any) -> str:
+        return normalize_official_lora_preset_id(value)
 
 
 class FaceDetailerPostprocessRequest(BaseModel):

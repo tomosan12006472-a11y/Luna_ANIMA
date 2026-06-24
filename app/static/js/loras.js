@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
+} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
@@ -45,6 +45,71 @@ const TURBO_RECOMMENDED_SETTINGS = Object.freeze({
   strength: 1,
 });
 
+const OFFICIAL_LORA_PRESETS = Object.freeze([
+  {
+    id: "off",
+    title: "OFF",
+    official_loras: {
+      highres: { enabled: false, strength: 0.6 },
+      turbo: { enabled: false, version: "auto", strength: 0.6, preset_applied: false },
+      colorfix: { enabled: false, strength: 0.6 },
+    },
+  },
+  {
+    id: "color_stable",
+    title: "Color Stable",
+    official_loras: {
+      highres: { enabled: false, strength: 0.6 },
+      turbo: { enabled: false, version: "auto", strength: 0.6, preset_applied: false },
+      colorfix: { enabled: true, strength: 0.6 },
+    },
+  },
+  {
+    id: "quality",
+    title: "Quality",
+    official_loras: {
+      highres: { enabled: true, strength: 0.6 },
+      turbo: { enabled: false, version: "auto", strength: 0.6, preset_applied: false },
+      colorfix: { enabled: true, strength: 0.6 },
+    },
+  },
+  {
+    id: "fast_preview",
+    title: "Fast Preview",
+    official_loras: {
+      highres: { enabled: false, strength: 0.6 },
+      turbo: { enabled: true, version: "auto", strength: 1.0, preset_applied: true },
+      colorfix: { enabled: false, strength: 0.6 },
+    },
+  },
+  {
+    id: "fast_color",
+    title: "Fast Color",
+    official_loras: {
+      highres: { enabled: false, strength: 0.6 },
+      turbo: { enabled: true, version: "auto", strength: 1.0, preset_applied: true },
+      colorfix: { enabled: true, strength: 0.6 },
+    },
+  },
+  {
+    id: "final_quality",
+    title: "Final Quality",
+    official_loras: {
+      highres: { enabled: true, strength: 0.6 },
+      turbo: { enabled: false, version: "auto", strength: 0.6, preset_applied: false },
+      colorfix: { enabled: true, strength: 0.6 },
+    },
+  },
+]);
+
+function officialPresetById(id) {
+  return OFFICIAL_LORA_PRESETS.find((preset) => preset.id === id);
+}
+
+function cloneOfficialPresetLoras(preset) {
+  return JSON.parse(JSON.stringify(preset.official_loras));
+}
+
 export function createLoraFeature({
   api,
   state,
@@ -52,6 +117,8 @@ export function createLoraFeature({
 } = {}) {
   let turboPresetSnapshot = null;
   let turboPresetApplied = false;
+  let selectedOfficialPresetId = "off";
+  let applyingOfficialPreset = false;
 
   function selectableLoras() {
     return Array.isArray(state?.loraSelectable) ? state.loraSelectable : [];
@@ -111,7 +178,38 @@ export function createLoraFeature({
     return collectLoraRows().filter((item) => item.name);
   }
 
-  function applyOfficialToForm(official = {}) {
+  function setOfficialPresetStatus(message) {
+    const target = $("#officialLoraPresetStatus");
+    if (target) target.textContent = message || "";
+  }
+
+  function renderOfficialPresetOptions(selected = selectedOfficialPresetId) {
+    const select = $("#officialLoraPresetSelect");
+    if (!select) return;
+    const nextSelected = officialPresetById(selected) ? selected : "custom";
+    select.replaceChildren();
+    for (const preset of OFFICIAL_LORA_PRESETS) {
+      const option = document.createElement("option");
+      option.value = preset.id;
+      option.textContent = preset.title;
+      select.appendChild(option);
+    }
+    const custom = document.createElement("option");
+    custom.value = "custom";
+    custom.textContent = "Custom";
+    select.appendChild(custom);
+    select.value = nextSelected;
+    selectedOfficialPresetId = nextSelected;
+  }
+
+  function markOfficialPresetCustom() {
+    if (applyingOfficialPreset) return;
+    selectedOfficialPresetId = "custom";
+    renderOfficialPresetOptions("custom");
+    setOfficialPresetStatus("個別調整中");
+  }
+
+  function applyOfficialToForm(official = {}, presetId = "custom") {
     setChecked("#officialHighresEnabled", official.highres?.enabled);
     setValue("#officialHighresStrength", official.highres?.strength ?? 0.6);
     setChecked("#officialTurboEnabled", official.turbo?.enabled);
@@ -120,6 +218,9 @@ export function createLoraFeature({
     setValue("#officialColorfixStrength", official.colorfix?.strength ?? 0.6);
     turboPresetSnapshot = null;
     turboPresetApplied = Boolean(official.turbo?.enabled && official.turbo?.preset_applied);
+    selectedOfficialPresetId = officialPresetById(presetId) ? presetId : "custom";
+    renderOfficialPresetOptions(selectedOfficialPresetId);
+    setOfficialPresetStatus("");
   }
 
   function captureTurboPresetSnapshot() {
@@ -158,10 +259,74 @@ export function createLoraFeature({
     }
   }
 
+  function selectedOfficialPreset() {
+    const select = $("#officialLoraPresetSelect");
+    return select?.value || selectedOfficialPresetId || "custom";
+  }
+
+  function applyOfficialLoraPreset() {
+    const presetId = selectedOfficialPreset();
+    const preset = officialPresetById(presetId);
+    if (!preset) {
+      setOfficialPresetStatus("Customは現在の個別設定を使います");
+      updateSummaries();
+      return;
+    }
+    const official = cloneOfficialPresetLoras(preset);
+    applyingOfficialPreset = true;
+    try {
+      const turbo = official.turbo || {};
+      if (turbo.enabled && turbo.preset_applied) {
+        setChecked("#officialTurboEnabled", true);
+        applyTurboRecommendedSettings();
+      } else if (!turbo.enabled) {
+        setChecked("#officialTurboEnabled", false);
+        restoreTurboPresetSnapshot();
+      } else {
+        setChecked("#officialTurboEnabled", true);
+        turboPresetSnapshot = null;
+        turboPresetApplied = false;
+      }
+      setChecked("#officialHighresEnabled", official.highres?.enabled);
+      setValue("#officialHighresStrength", official.highres?.strength ?? 0.6);
+      setValue("#officialTurboStrength", turbo.strength ?? 0.6);
+      setChecked("#officialColorfixEnabled", official.colorfix?.enabled);
+      setValue("#officialColorfixStrength", official.colorfix?.strength ?? 0.6);
+      turboPresetApplied = Boolean(turbo.enabled && turbo.preset_applied);
+      selectedOfficialPresetId = preset.id;
+      renderOfficialPresetOptions(selectedOfficialPresetId);
+      setOfficialPresetStatus(`${preset.title} を適用しました`);
+    } finally {
+      applyingOfficialPreset = false;
+    }
+    updateSummaries();
+  }
+
   function bindEvents() {
+    renderOfficialPresetOptions(selectedOfficialPresetId);
+    $("#officialLoraPresetSelect")?.addEventListener("change", () => setOfficialPresetStatus(""));
+    $("#officialHighresEnabled")?.addEventListener("change", () => {
+      markOfficialPresetCustom();
+      updateSummaries();
+    });
+    $("#officialHighresStrength")?.addEventListener("input", () => {
+      markOfficialPresetCustom();
+      updateSummaries();
+    });
     $("#officialTurboEnabled")?.addEventListener("change", handleTurboToggle);
-    $("#officialColorfixEnabled")?.addEventListener("change", updateSummaries);
-    $("#officialColorfixStrength")?.addEventListener("input", updateSummaries);
+    $("#officialTurboEnabled")?.addEventListener("change", markOfficialPresetCustom);
+    $("#officialTurboStrength")?.addEventListener("input", () => {
+      markOfficialPresetCustom();
+      updateSummaries();
+    });
+    $("#officialColorfixEnabled")?.addEventListener("change", () => {
+      markOfficialPresetCustom();
+      updateSummaries();
+    });
+    $("#officialColorfixStrength")?.addEventListener("input", () => {
+      markOfficialPresetCustom();
+      updateSummaries();
+    });
   }
 
   function syncLoraRowEnabledState(row) {
@@ -395,12 +560,14 @@ export function createLoraFeature({
       "duplicate-lora": (target) => duplicateLoraRow(target),
       "move-lora-up": (target) => moveLoraRow(target, -1),
       "move-lora-down": (target) => moveLoraRow(target, 1),
+      "official-lora-preset-apply": () => applyOfficialLoraPreset(),
     },
     addLoraRow,
     applyOfficialToForm,
     bindEvents,
     collect: collectLoras,
     collectOfficial: collectOfficialLoras,
+    collectOfficialPreset: () => selectedOfficialPresetId,
     history: historyLoras,
     historyOfficial: historyOfficialLoras,
     loadCatalog: loadLoraCatalog,

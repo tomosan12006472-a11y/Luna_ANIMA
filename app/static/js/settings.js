@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
+} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
 
 export function createSettingsFeature({
   api,
@@ -44,6 +44,57 @@ export function createSettingsFeature({
     state.appSettings = { ...state.appSettings, watermark: collectWatermark() };
   }
 
+  function setupStateLabel(value) {
+    const raw = String(value || "unknown");
+    if (raw === "available") return "available";
+    if (raw === "missing") return "missing";
+    if (raw === "warning") return "warning";
+    return "unknown";
+  }
+
+  function compactList(items = [], fallback = "-") {
+    const values = Array.isArray(items) ? items.filter(Boolean) : [];
+    return values.length ? values.slice(0, 8).join(", ") : fallback;
+  }
+
+  function backgroundModeSummary(modes = {}) {
+    return Object.entries(modes || {}).map(([mode, data]) => {
+      const state = data?.available ? "ok" : compactList([...(data?.missing_nodes || []), ...(data?.missing_models || [])], "missing");
+      return `${mode}: ${state}`;
+    }).join(" / ") || "-";
+  }
+
+  function modelList(...groups) {
+    return groups.flatMap((items) => Array.isArray(items) ? items : []).filter(Boolean);
+  }
+
+  function renderReferenceSetup(setup = {}) {
+    const summary = setup.summary || {};
+    const table = $("#referenceSetupMeta");
+    text("#referenceSetupBadge", setup.ok === false ? "CHECK" : "READY");
+    text(
+      "#referenceSetupSummary",
+      [
+        `Outfit/IPAdapter ${setupStateLabel(summary.outfit)}`,
+        `Pose/ControlNet ${setupStateLabel(summary.pose)}`,
+        `Background ${setupStateLabel(summary.background)}`,
+        `Aux ${setupStateLabel(summary.controlnet_aux)}`,
+      ].join(" / "),
+    );
+    if (!table) return;
+    table.replaceChildren();
+    addMetaRow(table, "IPAdapter nodes", compactList(setup.outfit?.ipadapter_nodes));
+    addMetaRow(table, "clip_vision models", compactList(modelList(setup.outfit?.clip_vision_models?.found, setup.outfit?.clip_vision_models?.object_info_choices)));
+    addMetaRow(table, "ipadapter models", compactList(modelList(setup.outfit?.ipadapter_models?.ipadapter_dir?.found, setup.outfit?.ipadapter_models?.ipadapter_flux_dir?.found, setup.outfit?.ipadapter_models?.object_info_choices)));
+    addMetaRow(table, "ControlNet nodes", compactList(setup.pose?.controlnet_nodes || setup.background?.controlnet_nodes || []));
+    addMetaRow(table, "ControlNet Aux", compactList(setup.background?.controlnet_aux_nodes || []));
+    addMetaRow(table, "Background mapping", setup.background?.mapping?.enabled ? "enabled" : "disabled");
+    addMetaRow(table, "Background modes", backgroundModeSummary(setup.background?.modes || {}));
+    addMetaRow(table, "Missing nodes", compactList(setup.missing_nodes || []));
+    addMetaRow(table, "Missing models", compactList(setup.missing_models || []));
+    if (setup.comfyui?.error) addMetaRow(table, "object_info", setup.comfyui.error);
+  }
+
   function renderDiagnostics(data) {
     const table = $("#connMeta");
     if (table) {
@@ -57,6 +108,7 @@ export function createSettingsFeature({
       addMetaRow(table, "HISTORY", data.history_count ?? "-");
       addMetaRow(table, "SHIFT", data.anima_shift || {});
     }
+    renderReferenceSetup(data.reference_setup || {});
     text("#diagBadge", data.api_addr || "-");
   }
 

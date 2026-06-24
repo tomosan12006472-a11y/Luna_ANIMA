@@ -1,4 +1,4 @@
-import { $, displayValue, unique } from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
+import { $, displayValue, unique } from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
 
 export function fillSelect(selector, options, selected) {
   const select = typeof selector === "string" ? $(selector) : selector;

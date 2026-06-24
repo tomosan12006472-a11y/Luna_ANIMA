@@ -2,6 +2,19 @@
 
 Luna ANIMA can apply a small set of optional official LoRAs from the generation UI. The model files are not bundled with this repository.
 
+## Presets
+
+The `ANIMA公式LoRA` section includes built-in presets for Highres, Turbo, and ColorFix combinations:
+
+- `OFF`
+- `Color Stable`
+- `Quality`
+- `Fast Preview`
+- `Fast Color`
+- `Final Quality`
+
+Applying a preset updates the existing individual controls. You can still fine-tune Highres, Turbo, and ColorFix manually after applying a preset. Turbo presets keep the existing recommended steps/cfg/strength behavior.
+
 ## ColorFix
 
 ColorFix is an optional ANIMA LoRA for color tone, saturation, and color stability adjustments.
