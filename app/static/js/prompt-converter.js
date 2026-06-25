@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.46-tuning-quick-controls-20260625";
+import { $, text, value } from "./dom.js?v=v1.48-share-ready-public-save-20260625";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v1.48-share-ready-public-save-20260625";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 

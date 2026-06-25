@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
+import { clone, setChecked, text } from "./dom.js?v=v1.48-share-ready-public-save-20260625";
 
 const SNAPSHOT_KEYS = [
   "official_loras",

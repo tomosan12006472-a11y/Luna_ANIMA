@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
+import { $, text } from "./dom.js?v=v1.48-share-ready-public-save-20260625";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);

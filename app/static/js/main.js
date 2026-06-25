@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.46-tuning-quick-controls-20260625";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.46-tuning-quick-controls-20260625";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.46-tuning-quick-controls-20260625";
-import { onDomReady } from "./bootstrap.js?v=v1.46-tuning-quick-controls-20260625";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.48-share-ready-public-save-20260625";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.48-share-ready-public-save-20260625";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.48-share-ready-public-save-20260625";
+import { onDomReady } from "./bootstrap.js?v=v1.48-share-ready-public-save-20260625";
 import {
   $,
   $$,
@@ -11,24 +11,24 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
-import { createCharacterFeature } from "./characters.js?v=v1.46-tuning-quick-controls-20260625";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.46-tuning-quick-controls-20260625";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.46-tuning-quick-controls-20260625";
-import { createHistoryFeature } from "./history.js?v=v1.46-tuning-quick-controls-20260625";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.46-tuning-quick-controls-20260625";
-import { createI2iFeature } from "./i2i.js?v=v1.46-tuning-quick-controls-20260625";
-import { createLoraFeature } from "./loras.js?v=v1.46-tuning-quick-controls-20260625";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.46-tuning-quick-controls-20260625";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.46-tuning-quick-controls-20260625";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.46-tuning-quick-controls-20260625";
-import { createQueueFeature } from "./queue.js?v=v1.46-tuning-quick-controls-20260625";
-import { createReferenceFeature } from "./reference.js?v=v1.46-tuning-quick-controls-20260625";
-import { createSettingsFeature } from "./settings.js?v=v1.46-tuning-quick-controls-20260625";
-import { createInitialState } from "./state.js?v=v1.46-tuning-quick-controls-20260625";
-import { createDetailerFeature } from "./detailers.js?v=v1.46-tuning-quick-controls-20260625";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.46-tuning-quick-controls-20260625";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.46-tuning-quick-controls-20260625";
+} from "./dom.js?v=v1.48-share-ready-public-save-20260625";
+import { createCharacterFeature } from "./characters.js?v=v1.48-share-ready-public-save-20260625";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.48-share-ready-public-save-20260625";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.48-share-ready-public-save-20260625";
+import { createHistoryFeature } from "./history.js?v=v1.48-share-ready-public-save-20260625";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.48-share-ready-public-save-20260625";
+import { createI2iFeature } from "./i2i.js?v=v1.48-share-ready-public-save-20260625";
+import { createLoraFeature } from "./loras.js?v=v1.48-share-ready-public-save-20260625";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.48-share-ready-public-save-20260625";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.48-share-ready-public-save-20260625";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.48-share-ready-public-save-20260625";
+import { createQueueFeature } from "./queue.js?v=v1.48-share-ready-public-save-20260625";
+import { createReferenceFeature } from "./reference.js?v=v1.48-share-ready-public-save-20260625";
+import { createSettingsFeature } from "./settings.js?v=v1.48-share-ready-public-save-20260625";
+import { createInitialState } from "./state.js?v=v1.48-share-ready-public-save-20260625";
+import { createDetailerFeature } from "./detailers.js?v=v1.48-share-ready-public-save-20260625";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.48-share-ready-public-save-20260625";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.48-share-ready-public-save-20260625";
 
 (() => {
   "use strict";
@@ -89,6 +89,7 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.46-tuning
     collectSettings: () => settingsFromForm(),
     applySettingsToForm: (nextSettings, defaults) => applySettingsToForm(nextSettings, defaults),
     renderConfiguredLoras: (nextSettings) => loras.renderConfigured(nextSettings),
+    confirmDanger: (options) => confirmDanger(options),
   });
   const history = createHistoryFeature({
     api,
@@ -404,6 +405,7 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.46-tuning
         if (action?.startsWith("tuning-") || action?.startsWith("assist-") || action?.startsWith("lora-") || action?.startsWith("reference-") || action?.startsWith("detailers-")) text("#tuningQuickStatus", errorMessage(error));
         if (action?.startsWith("prompt-convert")) text("#promptConverterStatus", errorMessage(error));
         if (action?.startsWith("prompt-random")) text("#promptRandomStatus", errorMessage(error));
+        if (action?.startsWith("comfy-restart")) text("#comfyRestartStatus", errorMessage(error));
         if (action === "save-auto-prompts") text("#autoPromptStatus", errorMessage(error));
         if (["save-defaults", "reset-defaults", "reload-models", "reload-ui"].includes(action)) text("#settingsStatus", errorMessage(error));
         if (["save-recipe", "open-recipes"].includes(action)) text("#recipeStatus", errorMessage(error));
