@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.48-share-ready-public-save-20260625";
+} from "./dom.js?v=v1.49-share-prefetch-20260625";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();

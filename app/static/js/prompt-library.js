@@ -1,9 +1,9 @@
-import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.48-share-ready-public-save-20260625";
-import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.48-share-ready-public-save-20260625";
-import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.48-share-ready-public-save-20260625";
-import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.48-share-ready-public-save-20260625";
-import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.48-share-ready-public-save-20260625";
-import { createRecipesFeature } from "./recipes.js?v=v1.48-share-ready-public-save-20260625";
+import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.49-share-prefetch-20260625";
+import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.49-share-prefetch-20260625";
+import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.49-share-prefetch-20260625";
+import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.49-share-prefetch-20260625";
+import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.49-share-prefetch-20260625";
+import { createRecipesFeature } from "./recipes.js?v=v1.49-share-prefetch-20260625";
 
 export function createPromptLibraryFeature({
   api,

@@ -1,4 +1,4 @@
-import { $, setValue, value } from "./dom.js?v=v1.48-share-ready-public-save-20260625";
+import { $, setValue, value } from "./dom.js?v=v1.49-share-prefetch-20260625";
 
 export function createPositivePromptHelpers({ updateSummaries = () => {} } = {}) {
   function insertPositivePromptText(insertText) {

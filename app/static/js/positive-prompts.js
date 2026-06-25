@@ -4,14 +4,14 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.48-share-ready-public-save-20260625";
+} from "./dom.js?v=v1.49-share-prefetch-20260625";
 import {
   parsePromptTags,
   promptExcerpt,
   promptItemPrompt,
   promptItemTagsText,
   promptItemTitle,
-} from "./prompt-library-utils.js?v=v1.48-share-ready-public-save-20260625";
+} from "./prompt-library-utils.js?v=v1.49-share-prefetch-20260625";
 
 export function createPositivePromptsFeature({
   api,
