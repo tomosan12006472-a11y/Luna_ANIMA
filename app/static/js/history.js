@@ -7,7 +7,7 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
+} from "./dom.js?v=v1.45-history-assist-summary-20260625";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
@@ -311,6 +311,216 @@ export function createHistoryFeature({
     if (button) button.textContent = `${favorite ? "★" : "☆"} お気に入り`;
   }
 
+  function isObject(value) {
+    return value && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function historySources(item = {}) {
+    return [item, item.request_data, item.request, item.metadata].filter(isObject);
+  }
+
+  function historyObject(item, key) {
+    for (const source of historySources(item)) {
+      if (isObject(source[key])) return source[key];
+    }
+    return {};
+  }
+
+  function historyValue(item, key, fallback = "") {
+    for (const source of historySources(item)) {
+      const next = source[key];
+      if (next !== undefined && next !== null && next !== "") return next;
+    }
+    return fallback;
+  }
+
+  function shortText(value, limit = 96) {
+    const raw = Array.isArray(value) ? value.join(", ") : String(value ?? "");
+    const compact = raw.replace(/\s+/g, " ").trim();
+    if (!compact) return "";
+    return compact.length > limit ? `${compact.slice(0, Math.max(0, limit - 3))}...` : compact;
+  }
+
+  function numberText(value) {
+    if (value === null || value === undefined || value === "") return "-";
+    const number = Number(value);
+    if (!Number.isFinite(number)) return String(value);
+    return Number.isInteger(number) ? String(number) : String(Math.round(number * 1000) / 1000);
+  }
+
+  function onOff(value) {
+    return value ? "ON" : "OFF";
+  }
+
+  function warningsText(value, limit = 96) {
+    const list = Array.isArray(value) ? value : value ? [value] : [];
+    return shortText(list.filter(Boolean).join("; "), limit);
+  }
+
+  function tagCount(tags) {
+    return String(tags || "").split(",").map((tag) => tag.trim()).filter(Boolean).length;
+  }
+
+  function officialLoraPresetSummary(item = {}) {
+    const preset = shortText(historyValue(item, "official_lora_preset", ""), 40);
+    return preset || "-";
+  }
+
+  function officialLoraPart(label, data = {}) {
+    const source = isObject(data) ? data : {};
+    const parts = [`${label} ${onOff(source.enabled)}`];
+    if (source.strength !== undefined) parts.push(numberText(source.strength));
+    if (source.version) parts.push(`version ${source.version}`);
+    if (source.preset_applied !== undefined) parts.push(`preset ${source.preset_applied ? "yes" : "no"}`);
+    if (source.found === false) parts.push("missing");
+    return parts.join(" ");
+  }
+
+  function officialLorasSummary(item = {}) {
+    const official = historyObject(item, "official_loras");
+    if (!Object.keys(official).length) return "not recorded";
+    return [
+      officialLoraPart("Highres", official.highres),
+      officialLoraPart("Turbo", official.turbo),
+      officialLoraPart("ColorFix", official.colorfix),
+    ].join("; ");
+  }
+
+  function promptRandomSummary(item = {}) {
+    const data = historyObject(item, "prompt_random_collect");
+    if (!Object.keys(data).length) return "not recorded";
+    if (!data.enabled) return "OFF";
+    const strategy = isObject(data.generation_strategy) ? data.generation_strategy : {};
+    const provider = isObject(data.provider) ? data.provider : {};
+    const generatedItem = isObject(data.generated_item) ? data.generated_item : {};
+    const generatedTags = String(data.generated_tags || generatedItem.tags || "").trim();
+    const fallback = strategy.fallback === true;
+    const fallbackReason = warningsText(strategy.errors || strategy.reason || data.fallback_reason || data.warning, 72);
+    const providerText = shortText([provider.provider, provider.model].filter(Boolean).join(" / "), 44);
+    const parts = [
+      `ON ${data.mode || "-"}`,
+      `strategy ${strategy.mode || "-"}`,
+      `fallback ${fallback ? "yes" : "no"}`,
+    ];
+    if (providerText) parts.push(`provider ${providerText}`);
+    if (fallback && fallbackReason) parts.push(`reason ${fallbackReason}`);
+    if (generatedItem.title) parts.push(`item ${shortText(generatedItem.title, 36)}`);
+    if (generatedTags) parts.push(`${tagCount(generatedTags)} tags: ${shortText(generatedTags, 72)}`);
+    if (data.instruction) parts.push(`instruction ${shortText(data.instruction, 56)}`);
+    return parts.join("; ");
+  }
+
+  function moduleStatus(data = {}) {
+    if (!data.enabled) return "OFF";
+    if (data.applied === true) return "applied";
+    if (data.apply_to_payload === false || data.applied === false) return "skipped";
+    return "enabled";
+  }
+
+  function moduleReason(data = {}) {
+    return shortText(data.unsupported_reason || warningsText(data.warnings, 72), 72);
+  }
+
+  function referenceModulePart(label, data = {}) {
+    const source = isObject(data) ? data : {};
+    const parts = [`${label} ${moduleStatus(source)}`];
+    const reason = moduleReason(source);
+    if (reason) parts.push(reason);
+    return parts.join(" ");
+  }
+
+  function referenceModulesSummary(item = {}) {
+    const modules = historyObject(item, "reference_modules");
+    if (!Object.keys(modules).length) return "not recorded";
+    return [
+      referenceModulePart("Outfit", modules.outfit),
+      referenceModulePart("Pose", modules.pose),
+      referenceModulePart("BG", modules.background),
+    ].join("; ");
+  }
+
+  function backgroundReferenceSummary(item = {}) {
+    const modules = historyObject(item, "reference_modules");
+    const background = isObject(modules.background) ? modules.background : {};
+    if (!Object.keys(background).length) return "not recorded";
+    if (!background.enabled) return "OFF";
+    const parts = [
+      moduleStatus(background),
+      background.mode || "-",
+      `strength ${numberText(background.strength)}`,
+      `range ${numberText(background.start_at)}-${numberText(background.end_at)}`,
+      `resize ${background.resize_mode || "-"}`,
+    ];
+    if (background.image_name) parts.push(`image ${shortText(background.image_name, 36)}`);
+    if (background.apply_to_payload !== undefined) parts.push(`apply_to_payload ${background.apply_to_payload ? "true" : "false"}`);
+    const reason = moduleReason(background);
+    if (reason) parts.push(`reason ${reason}`);
+    return parts.join("; ");
+  }
+
+  function hiresSummary(item = {}) {
+    const hires = historyObject(item, "hires_fix");
+    if (!Object.keys(hires).length) return "not recorded";
+    if (!hires.enabled) return "OFF";
+    const target = hires.target_width || hires.target_height
+      ? `${hires.target_width || "-"}x${hires.target_height || "-"}`
+      : `${hires.final_width || "-"}x${hires.final_height || "-"}`;
+    const parts = [`ON ${hires.mode || "-"}`, `factor ${numberText(hires.factor ?? hires.upscale_factor)}`, `target ${target}`];
+    if (hires.applied !== undefined) parts.push(hires.applied ? "applied" : "skipped");
+    return parts.join("; ");
+  }
+
+  function i2iSummary(item = {}) {
+    const i2i = historyObject(item, "image_to_image");
+    if (!Object.keys(i2i).length) return "not recorded";
+    if (!i2i.enabled) return "OFF";
+    const parts = [`ON denoise ${numberText(i2i.denoise)}`, `resize ${i2i.resize_mode || "-"}`];
+    if (i2i.applied !== undefined) parts.push(i2i.applied ? "applied" : "skipped");
+    if (i2i.apply_to_payload === false) parts.push("apply_to_payload false");
+    if (i2i.unsupported_reason) parts.push(shortText(i2i.unsupported_reason, 72));
+    return parts.join("; ");
+  }
+
+  function dynamicPromptSummary(item = {}) {
+    const dynamicPrompt = historyObject(item, "dynamic_prompt");
+    if (!Object.keys(dynamicPrompt).length) return "not recorded";
+    return onOff(dynamicPrompt.enabled !== false);
+  }
+
+  function detailerPart(label, data = {}) {
+    const source = isObject(data) ? data : {};
+    if (!Object.keys(source).length) return `${label} not recorded`;
+    const parts = [`${label} ${onOff(source.enabled)}`];
+    if (source.mode) parts.push(source.mode);
+    if (source.applied !== undefined) parts.push(source.applied ? "applied" : "skipped");
+    const reason = shortText(source.unsupported_reason || warningsText(source.warnings, 56), 56);
+    if (reason) parts.push(reason);
+    return parts.join(" ");
+  }
+
+  function detailersSummary(item = {}) {
+    return [
+      detailerPart("Face", historyObject(item, "face_detailer")),
+      detailerPart("Hand", historyObject(item, "hand_detailer")),
+    ].join("; ");
+  }
+
+  function generationAssistSummary(item = {}) {
+    const markers = [];
+    const preset = officialLoraPresetSummary(item);
+    if (preset !== "-" && preset !== "off") markers.push(`preset ${preset}`);
+    const official = historyObject(item, "official_loras");
+    if (["highres", "turbo", "colorfix"].some((key) => Boolean(official[key]?.enabled))) markers.push("official LoRA");
+    if (historyObject(item, "prompt_random_collect").enabled) markers.push("Prompt Random");
+    const modules = historyObject(item, "reference_modules");
+    if (["outfit", "pose", "background"].some((key) => Boolean(modules[key]?.enabled))) markers.push("Reference Modules");
+    if (historyObject(item, "hires_fix").enabled) markers.push("Hires.fix");
+    if (historyObject(item, "image_to_image").enabled) markers.push("i2i");
+    if (historyObject(item, "face_detailer").enabled || historyObject(item, "hand_detailer").enabled) markers.push("Detailer");
+    if (historyObject(item, "dynamic_prompt").enabled !== undefined) markers.push("Dynamic Prompt");
+    return markers.length ? markers.join("; ") : "no assist recorded";
+  }
+
   function renderFrameDetail(item) {
     state.detailItem = item;
     text("#frameActionStatus", "");
@@ -337,6 +547,14 @@ export function createHistoryFeature({
       addMetaRow(table, "RATING", item.rating || "-");
       addMetaRow(table, "CHARACTERS", characterSummary(item));
       addMetaRow(table, "LORA", loras.summary(item.loras || []));
+      addMetaRow(table, "ASSIST SUMMARY", generationAssistSummary(item), true);
+      addMetaRow(table, "OFFICIAL PRESET", officialLoraPresetSummary(item));
+      addMetaRow(table, "OFFICIAL LORA", officialLorasSummary(item), true);
+      addMetaRow(table, "PROMPT RANDOM", promptRandomSummary(item), true);
+      addMetaRow(table, "REF MODULES", referenceModulesSummary(item), true);
+      addMetaRow(table, "BG REF", backgroundReferenceSummary(item), true);
+      addMetaRow(table, "GEN MODES", `Hires ${hiresSummary(item)}; i2i ${i2iSummary(item)}; Dynamic ${dynamicPromptSummary(item)}`, true);
+      addMetaRow(table, "DETAILERS", detailersSummary(item), true);
       addMetaRow(table, "POSITIVE", textProviders.historyPositiveText(item), true);
       addMetaRow(table, "NEGATIVE", textProviders.historyNegativeText(item), true);
     }

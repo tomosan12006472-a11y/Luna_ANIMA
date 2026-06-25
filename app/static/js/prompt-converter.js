@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.44-official-lora-presets-reference-setup-20260625";
+import { $, text, value } from "./dom.js?v=v1.45-history-assist-summary-20260625";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v1.45-history-assist-summary-20260625";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 

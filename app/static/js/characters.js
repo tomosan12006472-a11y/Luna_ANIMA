@@ -5,8 +5,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.44-official-lora-presets-reference-setup-20260625";
+} from "./dom.js?v=v1.45-history-assist-summary-20260625";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.45-history-assist-summary-20260625";
 
 const EMPTY_SLOT_LABELS = {
   character1: "未選択",

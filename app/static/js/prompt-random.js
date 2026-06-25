@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
+} from "./dom.js?v=v1.45-history-assist-summary-20260625";
 
 const PROMPT_RANDOM_MODES = new Set(["random", "positive_completion"]);
 const PROMPT_RANDOM_DEFAULT_INSTRUCTIONS = {

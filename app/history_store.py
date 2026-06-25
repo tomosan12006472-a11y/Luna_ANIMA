@@ -501,6 +501,9 @@ def enrich_history_item_from_payload(item: dict[str, Any]) -> dict[str, Any]:
     prompt_random_collect = _prompt_random_collect_summary(request_data)
     if prompt_random_collect and not isinstance(item.get("prompt_random_collect"), dict):
         item["prompt_random_collect"] = prompt_random_collect
+    preset = str(request_data.get("official_lora_preset") or "").strip()
+    if preset and not str(item.get("official_lora_preset") or "").strip():
+        item["official_lora_preset"] = preset
     return item
 
 
@@ -571,6 +574,7 @@ def create_history_item(
         "prompt_id": getattr(result, "prompt_id", None),
         "hires_fix": hires_fix,
         "official_loras": official_lora_summary(request_data),
+        "official_lora_preset": request_data.get("official_lora_preset", "off"),
         **({"prompt_random_collect": prompt_random_collect} if prompt_random_collect else {}),
         "reference_assist": request_data.get("reference_assist", {"enabled": False}),
         **({"reference_modules": request_data.get("reference_modules")} if isinstance(request_data.get("reference_modules"), dict) and any(isinstance(value, dict) and value.get("enabled") for value in (request_data.get("reference_modules") or {}).values()) else {}),
@@ -666,6 +670,7 @@ def create_pending_history_item(
         "prompt_id": prompt_id,
         "hires_fix": _hires_fix_summary(request_data),
         "official_loras": official_lora_summary(request_data),
+        "official_lora_preset": request_data.get("official_lora_preset", "off"),
         **({"prompt_random_collect": prompt_random_collect} if prompt_random_collect else {}),
         "reference_assist": request_data.get("reference_assist", {"enabled": False}),
         **({"reference_modules": request_data.get("reference_modules")} if isinstance(request_data.get("reference_modules"), dict) and any(isinstance(value, dict) and value.get("enabled") for value in (request_data.get("reference_modules") or {}).values()) else {}),

@@ -822,6 +822,7 @@ class PromptRandomCollectTests(unittest.TestCase):
                         "request": {
                             "positive_prompt": "raw positive",
                             "negative_prompt_raw": "raw negative",
+                            "official_lora_preset": "fast_color",
                             "prompt_random_collect": {
                                 "enabled": True,
                                 "generated_tags": "blue dress",
@@ -835,6 +836,7 @@ class PromptRandomCollectTests(unittest.TestCase):
             enriched = history_store.enrich_history_item_from_payload(item)
         self.assertEqual(enriched["positive_prompt"], "raw positive")
         self.assertEqual(enriched["negative_prompt_raw"], "raw negative")
+        self.assertEqual(enriched["official_lora_preset"], "fast_color")
         self.assertEqual(enriched["prompt_random_collect"]["generated_tags"], "blue dress")
 
 
