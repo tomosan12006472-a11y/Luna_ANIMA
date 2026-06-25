@@ -35,6 +35,7 @@ from ..history_store import (
     history_collection_revision,
     lite_history_item,
     load_history_item,
+    resolve_public_image_path,
 )
 from ..payload_builder import (
     build_face_detailer_postprocess_payload,
@@ -341,11 +342,8 @@ def history_public_image(history_id: str, anima_claude_session: str | None = Coo
     item = load_history_item(history_id)
     if not item:
         raise HTTPException(status_code=404, detail="history item not found")
-    public_path = item.get("public_save", {}).get("path")
-    if not public_path:
-        raise HTTPException(status_code=404, detail="public image not found")
-    path = Path(public_path)
-    if not path.exists():
+    path = resolve_public_image_path(item)
+    if not path or not path.exists():
         raise HTTPException(status_code=404, detail="public image not found")
     return cached_file_response(path)
 
@@ -356,10 +354,22 @@ def public_save(history_id: str, data: PublicSaveRequest, anima_claude_session: 
     item = load_history_item(history_id)
     if not item:
         raise HTTPException(status_code=404, detail="history item not found")
+    watermark = resolve_public_save_watermark(data)
     source = Path(str(item.get("image_path") or ""))
     if not source.exists():
+        public_save_info = item.get("public_save") if isinstance(item.get("public_save"), dict) else {}
+        if public_save_info.get("saved") and resolve_public_image_path(item):
+            if data.async_save:
+                return public_save_status(history_id, None)
+            public_image_url = item.get("public_image_url") or public_save_info.get("url")
+            return {
+                "ok": True,
+                "public_save": public_save_info,
+                "public_image_url": public_image_url,
+                "filename": public_save_info.get("filename") or f"{history_id}_public.png",
+                "item": item,
+            }
         raise HTTPException(status_code=404, detail="source image not found")
-    watermark = resolve_public_save_watermark(data)
     if data.async_save:
         result = start_public_save_job(history_id, item, watermark)
         if not result.get("ok"):

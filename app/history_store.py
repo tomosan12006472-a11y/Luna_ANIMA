@@ -815,6 +815,52 @@ def public_save_cached_info(item: dict[str, Any], watermark: dict[str, Any] | No
     return cached
 
 
+def _public_path_candidate(value: Any) -> Path | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    candidate = (PUBLIC_DIR / path.name).resolve()
+    public_root = PUBLIC_DIR.resolve()
+    if not candidate.is_relative_to(public_root):
+        return None
+    return candidate
+
+
+def resolve_public_image_path(item: dict[str, Any]) -> Path | None:
+    current = normalize_history_item(dict(item))
+    history_id = str(current.get("id") or "")
+    if not history_id:
+        return None
+    public_save = current.get("public_save") if isinstance(current.get("public_save"), dict) else {}
+    if not public_save.get("saved"):
+        return None
+    candidates: list[Path] = []
+    for value in (public_save.get("path"), public_save.get("filename")):
+        candidate = _public_path_candidate(value)
+        if candidate:
+            candidates.append(candidate)
+    source = Path(str(current.get("image_path") or ""))
+    suffix = source.suffix or ".png"
+    watermark = current.get("watermark") if isinstance(current.get("watermark"), dict) else {}
+    preferred_suffix = "_wm" if watermark.get("applied") else "_public"
+    for marker in (preferred_suffix, "_wm", "_public"):
+        candidates.append((PUBLIC_DIR / f"{history_id}{marker}{suffix}").resolve())
+    public_root = PUBLIC_DIR.resolve()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        if not resolved.is_relative_to(public_root):
+            continue
+        if resolved.exists():
+            return resolved
+    return None
+
+
 def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = None) -> dict[str, Any]:
     history_id = str(item.get("id") or "")
     store = _history_item_store(history_id)

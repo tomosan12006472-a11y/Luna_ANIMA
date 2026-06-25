@@ -201,6 +201,91 @@ class PublicSaveJobsTests(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()["detail"], "public save job not found")
 
+    def test_public_save_status_recovers_done_when_job_registry_is_missing(self) -> None:
+        self.write_history("frame-recover")
+        saved = self.client.post(
+            "/api/history/frame-recover/public-save",
+            json={"apply_watermark": False, "watermark_client": "current"},
+            cookies=self.cookies(),
+        )
+        self.assertEqual(saved.status_code, 200)
+
+        response = self.client.get(
+            "/api/history/frame-recover/public-save/status",
+            params={"job_id": "public-save-missing"},
+            cookies=self.cookies(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "done")
+        self.assertEqual(body["public_image_url"], "/api/history/frame-recover/public-image")
+        self.assert_no_async_path_leak(body)
+
+    def test_public_image_serves_saved_file_when_public_save_path_is_missing(self) -> None:
+        self.write_history("frame-pathless")
+        output = self.public_dir / "frame-pathless_public.png"
+        Image.new("RGB", (32, 24), (90, 20, 10)).save(output)
+        item = history_store.load_history_item("frame-pathless")
+        self.assertIsNotNone(item)
+        assert item is not None
+        item["public_save"] = {
+            "saved": True,
+            "url": "/api/history/frame-pathless/public-image",
+            "filename": output.name,
+        }
+        item["public_image_url"] = "/api/history/frame-pathless/public-image"
+        history_store.save_history_item(item)
+
+        response = self.client.get(
+            "/api/history/frame-pathless/public-image",
+            cookies=self.cookies(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content[:8], b"\x89PNG\r\n\x1a\n")
+
+    def test_public_image_does_not_serve_conventional_file_when_not_saved(self) -> None:
+        self.write_history("frame-not-saved")
+        output = self.public_dir / "frame-not-saved_public.png"
+        Image.new("RGB", (32, 24), (120, 40, 20)).save(output)
+
+        response = self.client.get(
+            "/api/history/frame-not-saved/public-image",
+            cookies=self.cookies(),
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"], "public image not found")
+
+    def test_async_public_save_reuses_saved_public_image_when_source_is_missing(self) -> None:
+        source = self.write_history("frame-source-missing")
+        output = self.public_dir / "frame-source-missing_public.png"
+        Image.new("RGB", (32, 24), (10, 80, 40)).save(output)
+        item = history_store.load_history_item("frame-source-missing")
+        self.assertIsNotNone(item)
+        assert item is not None
+        item["public_save"] = {
+            "saved": True,
+            "url": "/api/history/frame-source-missing/public-image",
+            "filename": output.name,
+        }
+        item["public_image_url"] = "/api/history/frame-source-missing/public-image"
+        history_store.save_history_item(item)
+        source.unlink()
+
+        response = self.client.post(
+            "/api/history/frame-source-missing/public-save",
+            json={"apply_watermark": False, "watermark_client": "current", "async_save": True},
+            cookies=self.cookies(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "done")
+        self.assertEqual(body["public_image_url"], "/api/history/frame-source-missing/public-image")
+        self.assert_no_async_path_leak(body)
+
     def test_async_public_save_conflicts_when_settings_differ_from_active_job(self) -> None:
         self.write_history("frame-conflict")
 

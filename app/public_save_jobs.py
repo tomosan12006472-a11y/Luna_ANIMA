@@ -6,7 +6,13 @@ from threading import RLock, Thread
 from typing import Any
 import uuid
 
-from .history_store import copy_public_image, load_history_item, public_save_cached_info, public_save_settings_hash
+from .history_store import (
+    copy_public_image,
+    load_history_item,
+    public_save_cached_info,
+    public_save_settings_hash,
+    resolve_public_image_path,
+)
 
 _LOCK = RLock()
 _JOBS: dict[str, dict[str, Any]] = {}
@@ -196,6 +202,10 @@ def public_save_status(history_id: str, job_id: str | None = None) -> dict[str, 
         resolved_job_id = str(job_id or _LATEST_BY_HISTORY.get(history_id) or "")
         raw_job = _JOBS.get(resolved_job_id)
         if job_id and not raw_job:
+            item = load_history_item(history_id) or {}
+            public_save = item.get("public_save") if isinstance(item.get("public_save"), dict) else {}
+            if public_save.get("saved") and resolve_public_image_path(item):
+                return _done_response(history_id, public_save, message="done")
             return {
                 "ok": False,
                 "queued": False,
@@ -231,7 +241,7 @@ def public_save_status(history_id: str, job_id: str | None = None) -> dict[str, 
         return response
     item = load_history_item(history_id) or {}
     public_save = item.get("public_save") if isinstance(item.get("public_save"), dict) else {}
-    if public_save.get("saved"):
+    if public_save.get("saved") and resolve_public_image_path(item):
         return _done_response(history_id, public_save, message="done")
     return {
         "ok": True,
