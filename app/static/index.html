@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.46-tuning-quick-controls-20260625">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.47-mobile-ops-public-save-20260625">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -648,6 +648,14 @@
           <table class="exif" id="referenceSetupMeta"></table>
           <p class="hint">導入メモ: docs/reference_setup.md</p>
         </div>
+        <div class="tray" style="margin-top:10px">
+          <div class="tray-head"><h2>ComfyUI Control</h2><span class="lbl" id="comfyRestartBadge">—</span></div>
+          <p id="comfyRestartStatus" class="hint" aria-live="polite">Restart control statusを読み込みます。</p>
+          <div class="row">
+            <button type="button" id="comfyRestartButton" class="ghost" data-action="comfy-restart" disabled>ComfyUIを再起動</button>
+            <button type="button" class="ghost" data-action="comfy-restart-status">状態を更新</button>
+          </div>
+        </div>
         <div class="row">
           <button type="button" class="ghost" data-action="reload-models">モデル一覧を再取得</button>
           <button type="button" class="ghost" data-action="save-defaults">既定値として保存</button>
@@ -673,6 +681,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.46-tuning-quick-controls-20260625"></script>
+  <script src="/static/app.js?v=v1.47-mobile-ops-public-save-20260625"></script>
 </body>
 </html>

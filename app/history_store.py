@@ -781,6 +781,40 @@ def public_image_dimensions(path: Path) -> dict[str, int]:
     return {"width": int(width), "height": int(height)}
 
 
+def _public_save_output_path(history_id: str, source: Path, apply_watermark: bool) -> Path:
+    suffix = "_wm" if apply_watermark else "_public"
+    output = (PUBLIC_DIR / f"{history_id}{suffix}{source.suffix or '.png'}").resolve()
+    public_root = PUBLIC_DIR.resolve()
+    if not output.is_relative_to(public_root):
+        raise ValueError("public save output path must stay under PUBLIC_DIR")
+    return output
+
+
+def public_save_cached_info(item: dict[str, Any], watermark: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    current = normalize_history_item(dict(item))
+    history_id = str(current.get("id") or "")
+    if not history_id:
+        return None
+    source = Path(str(current.get("image_path") or ""))
+    if not source.exists():
+        return None
+    apply_watermark = bool(watermark and watermark.get("enabled", False))
+    output = _public_save_output_path(history_id, source, apply_watermark)
+    existing = current.get("public_save") if isinstance(current.get("public_save"), dict) else {}
+    if not (
+        output.exists()
+        and bool(existing.get("saved"))
+        and existing.get("settings_hash") == public_save_settings_hash(source, apply_watermark, watermark)
+        and existing.get("path") == str(output)
+    ):
+        return None
+    cached = dict(existing)
+    cached["cached"] = True
+    cached.setdefault("url", f"/api/history/{history_id}/public-image")
+    cached.setdefault("filename", output.name)
+    return cached
+
+
 def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = None) -> dict[str, Any]:
     history_id = str(item.get("id") or "")
     store = _history_item_store(history_id)
@@ -794,8 +828,7 @@ def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = N
         if not source.exists():
             raise FileNotFoundError("source image is missing")
         apply_watermark = bool(watermark and watermark.get("enabled", False))
-        suffix = "_wm" if apply_watermark else "_public"
-        output = PUBLIC_DIR / f"{history_id}{suffix}{source.suffix or '.png'}"
+        output = _public_save_output_path(history_id, source, apply_watermark)
         source_stat = source.stat()
         settings_hash = public_save_settings_hash(source, apply_watermark, watermark)
         existing = current.get("public_save") if isinstance(current.get("public_save"), dict) else {}

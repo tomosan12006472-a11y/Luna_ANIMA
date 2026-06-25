@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
+} from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
 
 const PROMPT_RANDOM_MODES = new Set(["random", "positive_completion"]);
 const PROMPT_RANDOM_DEFAULT_INSTRUCTIONS = {

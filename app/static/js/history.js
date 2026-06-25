@@ -7,10 +7,12 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
+} from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
+const PUBLIC_SAVE_POLL_INTERVAL_MS = 1200;
+const PUBLIC_SAVE_MAX_POLLS = 90;
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);
@@ -34,6 +36,7 @@ export function createHistoryFeature({
     historyPositiveText: typeof historyPositiveText === "function" ? historyPositiveText : () => "",
     historyNegativeText: typeof historyNegativeText === "function" ? historyNegativeText : () => "",
   };
+  let publicSavePollSeq = 0;
 
   function setTextProviders(providers = {}) {
     if (typeof providers.historyPositiveText === "function") {
@@ -588,27 +591,113 @@ export function createHistoryFeature({
     return new URL(path, window.location.href).toString();
   }
 
+  function setPublicSaveBusy(busy) {
+    ["frame-public-save", "frame-share"].forEach((action) => {
+      $$(`[data-action="${action}"]`).forEach((button) => {
+        button.disabled = Boolean(busy);
+      });
+    });
+  }
+
+  function publicSaveDoneMessage(data = {}) {
+    if (data.public_save?.cached || data.message === "cached") return "保存済み画像を再利用しました";
+    return "公開保存しました";
+  }
+
+  function isCurrentFrame(historyId) {
+    return String(state.detailItem?.id || "") === String(historyId || "");
+  }
+
+  function mergePublicSaveResult(historyId, data = {}, options = {}) {
+    const publicSave = data.public_save && typeof data.public_save === "object" ? data.public_save : {};
+    const publicImageUrl = data.public_image_url || publicSave.url || "";
+    const patch = {};
+    if (publicImageUrl) patch.public_image_url = publicImageUrl;
+    if (Object.keys(publicSave).length) {
+      patch.public_save = publicSave;
+    }
+    if (!Object.keys(patch).length) return null;
+    state.contactItems = (state.contactItems || []).map((item) => (
+      String(item?.id || "") === String(historyId || "") ? { ...item, ...patch } : item
+    ));
+    if (!isCurrentFrame(historyId)) return null;
+    state.detailItem = {
+      ...(state.detailItem || {}),
+      ...patch,
+      public_save: { ...(state.detailItem?.public_save || {}), ...publicSave },
+    };
+    if (options.status) text("#frameActionStatus", publicSaveDoneMessage(data));
+    return state.detailItem;
+  }
+
+  function publicSaveStatusPath(historyId, jobId) {
+    const suffix = jobId ? `?job_id=${encodeURIComponent(jobId)}` : "";
+    return `/api/history/${escapePathSegment(historyId)}/public-save/status${suffix}`;
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  async function pollPublicSave(historyId, jobId) {
+    const seq = ++publicSavePollSeq;
+    for (let attempt = 0; attempt < PUBLIC_SAVE_MAX_POLLS; attempt += 1) {
+      if (seq !== publicSavePollSeq) return null;
+      const data = await api(publicSaveStatusPath(historyId, jobId));
+      if (data.status === "done") {
+        mergePublicSaveResult(historyId, data, { status: true });
+        return data;
+      }
+      if (data.status === "failed") {
+        const error = new Error(data.error || data.message || "公開保存に失敗しました");
+        error.data = data;
+        throw error;
+      }
+      text("#frameActionStatus", data.message === "public save already running" ? "保存処理を待っています..." : "公開保存中...");
+      await sleep(PUBLIC_SAVE_POLL_INTERVAL_MS);
+    }
+    const error = new Error("公開保存がタイムアウトしました");
+    error.data = { ok: false, status: "timeout", job_id: jobId };
+    throw error;
+  }
+
   async function savePublicImage() {
     if (!state.detailItem?.id) return null;
-    const data = await api(`/api/history/${escapePathSegment(state.detailItem.id)}/public-save`, {
-      method: "POST",
-      body: JSON.stringify({
-        apply_watermark: checked("#watermarkEnabled"),
-        watermark: collectWatermark(),
-        watermark_client: "current",
-      }),
-    });
-    state.detailItem = data.item || state.detailItem;
-    text("#frameActionStatus", "公開保存しました");
-    return data;
+    const historyId = state.detailItem.id;
+    setPublicSaveBusy(true);
+    text("#frameActionStatus", "公開保存中...");
+    try {
+      const data = await api(`/api/history/${escapePathSegment(historyId)}/public-save`, {
+        method: "POST",
+        body: JSON.stringify({
+          apply_watermark: checked("#watermarkEnabled"),
+          watermark: collectWatermark(),
+          watermark_client: "current",
+          async_save: true,
+        }),
+      });
+      if (data.status === "done") {
+        mergePublicSaveResult(historyId, data, { status: true });
+        return data;
+      }
+      const done = await pollPublicSave(historyId, data.job_id);
+      return done || data;
+    } finally {
+      setPublicSaveBusy(false);
+    }
   }
 
   async function shareFrame() {
     if (!state.detailItem?.id) return;
+    const historyId = state.detailItem.id;
     try {
       text("#frameActionStatus", "共有用画像を準備中...");
       const data = await savePublicImage();
-      const item = data?.item || state.detailItem;
+      if (!isCurrentFrame(historyId)) {
+        UI.toast("別の履歴を開いたため共有を中断しました");
+        return;
+      }
+      const item = state.detailItem;
       const imageUrl = data?.public_image_url || publicImageUrl(item);
       if (!imageUrl) throw new Error("公開画像URLを取得できませんでした");
       const response = await fetchWithAuthHandling(imageUrl);

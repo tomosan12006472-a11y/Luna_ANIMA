@@ -1,5 +1,5 @@
-import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.46-tuning-quick-controls-20260625";
-import { $, $$, text, value } from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
+import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.47-mobile-ops-public-save-20260625";
+import { $, $$, text, value } from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
 
 export function exitToLogin(message = "", { UI = window.UI } = {}) {
   UI.closeSheets();

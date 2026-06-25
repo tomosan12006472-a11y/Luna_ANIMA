@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
+} from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
 
 export function createSettingsFeature({
   api,
@@ -18,7 +18,11 @@ export function createSettingsFeature({
   collectSettings = () => ({}),
   applySettingsToForm = () => {},
   renderConfiguredLoras = () => {},
+  confirmDanger = async ({ message = "" } = {}) => window.confirm(message || "実行しますか?"),
 } = {}) {
+  let comfyRestartCapability = null;
+  let comfyRestartPollTimer = null;
+
   function collectWatermark() {
     const previous = state.appSettings?.watermark || {};
     return {
@@ -60,8 +64,111 @@ export function createSettingsFeature({
   function backgroundModeSummary(modes = {}) {
     return Object.entries(modes || {}).map(([mode, data]) => {
       const state = data?.available ? "ok" : compactList([...(data?.missing_nodes || []), ...(data?.missing_models || [])], "missing");
-      return `${mode}: ${state}`;
+    return `${mode}: ${state}`;
     }).join(" / ") || "-";
+  }
+
+  function comfyRestartJobLabel(job = {}) {
+    if (!job) return "";
+    const status = String(job.status || "-");
+    const message = String(job.message || "");
+    if (status === "ready") return `ready: ${message || "ComfyUI reachable"}`;
+    if (status === "failed") return `failed: ${message || job.error || "restart failed"}`;
+    if (status === "waiting_for_comfy") return "waiting for ComfyUI...";
+    if (status === "running") return "restart command running...";
+    if (status === "queued") return "restart queued...";
+    return message ? `${status}: ${message}` : status;
+  }
+
+  function renderComfyRestart(data = {}) {
+    comfyRestartCapability = data.enabled !== undefined ? data : comfyRestartCapability;
+    const cap = comfyRestartCapability || {};
+    const job = data.job || cap.last_job || null;
+    const button = $("#comfyRestartButton");
+    const enabled = Boolean(cap.enabled);
+    const configured = Boolean(cap.configured);
+    const active = Boolean(job && ["queued", "running", "waiting_for_comfy"].includes(String(job.status || "")));
+    text("#comfyRestartBadge", enabled ? "READY" : (configured ? "OFF" : "DISABLED"));
+    if (button) button.disabled = !enabled || active;
+    const statusParts = [];
+    if (!configured) {
+      statusParts.push("server command is not configured");
+    } else if (!enabled) {
+      statusParts.push("restart control disabled");
+    } else {
+      statusParts.push(`configured: ${cap.command_label || "server command"}`);
+    }
+    if (job) statusParts.push(comfyRestartJobLabel(job));
+    text("#comfyRestartStatus", statusParts.join(" / "));
+  }
+
+  async function loadComfyRestartCapability() {
+    const data = await api("/api/system/comfyui/restart-capability");
+    renderComfyRestart(data);
+    return data;
+  }
+
+  async function refreshComfyRestartStatus() {
+    if (!comfyRestartCapability) await loadComfyRestartCapability();
+    const data = await api("/api/system/comfyui/restart-status");
+    renderComfyRestart(data);
+    return data;
+  }
+
+  function stopComfyRestartPolling() {
+    if (comfyRestartPollTimer) window.clearTimeout(comfyRestartPollTimer);
+    comfyRestartPollTimer = null;
+  }
+
+  function scheduleComfyRestartPoll(delayMs) {
+    stopComfyRestartPolling();
+    comfyRestartPollTimer = window.setTimeout(() => {
+      pollComfyRestartStatus().catch((error) => {
+        text("#comfyRestartStatus", errorMessage(error));
+        stopComfyRestartPolling();
+      });
+    }, delayMs);
+  }
+
+  async function pollComfyRestartStatus() {
+    const data = await refreshComfyRestartStatus();
+    const status = String(data.job?.status || "");
+    if (["queued", "running", "waiting_for_comfy"].includes(status)) {
+      const interval = Math.max(1, Number(comfyRestartCapability?.poll_interval_seconds || 3));
+      scheduleComfyRestartPoll(interval * 1000);
+      return data;
+    }
+    stopComfyRestartPolling();
+    if (["ready", "failed"].includes(status)) {
+      await loadDiagnostics().catch(() => {});
+    }
+    return data;
+  }
+
+  async function restartComfyUi() {
+    const capability = comfyRestartCapability || await loadComfyRestartCapability();
+    if (!capability.enabled) {
+      renderComfyRestart(capability);
+      text("#settingsStatus", "ComfyUI restart is disabled on the server.");
+      return capability;
+    }
+    const ok = await confirmDanger({
+      title: "ComfyUI再起動",
+      message: "ComfyUIを再起動します。実行中の生成は失われる可能性があります。続行しますか？",
+      label: "ComfyUIを再起動",
+    });
+    if (!ok) {
+      text("#comfyRestartStatus", "restart cancelled");
+      return null;
+    }
+    text("#comfyRestartStatus", "restart queued...");
+    const button = $("#comfyRestartButton");
+    if (button) button.disabled = true;
+    const data = await api("/api/system/comfyui/restart", { method: "POST", body: "{}" });
+    renderComfyRestart(data);
+    UI.toast("ComfyUI restart queued");
+    scheduleComfyRestartPoll(1000);
+    return data;
   }
 
   function modelList(...groups) {
@@ -115,7 +222,13 @@ export function createSettingsFeature({
   async function loadDiagnostics() {
     text("#settingsStatus", "");
     try {
-      const data = await api("/api/diagnostics");
+      const [data] = await Promise.all([
+        api("/api/diagnostics"),
+        loadComfyRestartCapability().catch((error) => {
+          text("#comfyRestartStatus", errorMessage(error));
+          return null;
+        }),
+      ]);
       renderDiagnostics(data);
     } catch (error) {
       text("#settingsStatus", errorMessage(error));
@@ -195,6 +308,8 @@ export function createSettingsFeature({
       "reset-defaults": () => resetDefaults(),
       "reload-models": () => reloadModels(),
       "reload-ui": () => reloadUi(),
+      "comfy-restart": () => restartComfyUi(),
+      "comfy-restart-status": () => refreshComfyRestartStatus(),
     },
   };
 }

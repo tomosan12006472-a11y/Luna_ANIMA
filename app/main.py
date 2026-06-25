@@ -15,6 +15,7 @@ from .api import i2i as i2i_api
 from .api import loras as loras_api
 from .api import reference as reference_api
 from .api import settings as settings_api
+from .api import system as system_api
 from .auth import SESSIONS, require_auth
 from .config import ROOT_DIR, validate_startup_security
 from .generation_helpers import reset_comfy_cache_for_character_prompt
@@ -53,6 +54,7 @@ def include_routers(app: FastAPI) -> None:
         i2i_api.router,
         loras_api.router,
         diagnostics_api.router,
+        system_api.router,
     ):
         app.include_router(router)
 

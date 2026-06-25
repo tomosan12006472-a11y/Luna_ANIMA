@@ -4,14 +4,14 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
+} from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
 import {
   parsePromptTags,
   promptExcerpt,
   promptItemPrompt,
   promptItemTagsText,
   promptItemTitle,
-} from "./prompt-library-utils.js?v=v1.46-tuning-quick-controls-20260625";
+} from "./prompt-library-utils.js?v=v1.47-mobile-ops-public-save-20260625";
 
 export function createPositivePromptsFeature({
   api,

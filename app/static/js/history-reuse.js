@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.46-tuning-quick-controls-20260625";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.46-tuning-quick-controls-20260625";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.46-tuning-quick-controls-20260625";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.47-mobile-ops-public-save-20260625";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.47-mobile-ops-public-save-20260625";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.47-mobile-ops-public-save-20260625";
 
 export function createHistoryReuseFeature({
   state,

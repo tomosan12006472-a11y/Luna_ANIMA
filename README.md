@@ -80,6 +80,7 @@ See `docs/frontend_modules.md` for the current frontend module map and maintenan
 See `docs/background_reference.md` for Background Reference v1 setup notes, expected ComfyUI nodes, and current limitations.
 See `docs/official_loras.md` for optional official ANIMA LoRA setup, including ColorFix.
 See `docs/reference_setup.md` for IPAdapter / ControlNet / ControlNet Aux setup checks for Reference Modules.
+See `docs/mobile_operations.md` for mobile ComfyUI restart control and async public-save behavior.
 
 ## Notes
 

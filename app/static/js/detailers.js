@@ -6,7 +6,7 @@ import {
   setChecked,
   setValue,
   text,
-} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
+} from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
 
 export function createDetailerFeature({
   api,
