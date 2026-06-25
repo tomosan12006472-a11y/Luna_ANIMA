@@ -1,4 +1,4 @@
-import { $, setValue, text, value } from "./dom.js?v=v1.48-share-ready-public-save-20260625";
+import { $, setValue, text, value } from "./dom.js?v=v1.49-share-prefetch-20260625";
 
 export function createPromptDictionaryFeature({
   api,

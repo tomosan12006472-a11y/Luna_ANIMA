@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.48-share-ready-public-save-20260625";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.48-share-ready-public-save-20260625";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.48-share-ready-public-save-20260625";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.49-share-prefetch-20260625";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.49-share-prefetch-20260625";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.49-share-prefetch-20260625";
 
 export function createHistoryReuseFeature({
   state,

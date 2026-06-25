@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.48-share-ready-public-save-20260625";
+import { clone, setChecked, text } from "./dom.js?v=v1.49-share-prefetch-20260625";
 
 const SNAPSHOT_KEYS = [
   "official_loras",

@@ -7,7 +7,7 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.48-share-ready-public-save-20260625";
+} from "./dom.js?v=v1.49-share-prefetch-20260625";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
@@ -37,6 +37,8 @@ export function createHistoryFeature({
     historyNegativeText: typeof historyNegativeText === "function" ? historyNegativeText : () => "",
   };
   let publicSavePollSeq = 0;
+  let shareBlobPrefetchSeq = 0;
+  let shareBlobCache = null;
 
   function setTextProviders(providers = {}) {
     if (typeof providers.historyPositiveText === "function") {
@@ -525,7 +527,9 @@ export function createHistoryFeature({
   }
 
   function renderFrameDetail(item) {
+    const previousId = state.detailItem?.id || "";
     state.detailItem = item;
+    if (previousId && previousId !== item?.id) invalidateShareBlobCache();
     text("#frameActionStatus", "");
     const image = $("#frameImage");
     const imageUrl = item.image_url || item.thumbnail_url || item.thumbnail_small_url || "";
@@ -562,6 +566,7 @@ export function createHistoryFeature({
       addMetaRow(table, "NEGATIVE", textProviders.historyNegativeText(item), true);
     }
     UI.openSheet("#frameSheet");
+    if (isPublicImageReady(item)) prefetchShareBlob(item);
   }
 
   async function openFrameDetail(id) {
@@ -591,6 +596,32 @@ export function createHistoryFeature({
     return Boolean(item?.id && publicImageUrl(item) && (item.public_image_url || item.public_save?.saved));
   }
 
+  function shareBlobCacheKey(item = state.detailItem) {
+    if (!item?.id) return "";
+    const publicSave = item.public_save && typeof item.public_save === "object" ? item.public_save : {};
+    const imageUrl = publicImageUrl(item);
+    if (!imageUrl) return "";
+    const filename = publicSave.filename || item.filename || `${item.id}_public.png`;
+    return [
+      item.id,
+      imageUrl,
+      filename,
+      publicSave.updated_at || "",
+      publicSave.size_bytes || "",
+      publicSave.width || "",
+      publicSave.height || "",
+      publicSave.watermark_text || "",
+      publicSave.watermark_position || "",
+    ].join("|");
+  }
+
+  function invalidateShareBlobCache(historyId = "") {
+    if (!historyId || shareBlobCache?.historyId === historyId) {
+      shareBlobCache = null;
+    }
+    shareBlobPrefetchSeq += 1;
+  }
+
   function absoluteUrl(path) {
     return new URL(path, window.location.href).toString();
   }
@@ -611,7 +642,7 @@ export function createHistoryFeature({
     if (options.purpose === "share") {
       return isCachedPublicSave(data)
         ? "保存済み画像を再利用できます。もう一度「共有」を押してください"
-        : "共有用画像を準備しました。もう一度「共有」を押してください";
+        : "共有用画像を準備しました。画像を先読み中です。もう一度「共有」を押してください";
     }
     if (isCachedPublicSave(data)) return "保存済み画像を再利用しました";
     return "公開保存しました";
@@ -644,6 +675,9 @@ export function createHistoryFeature({
       public_save: { ...(state.detailItem?.public_save || {}), ...publicSave },
     };
     if (options.status) text("#frameActionStatus", publicSaveDoneMessage(data, options));
+    if (isPublicImageReady(state.detailItem)) {
+      prefetchShareBlob(state.detailItem, { updateStatus: options.purpose === "share" });
+    }
     return state.detailItem;
   }
 
@@ -666,6 +700,7 @@ export function createHistoryFeature({
         return data;
       }
       if (data.status === "failed") {
+        invalidateShareBlobCache(historyId);
         const error = new Error(data.error || data.message || "公開保存に失敗しました");
         error.data = data;
         throw error;
@@ -680,6 +715,7 @@ export function createHistoryFeature({
 
   async function ensurePublicImagePrepared(historyId = state.detailItem?.id, options = {}) {
     if (!historyId) return null;
+    invalidateShareBlobCache(historyId);
     setPublicSaveBusy(true);
     text("#frameActionStatus", options.startMessage || publicSaveProgressMessage(options));
     try {
@@ -707,16 +743,61 @@ export function createHistoryFeature({
     return ensurePublicImagePrepared(state.detailItem?.id, { purpose: "save" });
   }
 
+  function shareFileFromCache(item = state.detailItem) {
+    const key = shareBlobCacheKey(item);
+    if (!key || shareBlobCache?.key !== key) return null;
+    return shareBlobCache.file || null;
+  }
+
+  async function fetchShareFile(item = state.detailItem, { cache = true, store = true } = {}) {
+    const cachedFile = cache ? shareFileFromCache(item) : null;
+    if (cachedFile) return { file: cachedFile, cacheHit: true };
+    const imageUrl = publicImageUrl(item);
+    if (!imageUrl) throw new Error("公開画像URLを取得できませんでした");
+    const response = await fetchWithAuthHandling(imageUrl);
+    const blob = await response.blob();
+    const filename = String(item.public_save?.filename || item.filename || `${item.id}_public.png`).replace(/[^\w.-]/g, "_");
+    const file = new File([blob], filename, { type: blob.type || "image/png" });
+    const key = shareBlobCacheKey(item);
+    if (key && store) shareBlobCache = { key, historyId: item.id, file };
+    return { file, cacheHit: false };
+  }
+
+  function prefetchShareBlob(item = state.detailItem, options = {}) {
+    if (!isPublicImageReady(item)) return;
+    const key = shareBlobCacheKey(item);
+    if (!key || shareBlobCache?.key === key) {
+      if (options.updateStatus) text("#frameActionStatus", "共有用画像を準備しました。もう一度「共有」を押してください");
+      return;
+    }
+    const snapshot = {
+      id: item.id,
+      public_image_url: publicImageUrl(item),
+      public_save: { ...(item.public_save || {}) },
+      filename: item.filename,
+    };
+    const seq = ++shareBlobPrefetchSeq;
+    fetchShareFile(snapshot, { cache: false, store: false })
+      .then(({ file }) => {
+        if (seq !== shareBlobPrefetchSeq) return;
+        if (!isCurrentFrame(snapshot.id)) return;
+        if (shareBlobCacheKey(state.detailItem) !== key) return;
+        shareBlobCache = { key, historyId: snapshot.id, file };
+        if (options.updateStatus) text("#frameActionStatus", "共有用画像を準備しました。もう一度「共有」を押してください");
+      })
+      .catch(() => {
+        if (seq === shareBlobPrefetchSeq && shareBlobCache?.key === key) shareBlobCache = null;
+      });
+  }
+
   async function shareReadyPublicImage(item = state.detailItem) {
     if (!item?.id) return;
     const imageUrl = publicImageUrl(item);
     if (!imageUrl) throw new Error("公開画像URLを取得できませんでした");
-    text("#frameActionStatus", "共有用画像を取得中...");
+    const cachedFile = shareFileFromCache(item);
+    text("#frameActionStatus", cachedFile ? "共有シートを開いています..." : "共有用画像を取得中...");
     try {
-      const response = await fetchWithAuthHandling(imageUrl);
-      const blob = await response.blob();
-      const filename = String(item.public_save?.filename || item.filename || `${item.id}_public.png`).replace(/[^\w.-]/g, "_");
-      const file = new File([blob], filename, { type: blob.type || "image/png" });
+      const { file } = await fetchShareFile(item);
       const canShare = Boolean(navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] })));
       if (!canShare) {
         window.open(absoluteUrl(imageUrl), "_blank", "noopener");
@@ -759,7 +840,9 @@ export function createHistoryFeature({
         UI.toast("別の履歴を開いたため共有を中断しました");
         return;
       }
-      const message = publicSaveDoneMessage(data, { purpose: "share" });
+      const message = shareFileFromCache(state.detailItem)
+        ? "共有用画像を準備しました。もう一度「共有」を押してください"
+        : publicSaveDoneMessage(data, { purpose: "share" });
       text("#frameActionStatus", message);
       UI.toast(message);
     } catch (error) {
