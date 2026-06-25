@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.45-history-assist-summary-20260625";
+} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
@@ -464,6 +464,23 @@ export function createLoraFeature({
     for (const lora of loras || []) addLoraRow(lora);
   }
 
+  function setAllEnabled(enabled) {
+    $$("[data-lora-row]", $("#loraSlots")).forEach((row) => {
+      const checkbox = row.querySelector("[data-lora-field='enabled']");
+      if (checkbox) checkbox.checked = Boolean(enabled);
+      syncLoraRowEnabledState(row);
+    });
+    updateSummaries();
+  }
+
+  function countEnabled() {
+    return collectLoraRows().filter((lora) => lora.enabled).length;
+  }
+
+  function countDisabled() {
+    return collectLoraRows().filter((lora) => !lora.enabled).length;
+  }
+
   function renderConfiguredLoras(settings = state?.appSettings || {}) {
     const configured = Array.isArray(settings?.loras) && settings.loras.length
       ? settings.loras
@@ -561,6 +578,8 @@ export function createLoraFeature({
       "move-lora-up": (target) => moveLoraRow(target, -1),
       "move-lora-down": (target) => moveLoraRow(target, 1),
       "official-lora-preset-apply": () => applyOfficialLoraPreset(),
+      "lora-enable-all": () => setAllEnabled(true),
+      "lora-disable-all": () => setAllEnabled(false),
     },
     addLoraRow,
     applyOfficialToForm,
@@ -568,12 +587,17 @@ export function createLoraFeature({
     collect: collectLoras,
     collectOfficial: collectOfficialLoras,
     collectOfficialPreset: () => selectedOfficialPresetId,
+    countDisabled,
+    countEnabled,
     history: historyLoras,
     historyOfficial: historyOfficialLoras,
     loadCatalog: loadLoraCatalog,
     refreshCatalog: refreshLoraCatalog,
     renderConfigured: renderConfiguredLoras,
     renderRows: renderLoraRows,
+    restoreRows: renderLoraRows,
+    setAllEnabled,
+    snapshotRows: collectLoraRows,
     summary: loraSummary,
   };
 }

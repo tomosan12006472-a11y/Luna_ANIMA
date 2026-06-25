@@ -94,6 +94,7 @@ const factoryContracts = [
   ["app/static/js/recipes.js", ["createRecipesFeature"]],
   ["app/static/js/reference.js", ["createReferenceFeature"]],
   ["app/static/js/settings.js", ["createSettingsFeature"]],
+  ["app/static/js/tuning-controls.js", ["createTuningControlsFeature"]],
 ];
 
 for (const [file, names] of factoryContracts) {
@@ -125,6 +126,16 @@ const actionContracts = [
   "move-lora-up",
   "move-lora-down",
   "official-lora-preset-apply",
+  "tuning-snapshot",
+  "tuning-restore",
+  "lora-enable-all",
+  "lora-disable-all",
+  "reference-enable-all",
+  "reference-disable-all",
+  "detailers-enable-all",
+  "detailers-disable-all",
+  "assist-disable-all",
+  "assist-restore",
   "prompt-random-status",
   "prompt-random-favorite-apply",
   "prompt-random-favorite-save",
@@ -321,6 +332,7 @@ const domIds = [
   "#officialLoraPresetStatus",
   "#officialColorfixEnabled",
   "#officialColorfixStrength",
+  "#tuningQuickStatus",
   "#referenceSetupBadge",
   "#referenceSetupSummary",
   "#referenceSetupMeta",

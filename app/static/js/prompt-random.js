@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.45-history-assist-summary-20260625";
+} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
 
 const PROMPT_RANDOM_MODES = new Set(["random", "positive_completion"]);
 const PROMPT_RANDOM_DEFAULT_INSTRUCTIONS = {
@@ -101,6 +101,16 @@ export function createPromptRandomUi({
     setValue("#promptRandomStrength", normalizePromptRandomStrength(config.strength || defaults.strength));
     setChecked("#promptRandomIncludeCharacters", config.include_characters !== false);
     setChecked("#promptRandomUseCharacterMotifs", Boolean(config.include_characters !== false && config.use_character_motifs !== false));
+  }
+
+  function setEnabled(enabled) {
+    setChecked("#promptRandomEnabled", Boolean(enabled));
+    updateSummaries();
+  }
+
+  function restorePromptRandomCollect(config = {}) {
+    applyPromptRandomCollectToForm(config);
+    updateSummaries();
   }
 
   function updatePromptRandomMode() {
@@ -350,7 +360,10 @@ export function createPromptRandomUi({
     onSummary: promptRandomOnSummary,
     renderInstructionFavorites: renderPromptRandomInstructionFavorites,
     renderSummary: renderPromptRandomSummary,
+    restore: restorePromptRandomCollect,
+    setEnabled,
     setStatus,
+    snapshot: collectPromptRandomCollect,
     updateFavoriteControls: updatePromptRandomFavoriteControls,
     updateMode: updatePromptRandomMode,
   };

@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.45-history-assist-summary-20260625";
+} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 
@@ -83,14 +83,19 @@ export function createI2iFeature({
   }
 
   function applyToForm(image = {}, options = {}) {
-    const imageId = image.enabled ? String(image.image_id || "") : "";
+    const imageId = String(image.image_id || "");
     state.i2i = { imageId, thumb: "", name: String(image.image_name || imageId || "") };
-    setChecked("#i2iEnabled", Boolean(imageId));
+    setChecked("#i2iEnabled", Boolean(image.enabled && imageId));
     setValue("#i2iDenoise", image.denoise ?? 0.45);
     setValue("#i2iResize", image.resize_mode || "fit");
     setChecked("#i2iUseSource", Boolean(image.use_source_size));
     renderPreview();
     if (options.update !== false) updateSummaries();
+  }
+
+  function setEnabled(enabled) {
+    setChecked("#i2iEnabled", Boolean(enabled && state.i2i.imageId));
+    updateSummaries();
   }
 
   function clearImage() {
@@ -152,7 +157,10 @@ export function createI2iFeature({
     collect,
     history,
     renderPreview,
+    restore: applyToForm,
     setFromHistoryItem,
+    setEnabled,
+    snapshot: collect,
     uploadImage,
   };
 }
