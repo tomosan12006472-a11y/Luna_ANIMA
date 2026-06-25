@@ -21,7 +21,8 @@ def comfy_restart_capability(anima_claude_session: str | None = Cookie(default=N
 def comfy_restart(anima_claude_session: str | None = Cookie(default=None)) -> JSONResponse:
     require_auth(anima_claude_session)
     result = start_restart()
-    status_code = 200 if result.get("ok") else 400
+    status = str(result.get("status") or "")
+    status_code = 200 if result.get("ok") else (409 if status in {"busy", "queue_unavailable"} else 400)
     return JSONResponse(status_code=status_code, content=result)
 
 
