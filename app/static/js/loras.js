@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
+} from "./dom.js?v=v1.45-history-assist-summary-20260625";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();

@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.44-official-lora-presets-reference-setup-20260625";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.44-official-lora-presets-reference-setup-20260625";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.44-official-lora-presets-reference-setup-20260625";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.45-history-assist-summary-20260625";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.45-history-assist-summary-20260625";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.45-history-assist-summary-20260625";
 
 export function createHistoryReuseFeature({
   state,

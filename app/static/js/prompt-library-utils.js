@@ -1,4 +1,4 @@
-import { $, setValue, value } from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
+import { $, setValue, value } from "./dom.js?v=v1.45-history-assist-summary-20260625";
 
 export function createPositivePromptHelpers({ updateSummaries = () => {} } = {}) {
   function insertPositivePromptText(insertText) {

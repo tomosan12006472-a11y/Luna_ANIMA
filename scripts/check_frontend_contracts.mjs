@@ -237,6 +237,7 @@ const requestBuilderFiles = [
   "app/static/js/generation-actions.js",
   "app/static/js/history-reuse-data.js",
   "app/static/js/reference.js",
+  "app/static/js/history.js",
 ];
 const payloadKeys = [
   "workflow_mode",
@@ -271,6 +272,10 @@ const payloadKeys = [
   "colorfix",
   "loras",
   "enabled",
+  "generation_strategy",
+  "unsupported_reason",
+  "apply_to_payload",
+  "applied",
   "count",
   "wait",
   "dynamic_prompt",

@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
+} from "./dom.js?v=v1.45-history-assist-summary-20260625";
 
 export function createSettingsFeature({
   api,
