@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.47-mobile-ops-public-save-20260625";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.47-mobile-ops-public-save-20260625";
-import { onDomReady } from "./bootstrap.js?v=v1.47-mobile-ops-public-save-20260625";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.48-share-ready-public-save-20260625";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.48-share-ready-public-save-20260625";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.48-share-ready-public-save-20260625";
+import { onDomReady } from "./bootstrap.js?v=v1.48-share-ready-public-save-20260625";
 import {
   $,
   $$,
@@ -11,24 +11,24 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createCharacterFeature } from "./characters.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createHistoryFeature } from "./history.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createI2iFeature } from "./i2i.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createLoraFeature } from "./loras.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createQueueFeature } from "./queue.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createReferenceFeature } from "./reference.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createSettingsFeature } from "./settings.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createInitialState } from "./state.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createDetailerFeature } from "./detailers.js?v=v1.47-mobile-ops-public-save-20260625";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.47-mobile-ops-public-save-20260625";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.47-mobile-ops-public-save-20260625";
+} from "./dom.js?v=v1.48-share-ready-public-save-20260625";
+import { createCharacterFeature } from "./characters.js?v=v1.48-share-ready-public-save-20260625";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.48-share-ready-public-save-20260625";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.48-share-ready-public-save-20260625";
+import { createHistoryFeature } from "./history.js?v=v1.48-share-ready-public-save-20260625";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.48-share-ready-public-save-20260625";
+import { createI2iFeature } from "./i2i.js?v=v1.48-share-ready-public-save-20260625";
+import { createLoraFeature } from "./loras.js?v=v1.48-share-ready-public-save-20260625";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.48-share-ready-public-save-20260625";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.48-share-ready-public-save-20260625";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.48-share-ready-public-save-20260625";
+import { createQueueFeature } from "./queue.js?v=v1.48-share-ready-public-save-20260625";
+import { createReferenceFeature } from "./reference.js?v=v1.48-share-ready-public-save-20260625";
+import { createSettingsFeature } from "./settings.js?v=v1.48-share-ready-public-save-20260625";
+import { createInitialState } from "./state.js?v=v1.48-share-ready-public-save-20260625";
+import { createDetailerFeature } from "./detailers.js?v=v1.48-share-ready-public-save-20260625";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.48-share-ready-public-save-20260625";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.48-share-ready-public-save-20260625";
 
 (() => {
   "use strict";

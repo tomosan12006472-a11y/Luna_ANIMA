@@ -1,4 +1,4 @@
-import { $, escapePathSegment, text } from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
+import { $, escapePathSegment, text } from "./dom.js?v=v1.48-share-ready-public-save-20260625";
 
 export function createRecipesFeature({
   api,

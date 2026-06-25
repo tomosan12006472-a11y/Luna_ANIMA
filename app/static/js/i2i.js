@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
+} from "./dom.js?v=v1.48-share-ready-public-save-20260625";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 

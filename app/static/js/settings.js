@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
+} from "./dom.js?v=v1.48-share-ready-public-save-20260625";
 
 export function createSettingsFeature({
   api,

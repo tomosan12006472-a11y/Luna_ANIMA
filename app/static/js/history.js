@@ -7,7 +7,7 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.47-mobile-ops-public-save-20260625";
+} from "./dom.js?v=v1.48-share-ready-public-save-20260625";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
@@ -587,6 +587,10 @@ export function createHistoryFeature({
     return item.public_image_url || (item.public_save?.saved ? `/api/history/${escapePathSegment(item.id)}/public-image` : "");
   }
 
+  function isPublicImageReady(item = state.detailItem) {
+    return Boolean(item?.id && publicImageUrl(item) && (item.public_image_url || item.public_save?.saved));
+  }
+
   function absoluteUrl(path) {
     return new URL(path, window.location.href).toString();
   }
@@ -599,9 +603,22 @@ export function createHistoryFeature({
     });
   }
 
-  function publicSaveDoneMessage(data = {}) {
-    if (data.public_save?.cached || data.message === "cached") return "保存済み画像を再利用しました";
+  function isCachedPublicSave(data = {}) {
+    return Boolean(data.public_save?.cached || data.message === "cached");
+  }
+
+  function publicSaveDoneMessage(data = {}, options = {}) {
+    if (options.purpose === "share") {
+      return isCachedPublicSave(data)
+        ? "保存済み画像を再利用できます。もう一度「共有」を押してください"
+        : "共有用画像を準備しました。もう一度「共有」を押してください";
+    }
+    if (isCachedPublicSave(data)) return "保存済み画像を再利用しました";
     return "公開保存しました";
+  }
+
+  function publicSaveProgressMessage(options = {}) {
+    return options.purpose === "share" ? "共有用画像を準備中..." : "公開保存中...";
   }
 
   function isCurrentFrame(historyId) {
@@ -626,7 +643,7 @@ export function createHistoryFeature({
       ...patch,
       public_save: { ...(state.detailItem?.public_save || {}), ...publicSave },
     };
-    if (options.status) text("#frameActionStatus", publicSaveDoneMessage(data));
+    if (options.status) text("#frameActionStatus", publicSaveDoneMessage(data, options));
     return state.detailItem;
   }
 
@@ -639,13 +656,13 @@ export function createHistoryFeature({
     return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
-  async function pollPublicSave(historyId, jobId) {
+  async function pollPublicSave(historyId, jobId, options = {}) {
     const seq = ++publicSavePollSeq;
     for (let attempt = 0; attempt < PUBLIC_SAVE_MAX_POLLS; attempt += 1) {
       if (seq !== publicSavePollSeq) return null;
       const data = await api(publicSaveStatusPath(historyId, jobId));
       if (data.status === "done") {
-        mergePublicSaveResult(historyId, data, { status: true });
+        mergePublicSaveResult(historyId, data, { ...options, status: true });
         return data;
       }
       if (data.status === "failed") {
@@ -653,7 +670,7 @@ export function createHistoryFeature({
         error.data = data;
         throw error;
       }
-      text("#frameActionStatus", data.message === "public save already running" ? "保存処理を待っています..." : "公開保存中...");
+      text("#frameActionStatus", data.message === "public save already running" ? "保存処理を待っています..." : publicSaveProgressMessage(options));
       await sleep(PUBLIC_SAVE_POLL_INTERVAL_MS);
     }
     const error = new Error("公開保存がタイムアウトしました");
@@ -661,11 +678,10 @@ export function createHistoryFeature({
     throw error;
   }
 
-  async function savePublicImage() {
-    if (!state.detailItem?.id) return null;
-    const historyId = state.detailItem.id;
+  async function ensurePublicImagePrepared(historyId = state.detailItem?.id, options = {}) {
+    if (!historyId) return null;
     setPublicSaveBusy(true);
-    text("#frameActionStatus", "公開保存中...");
+    text("#frameActionStatus", options.startMessage || publicSaveProgressMessage(options));
     try {
       const data = await api(`/api/history/${escapePathSegment(historyId)}/public-save`, {
         method: "POST",
@@ -677,32 +693,29 @@ export function createHistoryFeature({
         }),
       });
       if (data.status === "done") {
-        mergePublicSaveResult(historyId, data, { status: true });
+        mergePublicSaveResult(historyId, data, { ...options, status: true });
         return data;
       }
-      const done = await pollPublicSave(historyId, data.job_id);
+      const done = await pollPublicSave(historyId, data.job_id, options);
       return done || data;
     } finally {
       setPublicSaveBusy(false);
     }
   }
 
-  async function shareFrame() {
-    if (!state.detailItem?.id) return;
-    const historyId = state.detailItem.id;
+  async function savePublicImage() {
+    return ensurePublicImagePrepared(state.detailItem?.id, { purpose: "save" });
+  }
+
+  async function shareReadyPublicImage(item = state.detailItem) {
+    if (!item?.id) return;
+    const imageUrl = publicImageUrl(item);
+    if (!imageUrl) throw new Error("公開画像URLを取得できませんでした");
+    text("#frameActionStatus", "共有用画像を取得中...");
     try {
-      text("#frameActionStatus", "共有用画像を準備中...");
-      const data = await savePublicImage();
-      if (!isCurrentFrame(historyId)) {
-        UI.toast("別の履歴を開いたため共有を中断しました");
-        return;
-      }
-      const item = state.detailItem;
-      const imageUrl = data?.public_image_url || publicImageUrl(item);
-      if (!imageUrl) throw new Error("公開画像URLを取得できませんでした");
       const response = await fetchWithAuthHandling(imageUrl);
       const blob = await response.blob();
-      const filename = String(data?.filename || item.filename || `${item.id}_public.png`).replace(/[^\w.-]/g, "_");
+      const filename = String(item.public_save?.filename || item.filename || `${item.id}_public.png`).replace(/[^\w.-]/g, "_");
       const file = new File([blob], filename, { type: blob.type || "image/png" });
       const canShare = Boolean(navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] })));
       if (!canShare) {
@@ -714,6 +727,41 @@ export function createHistoryFeature({
       await navigator.share({ files: [file] });
       text("#frameActionStatus", "共有シートを開きました");
       UI.toast("共有シートを開きました");
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        text("#frameActionStatus", "共有キャンセル");
+        return;
+      }
+      if (!isUnauthorized(error)) {
+        window.open(absoluteUrl(imageUrl), "_blank", "noopener");
+        text("#frameActionStatus", "共有できませんでした。画像を開きました");
+        UI.toast("画像を開きました");
+        return;
+      }
+      throw error;
+    }
+  }
+
+  async function shareFrame() {
+    if (!state.detailItem?.id) return;
+    const historyId = state.detailItem.id;
+    try {
+      if (isPublicImageReady(state.detailItem)) {
+        await shareReadyPublicImage(state.detailItem);
+        return;
+      }
+      const data = await ensurePublicImagePrepared(historyId, {
+        purpose: "share",
+        startMessage: "共有用画像を準備しています。完了後にもう一度「共有」を押してください",
+      });
+      if (!data) return;
+      if (!isCurrentFrame(historyId)) {
+        UI.toast("別の履歴を開いたため共有を中断しました");
+        return;
+      }
+      const message = publicSaveDoneMessage(data, { purpose: "share" });
+      text("#frameActionStatus", message);
+      UI.toast(message);
     } catch (error) {
       if (error?.name === "AbortError") {
         text("#frameActionStatus", "共有キャンセル");
