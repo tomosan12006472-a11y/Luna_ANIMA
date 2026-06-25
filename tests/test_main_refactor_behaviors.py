@@ -7,6 +7,7 @@ from unittest import mock
 from fastapi import HTTPException, Response
 
 from app import main, reference_modules, validators
+from app.api import diagnostics as diagnostics_api
 
 
 class MainRefactorBehaviorTests(unittest.TestCase):
@@ -145,6 +146,27 @@ class MainRefactorBehaviorTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as cm:
             main.diagnostics_full(None)
         self.assertEqual(cm.exception.status_code, 401)
+
+    def test_diagnostics_includes_reference_setup_summary(self) -> None:
+        main.SESSIONS.add("test-session")
+        try:
+            with (
+                mock.patch.object(diagnostics_api, "load_settings", return_value={"api_addr": "127.0.0.1:8188"}),
+                mock.patch.object(diagnostics_api, "official_lora_diagnostics", return_value={"colorfix_lora_found": False, "colorfix_lora_file": "colorfix.safetensors"}),
+                mock.patch.object(diagnostics_api, "reference_capability_payload", return_value={"reference_assist": {}}),
+                mock.patch.object(diagnostics_api, "reference_modules_availability_payload", return_value={"reference_modules": {"background": {}}}),
+                mock.patch.object(diagnostics_api, "reference_setup_payload", return_value={"summary": {"outfit": "missing"}}),
+                mock.patch.object(diagnostics_api, "face_detailer_capability_payload", return_value={"face_detailer": {}}),
+                mock.patch.object(diagnostics_api, "anima_shift_capability", return_value={}),
+                mock.patch.object(diagnostics_api, "_model_cache_status", return_value={}),
+                mock.patch.object(diagnostics_api, "list_history", return_value=[]),
+            ):
+                body = main.diagnostics("test-session")
+        finally:
+            main.SESSIONS.discard("test-session")
+
+        self.assertIn("reference_setup", body)
+        self.assertEqual(body["reference_setup"]["summary"]["outfit"], "missing")
 
     def test_comfy_cache_reset_is_opt_in(self) -> None:
         data = main.GenerateRequest(character1="Scathach")

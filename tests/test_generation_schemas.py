@@ -169,6 +169,7 @@ class GenerationSchemaTests(unittest.TestCase):
             "loras": [
                 {"enabled": False, "name": "style/off.safetensors", "application": "model_clip", "strength_model": 0.4, "strength_clip": 0.2}
             ],
+            "official_lora_preset": "fast_preview",
             "reference_modules": {"enabled": False},
             "dynamic_prompt": {"enabled": False},
             "prompt_random_collect": {"enabled": False},
@@ -197,6 +198,7 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(sorted(payload["19"]["inputs"].keys()), ["cfg", "denoise", "latent_image", "model", "negative", "positive", "sampler_name", "scheduler", "seed", "steps"])
         self.assertEqual(body["size"]["final_width"], 1024)
         self.assertEqual(body["official_loras"]["turbo"]["version"], "v0.2")
+        self.assertEqual(body["official_lora_preset"], "fast_preview")
         self.assertIn("colorfix", body["official_loras"])
         self.assertFalse(body["official_loras"]["colorfix"]["enabled"])
         self.assertEqual(body["loras"][0]["name"], "style/off.safetensors")

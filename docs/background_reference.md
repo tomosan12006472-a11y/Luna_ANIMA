@@ -30,6 +30,8 @@ The mapping lives in `config/anima_mapping.json` under `background_reference`. N
 
 `resize_mode` is applied through the mapped image resize node, currently `ImageScale` by default. `crop` uses center crop before scaling, `stretch` uses exact non-crop scaling, and `fit` is a best-effort non-crop scale with a warning when only the standard `ImageScale` node is available. A padding-based fit workflow can be mapped later without changing the request shape.
 
+See `docs/reference_setup.md` for the Reference Setup diagnostics and local ControlNet / ControlNet Aux setup notes.
+
 ## Scope
 
 v1 is not a background compositing or masking feature. It does not fully lock the background image, isolate conditioning to background-only regions, generate SAM/GroundingDINO masks, or install ComfyUI extensions. Strong settings can affect characters and overall composition, so the defaults use low to medium strength.

@@ -30,7 +30,7 @@ from .history_store import (
 from .history_search import search_history_items
 from .model_info_cache import cached_object_info
 from .payload_builder import model_sampling_shift_metadata
-from .reference_modules import reference_module_capabilities, reference_module_model_status, sanitize_reference_modules
+from .reference_modules import reference_module_capabilities, reference_module_model_status, reference_setup_diagnostics, sanitize_reference_modules
 
 
 def reference_capability_payload(addr: str, refresh: bool = False) -> dict[str, Any]:
@@ -94,6 +94,20 @@ def reference_modules_model_status_payload(addr: str, refresh: bool = False) -> 
     status = reference_module_model_status(info, comfyui_roots=comfy_roots, app_scope="anima")
     status["comfyui"] = {"reachable": True, "object_info_checked": True, "cache": cache}
     return status
+
+
+def reference_setup_payload(addr: str, refresh: bool = False) -> dict[str, Any]:
+    comfy_roots = [Path(r"D:\AI\ComfyUI\ComfyUI"), Path(r"D:\AI\ComfyUI")]
+    try:
+        info, cache = cached_object_info(addr, refresh=refresh)
+    except Exception as exc:
+        payload = reference_setup_diagnostics({}, comfyui_roots=comfy_roots, app_scope="anima")
+        payload["ok"] = False
+        payload["comfyui"] = {"reachable": False, "object_info_checked": False, "error": str(exc)}
+        return payload
+    payload = reference_setup_diagnostics(info, comfyui_roots=comfy_roots, app_scope="anima")
+    payload["comfyui"] = {"reachable": True, "object_info_checked": True, "cache": cache}
+    return payload
 
 
 def i2i_capability_payload(addr: str, refresh: bool = False) -> dict[str, Any]:

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.43-colorfix-official-lora-20260625">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.44-official-lora-presets-reference-setup-20260625">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -274,6 +274,14 @@
         </div>
 
         <div class="tray-head" style="margin-top:14px"><h2>ANIMA公式LoRA</h2><span class="lbl">OFFICIAL</span></div>
+        <div class="grid2">
+          <label class="field"><span class="lbl">PRESET</span><select id="officialLoraPresetSelect"></select></label>
+          <div class="field">
+            <span class="lbl">APPLY</span>
+            <button type="button" class="ghost" data-action="official-lora-preset-apply">プリセット適用</button>
+          </div>
+        </div>
+        <p id="officialLoraPresetStatus" class="hint" aria-live="polite"></p>
         <div class="switchline">
           <input id="officialHighresEnabled" type="checkbox">
           <span class="grow">Highres / Aesthetic Boost</span>
@@ -617,6 +625,12 @@
       <div class="tray">
         <div class="tray-head"><h2>接続</h2><span class="lbl">BENCH</span></div>
         <table class="exif" id="connMeta"></table>
+        <div class="tray" style="margin-top:10px">
+          <div class="tray-head"><h2>Reference Setup</h2><span class="lbl" id="referenceSetupBadge">—</span></div>
+          <p id="referenceSetupSummary" class="hint">Diagnosticsを読み込みます。</p>
+          <table class="exif" id="referenceSetupMeta"></table>
+          <p class="hint">導入メモ: docs/reference_setup.md</p>
+        </div>
         <div class="row">
           <button type="button" class="ghost" data-action="reload-models">モデル一覧を再取得</button>
           <button type="button" class="ghost" data-action="save-defaults">既定値として保存</button>
@@ -642,6 +656,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.43-colorfix-official-lora-20260625"></script>
+  <script src="/static/app.js?v=v1.44-official-lora-presets-reference-setup-20260625"></script>
 </body>
 </html>

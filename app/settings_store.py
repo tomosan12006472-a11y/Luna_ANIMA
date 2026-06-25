@@ -8,6 +8,7 @@ from ._shared_utils import clamp_float, clamp_strength, normalize_lora_strengths
 from .config import SETTINGS_PATH
 from .face_detailer import DEFAULT_FACE_DETAILER_SETTINGS, DEFAULT_HAND_DETAILER_SETTINGS, sanitize_face_detailer_settings, sanitize_hand_detailer_settings
 from .i2i_store import sanitize_image_to_image
+from .official_lora_presets import infer_builtin_official_lora_preset_id, normalize_official_lora_preset_id, sanitize_official_loras
 from .prompt_converter import DEFAULT_PROMPT_CONVERTER_SETTINGS, sanitize_prompt_converter_settings
 from .reference_modules import DEFAULT_REFERENCE_MODULES, sanitize_reference_modules
 from .storage.json_store import JsonStore
@@ -102,6 +103,7 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
             "strength": 0.6,
         },
     },
+    "official_lora_preset": "off",
     "reference_assist": {
         "enabled": False,
         "mode": "auto",
@@ -206,6 +208,7 @@ def sanitize_prompt_random_instruction_favorites(items: Any) -> list[dict[str, A
 
 
 def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    has_official_lora_preset = isinstance(settings, dict) and "official_lora_preset" in settings
     result = deep_merge(DEFAULT_APP_SETTINGS, settings)
     workflow_mode = str(result.get("workflow_mode") or "anima")
     if workflow_mode not in {"anima", "anima_mobile_extended", "anima_lora_sample"}:
@@ -248,19 +251,12 @@ def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
         upscale_model = "4x-UltraSharp.pth"
     hires["upscale_model"] = upscale_model
     hires["mode"] = "model" if mode == "model" else "latent"
-    official = result.setdefault("official_loras", {})
-    highres = official.setdefault("highres", {})
-    turbo = official.setdefault("turbo", {})
-    colorfix = official.setdefault("colorfix", {})
-    highres["enabled"] = bool(highres.get("enabled"))
-    highres["strength"] = float(highres.get("strength") or 1.0)
-    turbo["enabled"] = bool(turbo.get("enabled"))
-    turbo["version"] = str(turbo.get("version") or "auto")
-    turbo["strength"] = clamp_strength(turbo.get("strength"), 0.6)
-    turbo["preset_applied"] = bool(turbo.get("preset_applied", True))
-    colorfix["enabled"] = bool(colorfix.get("enabled"))
-    colorfix["strength"] = clamp_strength(colorfix.get("strength"), 0.6)
-    highres["strength"] = clamp_strength(highres.get("strength"), 0.6)
+    result["official_loras"] = sanitize_official_loras(result.get("official_loras"))
+    result["official_lora_preset"] = (
+        normalize_official_lora_preset_id(result.get("official_lora_preset"))
+        if has_official_lora_preset
+        else infer_builtin_official_lora_preset_id(result.get("official_loras"))
+    )
     result["loras"] = sanitize_lora_list(result.get("loras"))
     lora_settings = result.setdefault("lora_settings", {})
     lora_settings["slots"] = sanitize_lora_list(lora_settings.get("slots"))

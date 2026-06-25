@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "name": "Example clip vision model",
+      "kind": "clip_vision",
+      "target_subdir": "models/clip_vision",
+      "filename": "example-clip-vision.safetensors",
+      "url": "https://example.invalid/path/to/example-clip-vision.safetensors",
+      "sha256": "",
+      "required_for": ["outfit"],
+      "license_note": "Example only. Replace with a URL and license you have verified."
+    },
+    {
+      "name": "Example IPAdapter model",
+      "kind": "ipadapter",
+      "target_subdir": "models/ipadapter",
+      "filename": "example-ipadapter.safetensors",
+      "url": "https://example.invalid/path/to/example-ipadapter.safetensors",
+      "sha256": "",
+      "required_for": ["outfit"],
+      "license_note": "Example only. Replace with a URL and license you have verified."
+    },
+    {
+      "name": "Example depth ControlNet",
+      "kind": "controlnet",
+      "target_subdir": "models/controlnet",
+      "filename": "example-depth-controlnet.safetensors",
+      "url": "https://example.invalid/path/to/example-depth-controlnet.safetensors",
+      "sha256": "",
+      "required_for": ["background_depth"],
+      "license_note": "Example only. Replace with a URL and license you have verified."
+    }
+  ]
+}

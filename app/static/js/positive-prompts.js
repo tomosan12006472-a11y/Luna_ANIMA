@@ -4,14 +4,14 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
+} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
 import {
   parsePromptTags,
   promptExcerpt,
   promptItemPrompt,
   promptItemTagsText,
   promptItemTitle,
-} from "./prompt-library-utils.js?v=v1.43-colorfix-official-lora-20260625";
+} from "./prompt-library-utils.js?v=v1.44-official-lora-presets-reference-setup-20260625";
 
 export function createPositivePromptsFeature({
   api,

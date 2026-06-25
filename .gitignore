@@ -51,6 +51,8 @@ thumbnails/
 public/
 reference_inputs/
 operation_log/
+reference_setup_manifest.local.json
+docs/reference_setup_manifest.local.json
 
 # backups / archives
 /backups/

@@ -6,7 +6,7 @@ import {
   setChecked,
   setValue,
   value,
-} from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
+} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
 
 const DEFAULT_MODEL = "Anima\\anima-preview3-base.safetensors";
 const DEFAULT_TEXT_ENCODER = "qwen_3_06b_base.safetensors";
@@ -168,6 +168,7 @@ export function createGenerationFormFeature({
       quality_prompt_overrides: collectQualityPromptOverrides(),
       ...collectBaseRequest(),
       official_loras: loras.collectOfficial(),
+      official_lora_preset: loras.collectOfficialPreset(),
       loras: loras.collect(),
       count: selectedQueueCount(),
       wait: false,

@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.43-colorfix-official-lora-20260625";
+} from "./dom.js?v=v1.44-official-lora-presets-reference-setup-20260625";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 
