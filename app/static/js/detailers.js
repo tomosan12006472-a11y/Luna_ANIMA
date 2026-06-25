@@ -6,13 +6,14 @@ import {
   setChecked,
   setValue,
   text,
-} from "./dom.js?v=v1.45-history-assist-summary-20260625";
+} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
 
 export function createDetailerFeature({
   api,
   state,
   UI = window.UI,
   history,
+  updateSummaries = () => {},
 } = {}) {
   function collectFaceSettings(enabled = checked("#fdEnabled"), mode = "generation") {
     return {
@@ -127,6 +128,24 @@ export function createDetailerFeature({
     applyHandToForm(data.hand_detailer || {});
   }
 
+  function snapshot() {
+    return {
+      face_detailer: collectFaceSettings(checked("#fdEnabled"), "generation"),
+      hand_detailer: collectHandSettings(checked("#hdEnabled"), "generation"),
+    };
+  }
+
+  function restore(snapshotData = {}) {
+    applyToForm(snapshotData);
+    updateSummaries();
+  }
+
+  function setAllEnabled(enabled) {
+    setChecked("#fdEnabled", Boolean(enabled));
+    setChecked("#hdEnabled", Boolean(enabled));
+    updateSummaries();
+  }
+
   async function queueFrameFaceDetailer() {
     if (!state?.detailItem?.id) return;
     text("#frameActionStatus", "顔補正をキュー投入中...");
@@ -181,11 +200,16 @@ export function createDetailerFeature({
     applyFaceToForm,
     applyHandToForm,
     applyToForm,
+    restore,
     queueFrameFaceDetailer,
     queueFrameHandDetailer,
+    setAllEnabled,
+    snapshot,
     actions: {
       "frame-face-detail": () => queueFrameFaceDetailer(),
       "frame-hand-detail": () => queueFrameHandDetailer(),
+      "detailers-enable-all": () => setAllEnabled(true),
+      "detailers-disable-all": () => setAllEnabled(false),
     },
   };
 }

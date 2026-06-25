@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.45-history-assist-summary-20260625";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.45-history-assist-summary-20260625";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.45-history-assist-summary-20260625";
-import { onDomReady } from "./bootstrap.js?v=v1.45-history-assist-summary-20260625";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.46-tuning-quick-controls-20260625";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.46-tuning-quick-controls-20260625";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.46-tuning-quick-controls-20260625";
+import { onDomReady } from "./bootstrap.js?v=v1.46-tuning-quick-controls-20260625";
 import {
   $,
   $$,
@@ -11,23 +11,24 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.45-history-assist-summary-20260625";
-import { createCharacterFeature } from "./characters.js?v=v1.45-history-assist-summary-20260625";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.45-history-assist-summary-20260625";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.45-history-assist-summary-20260625";
-import { createHistoryFeature } from "./history.js?v=v1.45-history-assist-summary-20260625";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.45-history-assist-summary-20260625";
-import { createI2iFeature } from "./i2i.js?v=v1.45-history-assist-summary-20260625";
-import { createLoraFeature } from "./loras.js?v=v1.45-history-assist-summary-20260625";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.45-history-assist-summary-20260625";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.45-history-assist-summary-20260625";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.45-history-assist-summary-20260625";
-import { createQueueFeature } from "./queue.js?v=v1.45-history-assist-summary-20260625";
-import { createReferenceFeature } from "./reference.js?v=v1.45-history-assist-summary-20260625";
-import { createSettingsFeature } from "./settings.js?v=v1.45-history-assist-summary-20260625";
-import { createInitialState } from "./state.js?v=v1.45-history-assist-summary-20260625";
-import { createDetailerFeature } from "./detailers.js?v=v1.45-history-assist-summary-20260625";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.45-history-assist-summary-20260625";
+} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
+import { createCharacterFeature } from "./characters.js?v=v1.46-tuning-quick-controls-20260625";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.46-tuning-quick-controls-20260625";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.46-tuning-quick-controls-20260625";
+import { createHistoryFeature } from "./history.js?v=v1.46-tuning-quick-controls-20260625";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.46-tuning-quick-controls-20260625";
+import { createI2iFeature } from "./i2i.js?v=v1.46-tuning-quick-controls-20260625";
+import { createLoraFeature } from "./loras.js?v=v1.46-tuning-quick-controls-20260625";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.46-tuning-quick-controls-20260625";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.46-tuning-quick-controls-20260625";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.46-tuning-quick-controls-20260625";
+import { createQueueFeature } from "./queue.js?v=v1.46-tuning-quick-controls-20260625";
+import { createReferenceFeature } from "./reference.js?v=v1.46-tuning-quick-controls-20260625";
+import { createSettingsFeature } from "./settings.js?v=v1.46-tuning-quick-controls-20260625";
+import { createInitialState } from "./state.js?v=v1.46-tuning-quick-controls-20260625";
+import { createDetailerFeature } from "./detailers.js?v=v1.46-tuning-quick-controls-20260625";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.46-tuning-quick-controls-20260625";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.46-tuning-quick-controls-20260625";
 
 (() => {
   "use strict";
@@ -35,6 +36,7 @@ import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=
   const UI = window.UI;
 
   const state = createInitialState();
+  let tuningControls = null;
 
   const { api, fetchWithAuthHandling } = createApiClient({
     onUnauthorized: (message) => exitToLogin(message, { UI }),
@@ -115,6 +117,7 @@ import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=
     state,
     UI,
     history,
+    updateSummaries: () => updateSummaries(),
   });
   const generationForm = createGenerationFormFeature({
     state,
@@ -157,6 +160,17 @@ import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=
     history,
     historyReuse,
     promptRandom,
+  });
+  tuningControls = createTuningControlsFeature({
+    UI,
+    loras,
+    reference,
+    detailers,
+    promptRandom,
+    i2i,
+    generationForm,
+    collectRequest: () => collectRequest(),
+    updateSummaries: () => updateSummaries(),
   });
   const promptLibrary = createPromptLibraryFeature({
     api,
@@ -270,6 +284,7 @@ import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=
     text("#refModSummary", refParts.join(" / "));
     text("#fdSummary", checked("#fdEnabled") ? `ON · ${Number(req.face_detailer.denoise).toFixed(2)}` : "OFF");
     text("#hdSummary", checked("#hdEnabled") ? `ON · ${Number(req.hand_detailer.denoise).toFixed(2)} · L${Number(req.hand_detailer.lllite_strength).toFixed(2)}` : "OFF");
+    tuningControls?.renderStatus(req);
     updateSizeChips();
   }
 
@@ -344,6 +359,7 @@ import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=
     registerActions(promptLibrary.actions);
     registerActions(detailers.actions);
     registerActions(generationActions.actions);
+    registerActions(tuningControls.actions);
   }
 
   function bindEvents() {
@@ -385,6 +401,7 @@ import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=
         if (action?.startsWith("i2i-")) text("#i2iStatus", errorMessage(error));
         if (action?.startsWith("outfit-") || action?.startsWith("pose-") || action?.startsWith("background-")) text("#refModStatus", errorMessage(error));
         if (action?.startsWith("official-lora-preset")) text("#officialLoraPresetStatus", errorMessage(error));
+        if (action?.startsWith("tuning-") || action?.startsWith("assist-") || action?.startsWith("lora-") || action?.startsWith("reference-") || action?.startsWith("detailers-")) text("#tuningQuickStatus", errorMessage(error));
         if (action?.startsWith("prompt-convert")) text("#promptConverterStatus", errorMessage(error));
         if (action?.startsWith("prompt-random")) text("#promptRandomStatus", errorMessage(error));
         if (action === "save-auto-prompts") text("#autoPromptStatus", errorMessage(error));

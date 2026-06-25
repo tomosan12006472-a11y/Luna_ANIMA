@@ -6,7 +6,7 @@ import {
   setChecked,
   setValue,
   value,
-} from "./dom.js?v=v1.45-history-assist-summary-20260625";
+} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
 
 const DEFAULT_MODEL = "Anima\\anima-preview3-base.safetensors";
 const DEFAULT_TEXT_ENCODER = "qwen_3_06b_base.safetensors";
@@ -81,6 +81,14 @@ export function createGenerationFormFeature({
     fillSelect("#hiresModel", state?.models?.upscale_models || [], next.upscale_model);
     setValue("#hiresTargetW", next.target_width);
     setValue("#hiresTargetH", next.target_height);
+  }
+
+  function setHiresEnabled(enabled) {
+    setChecked("#hiresEnabled", Boolean(enabled));
+  }
+
+  function setDynamicPromptEnabled(enabled) {
+    setChecked("#dynamicEnabled", Boolean(enabled));
   }
 
   function collectPromptFields() {
@@ -250,6 +258,10 @@ export function createGenerationFormFeature({
     normalizeHiresFix,
     collectHiresFix,
     applyHiresFixToForm,
+    restoreHires: applyHiresFixToForm,
+    setDynamicPromptEnabled,
+    setHiresEnabled,
+    snapshotHires: collectHiresFix,
     collectPromptFields,
     collectModelFields,
     collectSizeFields,

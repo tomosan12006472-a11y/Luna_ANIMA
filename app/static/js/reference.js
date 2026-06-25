@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.45-history-assist-summary-20260625";
+} from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
 
 const REFERENCE_MODULES = ["outfit", "pose", "background"];
 const REFMOD_EMPTY_TEXT = {
@@ -191,22 +191,22 @@ export function createReferenceFeature({
     const outfit = modules.outfit || {};
     const pose = modules.pose || {};
     const background = modules.background || {};
-    const outfitImageId = outfit.enabled ? String(outfit.image_id || "") : "";
-    const poseImageId = pose.enabled ? String(pose.image_id || "") : "";
-    const backgroundImageId = background.enabled ? String(background.image_id || "") : "";
+    const outfitImageId = String(outfit.image_id || "");
+    const poseImageId = String(pose.image_id || "");
+    const backgroundImageId = String(background.image_id || "");
     state.refmod.outfit = { imageId: outfitImageId, thumb: "", name: String(outfit.image_name || outfitImageId || "") };
     state.refmod.pose = { imageId: poseImageId, thumb: "", name: String(pose.image_name || poseImageId || "") };
     state.refmod.background = { imageId: backgroundImageId, thumb: "", name: String(background.image_name || backgroundImageId || "") };
-    setChecked("#outfitEnabled", Boolean(outfitImageId));
+    setChecked("#outfitEnabled", Boolean(outfit.enabled && outfitImageId));
     setValue("#outfitStrength", outfit.strength ?? 0.45);
     setValue("#outfitStart", outfit.start_at ?? 0);
     setValue("#outfitEnd", outfit.end_at ?? 0.75);
-    setChecked("#poseEnabled", Boolean(poseImageId));
+    setChecked("#poseEnabled", Boolean(pose.enabled && poseImageId));
     setValue("#poseMode", pose.mode || "pose_image");
     setValue("#poseStrength", pose.strength ?? 0.75);
     setValue("#poseStart", pose.start_at ?? 0);
     setValue("#poseEnd", pose.end_at ?? 0.85);
-    setChecked("#backgroundEnabled", Boolean(backgroundImageId));
+    setChecked("#backgroundEnabled", Boolean(background.enabled && backgroundImageId));
     setValue("#backgroundMode", background.mode || "depth");
     setValue("#backgroundStrength", background.strength ?? 0.45);
     setValue("#backgroundStart", background.start_at ?? 0);
@@ -214,6 +214,17 @@ export function createReferenceFeature({
     setValue("#backgroundResize", background.resize_mode || "crop");
     renderPreviews();
     if (options.update !== false) updateSummaries();
+  }
+
+  function setEnabled(module, enabled) {
+    if (!REFERENCE_MODULES.includes(module)) return;
+    const hasImage = Boolean(state.refmod?.[module]?.imageId);
+    setChecked(`#${module}Enabled`, Boolean(enabled && hasImage));
+  }
+
+  function setAllEnabled(enabled) {
+    for (const module of REFERENCE_MODULES) setEnabled(module, enabled);
+    updateSummaries();
   }
 
   function clearModuleImage(module) {
@@ -272,6 +283,8 @@ export function createReferenceFeature({
       "background-upload": () => uploadModuleImage("background"),
       "background-clear": () => clearModuleImage("background"),
       "background-apply-mode-defaults": () => applyBackgroundModeDefaults(),
+      "reference-enable-all": () => setAllEnabled(true),
+      "reference-disable-all": () => setAllEnabled(false),
     },
     applyItem,
     applyModulesToForm,
@@ -282,6 +295,10 @@ export function createReferenceFeature({
     modules: REFERENCE_MODULES,
     renderPreview,
     renderPreviews,
+    restoreModules: applyModulesToForm,
+    setAllEnabled,
+    setEnabled,
+    snapshotModules: collectModules,
     uploadModuleImage,
   };
 }

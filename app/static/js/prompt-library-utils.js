@@ -1,4 +1,4 @@
-import { $, setValue, value } from "./dom.js?v=v1.45-history-assist-summary-20260625";
+import { $, setValue, value } from "./dom.js?v=v1.46-tuning-quick-controls-20260625";
 
 export function createPositivePromptHelpers({ updateSummaries = () => {} } = {}) {
   function insertPositivePromptText(insertText) {
