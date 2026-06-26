@@ -1,4 +1,4 @@
-import { $, numberValue, value } from "./dom.js?v=v1.49-share-prefetch-20260625";
+import { $, numberValue, value } from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
 
 export function createDynamicPromptFeature({
   api,

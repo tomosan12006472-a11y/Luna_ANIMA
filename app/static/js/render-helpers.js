@@ -1,4 +1,4 @@
-import { $, displayValue, unique } from "./dom.js?v=v1.49-share-prefetch-20260625";
+import { $, displayValue, unique } from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
 
 export function fillSelect(selector, options, selected) {
   const select = typeof selector === "string" ? $(selector) : selector;

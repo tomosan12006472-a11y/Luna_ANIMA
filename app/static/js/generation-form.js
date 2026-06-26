@@ -6,7 +6,7 @@ import {
   setChecked,
   setValue,
   value,
-} from "./dom.js?v=v1.49-share-prefetch-20260625";
+} from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
 
 const DEFAULT_MODEL = "Anima\\anima-preview3-base.safetensors";
 const DEFAULT_TEXT_ENCODER = "qwen_3_06b_base.safetensors";

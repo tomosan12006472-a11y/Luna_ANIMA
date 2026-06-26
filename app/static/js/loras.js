@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.49-share-prefetch-20260625";
+} from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
@@ -43,6 +43,12 @@ const TURBO_RECOMMENDED_SETTINGS = Object.freeze({
   steps: 10,
   cfg: 1,
   strength: 1,
+});
+
+const DEFAULT_TURBO_RESTORE_SETTINGS = Object.freeze({
+  steps: 32,
+  cfg: 4.5,
+  strength: 0.6,
 });
 
 const OFFICIAL_LORA_PRESETS = Object.freeze([
@@ -108,6 +114,22 @@ function officialPresetById(id) {
 
 function cloneOfficialPresetLoras(preset) {
   return JSON.parse(JSON.stringify(preset.official_loras));
+}
+
+function boundedNumber(raw, fallback, min, max) {
+  const next = Number(raw);
+  if (!Number.isFinite(next)) return fallback;
+  return Math.max(min, Math.min(max, next));
+}
+
+function normalizeTurboRestoreSettings(raw = {}, fallback = DEFAULT_TURBO_RESTORE_SETTINGS) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const base = fallback && typeof fallback === "object" ? fallback : DEFAULT_TURBO_RESTORE_SETTINGS;
+  return {
+    steps: Math.trunc(boundedNumber(source.steps, boundedNumber(base.steps, 32, 1, 100), 1, 100)),
+    cfg: boundedNumber(source.cfg, boundedNumber(base.cfg, 4.5, 1, 20), 1, 20),
+    strength: boundedNumber(source.strength, boundedNumber(base.strength, 0.6, 0, 1), 0, 1),
+  };
 }
 
 export function createLoraFeature({
@@ -209,45 +231,93 @@ export function createLoraFeature({
     setOfficialPresetStatus("個別調整中");
   }
 
-  function applyOfficialToForm(official = {}, presetId = "custom") {
+  function currentTurboRestoreSettings() {
+    return normalizeTurboRestoreSettings({
+      steps: numberValue("#stepsInput", DEFAULT_TURBO_RESTORE_SETTINGS.steps),
+      cfg: numberValue("#cfgInput", DEFAULT_TURBO_RESTORE_SETTINGS.cfg),
+      strength: numberValue("#officialTurboStrength", DEFAULT_TURBO_RESTORE_SETTINGS.strength),
+    });
+  }
+
+  function appTurboRestoreSettings() {
+    return normalizeTurboRestoreSettings(state?.appSettings?.turbo_restore_settings || DEFAULT_TURBO_RESTORE_SETTINGS);
+  }
+
+  function applyTurboRestoreSettings(nextSettings = {}) {
+    turboPresetSnapshot = normalizeTurboRestoreSettings(nextSettings, appTurboRestoreSettings());
+    return turboPresetSnapshot;
+  }
+
+  function ensureTurboRestoreSnapshot() {
+    if (!turboPresetSnapshot) turboPresetSnapshot = currentTurboRestoreSettings();
+    return turboPresetSnapshot;
+  }
+
+  function syncTurboRestoreFromVisibleIfOff() {
+    if (!checked("#officialTurboEnabled")) turboPresetSnapshot = currentTurboRestoreSettings();
+  }
+
+  function collectTurboRestoreSettings() {
+    if (checked("#officialTurboEnabled")) {
+      return normalizeTurboRestoreSettings(turboPresetSnapshot || state?.appSettings?.turbo_restore_settings, DEFAULT_TURBO_RESTORE_SETTINGS);
+    }
+    return currentTurboRestoreSettings();
+  }
+
+  function setTurboRecommendedCustom() {
+    if (!checked("#officialTurboEnabled")) {
+      syncTurboRestoreFromVisibleIfOff();
+      return;
+    }
+    if (applyingOfficialPreset) return;
+    turboPresetApplied = false;
+    markOfficialPresetCustom();
+    setOfficialPresetStatus("Turbo custom / OFF復元値を保持中");
+  }
+
+  function applyOfficialToForm(official = {}, presetId = "custom", options = {}) {
+    if (options.turboRestoreSettings) {
+      applyTurboRestoreSettings(options.turboRestoreSettings);
+    } else if (!turboPresetSnapshot && state?.appSettings?.turbo_restore_settings) {
+      applyTurboRestoreSettings(state.appSettings.turbo_restore_settings);
+    }
     setChecked("#officialHighresEnabled", official.highres?.enabled);
     setValue("#officialHighresStrength", official.highres?.strength ?? 0.6);
     setChecked("#officialTurboEnabled", official.turbo?.enabled);
     setValue("#officialTurboStrength", official.turbo?.strength ?? 0.6);
     setChecked("#officialColorfixEnabled", official.colorfix?.enabled);
     setValue("#officialColorfixStrength", official.colorfix?.strength ?? 0.6);
-    turboPresetSnapshot = null;
     turboPresetApplied = Boolean(official.turbo?.enabled && official.turbo?.preset_applied);
+    if (options.syncTurboRestoreFromVisible) syncTurboRestoreFromVisibleIfOff();
     selectedOfficialPresetId = officialPresetById(presetId) ? presetId : "custom";
     renderOfficialPresetOptions(selectedOfficialPresetId);
     setOfficialPresetStatus("");
   }
 
-  function captureTurboPresetSnapshot() {
-    return {
-      steps: numberValue("#stepsInput", 32),
-      cfg: numberValue("#cfgInput", 4.5),
-      strength: numberValue("#officialTurboStrength", 0.6),
-    };
-  }
-
   function applyTurboRecommendedSettings() {
-    if (!turboPresetSnapshot) turboPresetSnapshot = captureTurboPresetSnapshot();
+    setChecked("#officialTurboEnabled", true);
+    ensureTurboRestoreSnapshot();
     setValue("#stepsInput", TURBO_RECOMMENDED_SETTINGS.steps);
     setValue("#cfgInput", TURBO_RECOMMENDED_SETTINGS.cfg);
     setValue("#officialTurboStrength", TURBO_RECOMMENDED_SETTINGS.strength);
     turboPresetApplied = true;
+    setOfficialPresetStatus("Turbo推奨値適用中 / OFF復元値を保持中");
     updateSummaries();
   }
 
+  function applyTurboRecommendedAction() {
+    applyTurboRecommendedSettings();
+    markOfficialPresetCustom();
+  }
+
   function restoreTurboPresetSnapshot() {
-    if (turboPresetSnapshot) {
-      setValue("#stepsInput", turboPresetSnapshot.steps);
-      setValue("#cfgInput", turboPresetSnapshot.cfg);
-      setValue("#officialTurboStrength", turboPresetSnapshot.strength);
-    }
-    turboPresetSnapshot = null;
+    const restore = normalizeTurboRestoreSettings(turboPresetSnapshot || state?.appSettings?.turbo_restore_settings, DEFAULT_TURBO_RESTORE_SETTINGS);
+    turboPresetSnapshot = restore;
+    setValue("#stepsInput", restore.steps);
+    setValue("#cfgInput", restore.cfg);
+    setValue("#officialTurboStrength", restore.strength);
     turboPresetApplied = false;
+    setOfficialPresetStatus("Turbo OFF復元値を保持中");
     updateSummaries();
   }
 
@@ -284,12 +354,12 @@ export function createLoraFeature({
         restoreTurboPresetSnapshot();
       } else {
         setChecked("#officialTurboEnabled", true);
-        turboPresetSnapshot = null;
+        ensureTurboRestoreSnapshot();
         turboPresetApplied = false;
       }
       setChecked("#officialHighresEnabled", official.highres?.enabled);
       setValue("#officialHighresStrength", official.highres?.strength ?? 0.6);
-      setValue("#officialTurboStrength", turbo.strength ?? 0.6);
+      if (turbo.enabled) setValue("#officialTurboStrength", turbo.strength ?? 0.6);
       setChecked("#officialColorfixEnabled", official.colorfix?.enabled);
       setValue("#officialColorfixStrength", official.colorfix?.strength ?? 0.6);
       turboPresetApplied = Boolean(turbo.enabled && turbo.preset_applied);
@@ -316,7 +386,15 @@ export function createLoraFeature({
     $("#officialTurboEnabled")?.addEventListener("change", handleTurboToggle);
     $("#officialTurboEnabled")?.addEventListener("change", markOfficialPresetCustom);
     $("#officialTurboStrength")?.addEventListener("input", () => {
-      markOfficialPresetCustom();
+      setTurboRecommendedCustom();
+      updateSummaries();
+    });
+    $("#stepsInput")?.addEventListener("input", () => {
+      setTurboRecommendedCustom();
+      updateSummaries();
+    });
+    $("#cfgInput")?.addEventListener("input", () => {
+      setTurboRecommendedCustom();
       updateSummaries();
     });
     $("#officialColorfixEnabled")?.addEventListener("change", () => {
@@ -566,6 +644,29 @@ export function createLoraFeature({
     updateSummaries();
   }
 
+  function snapshotOfficialUiState() {
+    return {
+      official_loras: collectOfficialLoras(),
+      official_lora_preset: selectedOfficialPresetId,
+      turbo_restore_settings: collectTurboRestoreSettings(),
+      turbo_preset_applied: turboPresetApplied,
+      effective_steps: numberValue("#stepsInput", DEFAULT_TURBO_RESTORE_SETTINGS.steps),
+      effective_cfg: numberValue("#cfgInput", DEFAULT_TURBO_RESTORE_SETTINGS.cfg),
+    };
+  }
+
+  function restoreOfficialUiState(snapshot = {}) {
+    const restoreSettings = normalizeTurboRestoreSettings(snapshot.turbo_restore_settings || state?.appSettings?.turbo_restore_settings);
+    applyTurboRestoreSettings(restoreSettings);
+    if (snapshot.effective_steps !== undefined) setValue("#stepsInput", snapshot.effective_steps);
+    if (snapshot.effective_cfg !== undefined) setValue("#cfgInput", snapshot.effective_cfg);
+    applyOfficialToForm(snapshot.official_loras || {}, snapshot.official_lora_preset || "custom", {
+      turboRestoreSettings: restoreSettings,
+    });
+    turboPresetApplied = Boolean(checked("#officialTurboEnabled") && snapshot.turbo_preset_applied);
+    updateSummaries();
+  }
+
   return {
     actions: {
       "refresh-lora-catalog": () => refreshLoraCatalog(),
@@ -578,25 +679,33 @@ export function createLoraFeature({
       "move-lora-up": (target) => moveLoraRow(target, -1),
       "move-lora-down": (target) => moveLoraRow(target, 1),
       "official-lora-preset-apply": () => applyOfficialLoraPreset(),
+      "official-turbo-apply-recommended": () => applyTurboRecommendedAction(),
       "lora-enable-all": () => setAllEnabled(true),
       "lora-disable-all": () => setAllEnabled(false),
     },
     addLoraRow,
     applyOfficialToForm,
+    applyTurboRecommendedSettings,
+    applyTurboRestoreSettings,
     bindEvents,
     collect: collectLoras,
     collectOfficial: collectOfficialLoras,
     collectOfficialPreset: () => selectedOfficialPresetId,
+    collectTurboRestoreSettings,
     countDisabled,
     countEnabled,
     history: historyLoras,
     historyOfficial: historyOfficialLoras,
+    isTurboEnabled: () => checked("#officialTurboEnabled"),
+    isTurboRecommendedApplied: () => Boolean(checked("#officialTurboEnabled") && turboPresetApplied),
     loadCatalog: loadLoraCatalog,
     refreshCatalog: refreshLoraCatalog,
     renderConfigured: renderConfiguredLoras,
     renderRows: renderLoraRows,
+    restoreOfficialUiState,
     restoreRows: renderLoraRows,
     setAllEnabled,
+    snapshotOfficialUiState,
     snapshotRows: collectLoraRows,
     summary: loraSummary,
   };

@@ -126,6 +126,7 @@ const actionContracts = [
   "move-lora-up",
   "move-lora-down",
   "official-lora-preset-apply",
+  "official-turbo-apply-recommended",
   "tuning-snapshot",
   "tuning-restore",
   "lora-enable-all",

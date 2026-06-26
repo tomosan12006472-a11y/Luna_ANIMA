@@ -2,7 +2,7 @@ import {
   $,
   checked,
   text,
-} from "./dom.js?v=v1.49-share-prefetch-20260625";
+} from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
 
 export function createGenerationActionsFeature({
   api,

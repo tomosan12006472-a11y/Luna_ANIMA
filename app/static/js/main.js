@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.49-share-prefetch-20260625";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.49-share-prefetch-20260625";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.49-share-prefetch-20260625";
-import { onDomReady } from "./bootstrap.js?v=v1.49-share-prefetch-20260625";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.50-turbo-default-isolation-20260626";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.50-turbo-default-isolation-20260626";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.50-turbo-default-isolation-20260626";
+import { onDomReady } from "./bootstrap.js?v=v1.50-turbo-default-isolation-20260626";
 import {
   $,
   $$,
@@ -11,24 +11,24 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.49-share-prefetch-20260625";
-import { createCharacterFeature } from "./characters.js?v=v1.49-share-prefetch-20260625";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.49-share-prefetch-20260625";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.49-share-prefetch-20260625";
-import { createHistoryFeature } from "./history.js?v=v1.49-share-prefetch-20260625";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.49-share-prefetch-20260625";
-import { createI2iFeature } from "./i2i.js?v=v1.49-share-prefetch-20260625";
-import { createLoraFeature } from "./loras.js?v=v1.49-share-prefetch-20260625";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.49-share-prefetch-20260625";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.49-share-prefetch-20260625";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.49-share-prefetch-20260625";
-import { createQueueFeature } from "./queue.js?v=v1.49-share-prefetch-20260625";
-import { createReferenceFeature } from "./reference.js?v=v1.49-share-prefetch-20260625";
-import { createSettingsFeature } from "./settings.js?v=v1.49-share-prefetch-20260625";
-import { createInitialState } from "./state.js?v=v1.49-share-prefetch-20260625";
-import { createDetailerFeature } from "./detailers.js?v=v1.49-share-prefetch-20260625";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.49-share-prefetch-20260625";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.49-share-prefetch-20260625";
+} from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
+import { createCharacterFeature } from "./characters.js?v=v1.50-turbo-default-isolation-20260626";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.50-turbo-default-isolation-20260626";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.50-turbo-default-isolation-20260626";
+import { createHistoryFeature } from "./history.js?v=v1.50-turbo-default-isolation-20260626";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.50-turbo-default-isolation-20260626";
+import { createI2iFeature } from "./i2i.js?v=v1.50-turbo-default-isolation-20260626";
+import { createLoraFeature } from "./loras.js?v=v1.50-turbo-default-isolation-20260626";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.50-turbo-default-isolation-20260626";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.50-turbo-default-isolation-20260626";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.50-turbo-default-isolation-20260626";
+import { createQueueFeature } from "./queue.js?v=v1.50-turbo-default-isolation-20260626";
+import { createReferenceFeature } from "./reference.js?v=v1.50-turbo-default-isolation-20260626";
+import { createSettingsFeature } from "./settings.js?v=v1.50-turbo-default-isolation-20260626";
+import { createInitialState } from "./state.js?v=v1.50-turbo-default-isolation-20260626";
+import { createDetailerFeature } from "./detailers.js?v=v1.50-turbo-default-isolation-20260626";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.50-turbo-default-isolation-20260626";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.50-turbo-default-isolation-20260626";
 
 (() => {
   "use strict";
@@ -216,7 +216,9 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.49-share-
     generationForm.applySettingsBasicsToForm(settings, defaults);
     promptPresets.applySettings(settings);
 
-    loras.applyOfficialToForm(settings.official_loras || {}, settings.official_lora_preset || "custom");
+    loras.applyOfficialToForm(settings.official_loras || {}, settings.official_lora_preset || "custom", {
+      turboRestoreSettings: settings.turbo_restore_settings,
+    });
     promptRandom.applyToForm(settings.prompt_random_collect || {});
     promptRandom.renderInstructionFavorites(settings);
     settingsFeature.applyWatermark(settings.watermark || {});
@@ -326,6 +328,7 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.49-share-
       natural_description: value("#naturalDescription", ""),
       official_loras: loras.collectOfficial(),
       official_lora_preset: loras.collectOfficialPreset(),
+      turbo_restore_settings: loras.collectTurboRestoreSettings(),
       loras: loras.collect(),
       prompt_random_collect: promptRandom.collect(),
       hires_fix: hiresFix,

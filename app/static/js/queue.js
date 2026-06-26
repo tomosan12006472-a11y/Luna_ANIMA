@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.49-share-prefetch-20260625";
+import { $, text } from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);
