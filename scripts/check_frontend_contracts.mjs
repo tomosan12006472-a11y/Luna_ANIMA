@@ -112,6 +112,7 @@ for (const file of staticJsFiles) {
 const actionContracts = [
   "login",
   "preview",
+  "payload-preview-close",
   "generate",
   "frame-reuse",
   "frame-to-i2i",
@@ -315,6 +316,7 @@ for (const key of payloadKeys) {
 const domIds = [
   "#positivePrompt",
   "#negativePrompt",
+  "#payloadPreviewPanel",
   "#payloadPreview",
   "#promptSheet",
   "#recipeSheet",

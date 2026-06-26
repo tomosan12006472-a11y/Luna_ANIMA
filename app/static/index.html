@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.50-turbo-default-isolation-20260626">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.52-payload-preview-close-20260626">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -30,9 +30,33 @@
     <!-- 露光(作る) -->
     <section id="exposeView" class="view" data-view="expose">
 
-      <div class="row" style="margin:0 0 10px">
-        <button type="button" class="ghost" data-action="open-recipes">📋 レシピ</button>
-        <button type="button" class="ghost" data-action="save-recipe">現在の設定をレシピ保存</button>
+      <div class="studio-hero" aria-label="生成スタジオ">
+        <div class="studio-hero-copy">
+          <p class="lbl">MOONLIGHT STUDIO</p>
+          <h1>露光スタジオ</h1>
+          <p class="hint">キャラ、プロンプト、補助機能を整えて、下の露光バーから生成します。</p>
+        </div>
+        <div class="studio-hero-actions">
+          <button type="button" class="ghost action-primary" data-action="preview">payload確認</button>
+          <button type="button" class="ghost" data-tab-jump="contact">履歴を見る</button>
+          <button type="button" class="ghost" data-tab-jump="settings">設定</button>
+        </div>
+        <div class="studio-meters">
+          <span><span class="lbl">TECH</span><strong id="heroTechSummary">1024×1536 · 32 · 4.5</strong></span>
+          <span><span class="lbl">ASSIST</span><strong id="heroAssistSummary">LoRA OFF · Ref OFF</strong></span>
+        </div>
+      </div>
+
+      <div class="row quick-actions">
+        <button type="button" class="ghost" data-action="open-recipes">レシピ</button>
+        <button type="button" class="ghost" data-action="save-recipe">レシピ保存</button>
+      </div>
+      <div id="payloadPreviewPanel" class="payload-preview-panel hidden" aria-live="polite">
+        <div class="payload-preview-head">
+          <span class="lbl">PAYLOAD PREVIEW</span>
+          <button type="button" class="ghost" data-action="payload-preview-close">閉じる</button>
+        </div>
+        <pre id="payloadPreview" class="printout"></pre>
       </div>
 
       <div class="tray">
@@ -295,7 +319,7 @@
         </div>
         <div class="switchline">
           <input id="officialColorfixEnabled" type="checkbox">
-          <span class="grow">ColorFix<br><span class="hint">色味補正 / 彩度・色安定化用の追加LoRA。必要な場合だけON</span></span>
+          <span class="grow">ColorFix<br><span class="hint">色味と彩度を安定させたい時だけON</span></span>
           <input id="officialColorfixStrength" type="number" min="0" max="1" step="0.05" value="0.6" style="width:72px">
         </div>
 
@@ -309,13 +333,13 @@
 
         <div class="tray-head" style="margin-top:14px"><h2>Tuning Quick Controls</h2><span class="lbl">SESSION</span></div>
         <p id="tuningQuickStatus" class="hint" aria-live="polite">snapshot未保存</p>
-        <div class="row">
+        <div class="row tuning-primary">
           <button type="button" class="ghost" data-action="tuning-snapshot">Snapshot</button>
           <button type="button" class="ghost" data-action="tuning-restore">Restore</button>
           <button type="button" class="ghost" data-action="assist-disable-all">Assist OFF</button>
           <button type="button" class="ghost" data-action="assist-restore">Assist Restore</button>
         </div>
-        <div class="row">
+        <div class="row tuning-bulk">
           <button type="button" class="ghost" data-action="lora-disable-all">LoRA OFF</button>
           <button type="button" class="ghost" data-action="lora-enable-all">LoRA ON</button>
           <button type="button" class="ghost" data-action="reference-disable-all">Ref OFF</button>
@@ -328,12 +352,11 @@
           <button type="button" class="ghost" data-action="preview">payload確認</button>
           <button type="button" class="ghost" data-action="save-defaults">既定値として保存</button>
         </div>
-        <pre id="payloadPreview" class="printout hidden"></pre>
       </details>
 
       <details class="tray" data-fold="hires">
         <summary><h2>Hires.fix</h2><span class="lbl" id="hiresSummary">OFF</span></summary>
-        <p class="hint">生成後に高解像度で描き直します(ANIMA暗室の新機能)。生成時間は伸びます。</p>
+        <p class="hint">仕上げ用の高解像度描き直し。生成時間は伸びます。</p>
         <div class="switchline">
           <input id="hiresEnabled" type="checkbox">
           <span class="grow">Hires.fix を使う</span>
@@ -383,7 +406,7 @@
 
       <details class="tray" data-fold="refmod">
         <summary><h2>参照固定</h2><span class="lbl" id="refModSummary">OFF</span></summary>
-        <p class="hint">服装やポーズを参照画像で固定します。ComfyUI側に対応ノードが無い場合、生成時にエラーで知らせます。</p>
+        <p class="hint">服装・ポーズ・背景を参照画像で固定。足りないノードは生成時に通知します。</p>
         <div class="switchline">
           <input id="outfitEnabled" type="checkbox">
           <span class="grow">Outfit固定(服の色・形を参照)</span>
@@ -643,13 +666,13 @@
       <div class="tray">
         <div class="tray-head"><h2>接続</h2><span class="lbl">BENCH</span></div>
         <table class="exif" id="connMeta"></table>
-        <div class="tray" style="margin-top:10px">
+        <div class="tray settings-subtray" style="margin-top:10px">
           <div class="tray-head"><h2>Reference Setup</h2><span class="lbl" id="referenceSetupBadge">—</span></div>
           <p id="referenceSetupSummary" class="hint">Diagnosticsを読み込みます。</p>
           <table class="exif" id="referenceSetupMeta"></table>
           <p class="hint">導入メモ: docs/reference_setup.md</p>
         </div>
-        <div class="tray" style="margin-top:10px">
+        <div class="tray settings-subtray" style="margin-top:10px">
           <div class="tray-head"><h2>ComfyUI Control</h2><span class="lbl" id="comfyRestartBadge">—</span></div>
           <p id="comfyRestartStatus" class="hint" aria-live="polite">Restart control statusを読み込みます。</p>
           <div class="row">
@@ -681,7 +704,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.50-turbo-default-isolation-20260626"></script>
+  <script src="/static/ui.js?v=v1.52-payload-preview-close-20260626"></script>
+  <script src="/static/app.js?v=v1.52-payload-preview-close-20260626"></script>
 </body>
 </html>

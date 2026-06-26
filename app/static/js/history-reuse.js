@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.50-turbo-default-isolation-20260626";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.50-turbo-default-isolation-20260626";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.50-turbo-default-isolation-20260626";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.52-payload-preview-close-20260626";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.52-payload-preview-close-20260626";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.52-payload-preview-close-20260626";
 
 export function createHistoryReuseFeature({
   state,

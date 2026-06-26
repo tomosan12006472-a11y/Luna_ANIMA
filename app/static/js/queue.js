@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
+import { $, text } from "./dom.js?v=v1.52-payload-preview-close-20260626";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);
