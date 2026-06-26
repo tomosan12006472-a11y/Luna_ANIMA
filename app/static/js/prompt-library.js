@@ -1,9 +1,9 @@
-import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.52-payload-preview-close-20260626";
-import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.52-payload-preview-close-20260626";
-import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.52-payload-preview-close-20260626";
-import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.52-payload-preview-close-20260626";
-import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.52-payload-preview-close-20260626";
-import { createRecipesFeature } from "./recipes.js?v=v1.52-payload-preview-close-20260626";
+import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.53-compact-generation-settings-20260626";
+import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.53-compact-generation-settings-20260626";
+import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.53-compact-generation-settings-20260626";
+import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.53-compact-generation-settings-20260626";
+import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.53-compact-generation-settings-20260626";
+import { createRecipesFeature } from "./recipes.js?v=v1.53-compact-generation-settings-20260626";
 
 export function createPromptLibraryFeature({
   api,

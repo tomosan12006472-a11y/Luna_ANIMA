@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.52-payload-preview-close-20260626";
+} from "./dom.js?v=v1.53-compact-generation-settings-20260626";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 
