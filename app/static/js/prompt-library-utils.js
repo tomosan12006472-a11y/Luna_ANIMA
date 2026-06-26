@@ -1,4 +1,4 @@
-import { $, setValue, value } from "./dom.js?v=v1.53-compact-generation-settings-20260626";
+import { $, setValue, value } from "./dom.js?v=v1.54-assist-hub-settings-20260626";
 
 export function createPositivePromptHelpers({ updateSummaries = () => {} } = {}) {
   function insertPositivePromptText(insertText) {

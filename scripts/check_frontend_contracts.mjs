@@ -68,6 +68,7 @@ const actionTargetBundle = [
 ].join("\n");
 
 const factoryContracts = [
+  ["app/static/js/assist-hub.js", ["createAssistHubFeature"]],
   ["app/static/js/app-shell.js", ["createAppShell"]],
   ["app/static/js/actions.js", ["registerActions", { name: "dispatchAction", async: true }]],
   ["app/static/js/api.js", ["createApiClient"]],
@@ -339,6 +340,7 @@ const domIds = [
   "#backgroundPreview",
   "#officialLoraPresetSelect",
   "#officialLoraPresetStatus",
+  "#assistHubSummary",
   "#officialLoraSummary",
   "#officialColorfixEnabled",
   "#officialColorfixStrength",

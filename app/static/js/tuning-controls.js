@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.53-compact-generation-settings-20260626";
+import { clone, setChecked, text } from "./dom.js?v=v1.54-assist-hub-settings-20260626";
 
 const SNAPSHOT_KEYS = [
   "official_loras",

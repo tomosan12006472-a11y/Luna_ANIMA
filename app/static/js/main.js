@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.53-compact-generation-settings-20260626";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.53-compact-generation-settings-20260626";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.53-compact-generation-settings-20260626";
-import { onDomReady } from "./bootstrap.js?v=v1.53-compact-generation-settings-20260626";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.54-assist-hub-settings-20260626";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.54-assist-hub-settings-20260626";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.54-assist-hub-settings-20260626";
+import { onDomReady } from "./bootstrap.js?v=v1.54-assist-hub-settings-20260626";
 import {
   $,
   $$,
@@ -11,24 +11,25 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.53-compact-generation-settings-20260626";
-import { createCharacterFeature } from "./characters.js?v=v1.53-compact-generation-settings-20260626";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.53-compact-generation-settings-20260626";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.53-compact-generation-settings-20260626";
-import { createHistoryFeature } from "./history.js?v=v1.53-compact-generation-settings-20260626";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.53-compact-generation-settings-20260626";
-import { createI2iFeature } from "./i2i.js?v=v1.53-compact-generation-settings-20260626";
-import { createLoraFeature } from "./loras.js?v=v1.53-compact-generation-settings-20260626";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.53-compact-generation-settings-20260626";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.53-compact-generation-settings-20260626";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.53-compact-generation-settings-20260626";
-import { createQueueFeature } from "./queue.js?v=v1.53-compact-generation-settings-20260626";
-import { createReferenceFeature } from "./reference.js?v=v1.53-compact-generation-settings-20260626";
-import { createSettingsFeature } from "./settings.js?v=v1.53-compact-generation-settings-20260626";
-import { createInitialState } from "./state.js?v=v1.53-compact-generation-settings-20260626";
-import { createDetailerFeature } from "./detailers.js?v=v1.53-compact-generation-settings-20260626";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.53-compact-generation-settings-20260626";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.53-compact-generation-settings-20260626";
+} from "./dom.js?v=v1.54-assist-hub-settings-20260626";
+import { createAssistHubFeature } from "./assist-hub.js?v=v1.54-assist-hub-settings-20260626";
+import { createCharacterFeature } from "./characters.js?v=v1.54-assist-hub-settings-20260626";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.54-assist-hub-settings-20260626";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.54-assist-hub-settings-20260626";
+import { createHistoryFeature } from "./history.js?v=v1.54-assist-hub-settings-20260626";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.54-assist-hub-settings-20260626";
+import { createI2iFeature } from "./i2i.js?v=v1.54-assist-hub-settings-20260626";
+import { createLoraFeature } from "./loras.js?v=v1.54-assist-hub-settings-20260626";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.54-assist-hub-settings-20260626";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.54-assist-hub-settings-20260626";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.54-assist-hub-settings-20260626";
+import { createQueueFeature } from "./queue.js?v=v1.54-assist-hub-settings-20260626";
+import { createReferenceFeature } from "./reference.js?v=v1.54-assist-hub-settings-20260626";
+import { createSettingsFeature } from "./settings.js?v=v1.54-assist-hub-settings-20260626";
+import { createInitialState } from "./state.js?v=v1.54-assist-hub-settings-20260626";
+import { createDetailerFeature } from "./detailers.js?v=v1.54-assist-hub-settings-20260626";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.54-assist-hub-settings-20260626";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.54-assist-hub-settings-20260626";
 
 (() => {
   "use strict";
@@ -41,6 +42,7 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.53-compac
   const { api, fetchWithAuthHandling } = createApiClient({
     onUnauthorized: (message) => exitToLogin(message, { UI }),
   });
+  const assistHub = createAssistHubFeature();
   const promptPresets = createPromptPresetsFeature({
     api,
     state,
@@ -297,6 +299,28 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.53-compac
       (checked("#fdEnabled") || checked("#hdEnabled")) ? "Det ON" : "Det OFF",
     ];
     text("#quickControlsSummary", bulkAssist.join(" · "));
+    const presetId = req.official_lora_preset || value("#officialLoraPresetSelect", "");
+    const presetNames = {
+      color_stable: "Color Stable",
+      quality: "Quality",
+      fast_preview: "Fast Preview",
+      fast_color: "Fast Color",
+      final_quality: "Final Quality",
+      custom: "Custom",
+    };
+    const presetLabel = presetId && presetId !== "off" ? (presetNames[presetId] || String(presetId).replaceAll("_", " ")) : "";
+    const officialLabel = presetLabel
+      ? `Official ${presetLabel}`
+      : (officialParts.length ? `Official ${officialParts.length} ON` : "Official OFF");
+    const slotsLabel = loraRows.length ? `Slots ${slotOn}/${loraRows.length}${slotOff ? ` (${slotOff} OFF)` : ""}` : "Slots 0";
+    const quickLabel = [
+      req.prompt_random_collect.enabled ? "Random" : "",
+      req.hires_fix.enabled ? "Hires" : "",
+      checked("#i2iEnabled") ? "i2i" : "",
+      (modules.outfit?.enabled || modules.pose?.enabled || background.enabled) ? "Ref" : "",
+      (checked("#fdEnabled") || checked("#hdEnabled")) ? "Detailer" : "",
+    ].filter(Boolean).slice(0, 2).join("+") || "Ready";
+    text("#assistHubSummary", `${officialLabel} · ${slotsLabel} · ${quickLabel}`);
     const assistParts = [
       loraOn ? `LoRA ${loraOn} ON${loraOff ? `/${loraOff} OFF` : ""}` : (loraOff ? `LoRA ${loraOff} OFF` : "LoRA OFF"),
       background.enabled ? `BG ${background.mode || "depth"}` : ((modules.outfit?.enabled || modules.pose?.enabled) ? "Ref ON" : "Ref OFF"),
@@ -401,6 +425,7 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.53-compac
     queue.bindEvents();
     settingsFeature.bindEvents();
     promptLibrary.bindEvents();
+    assistHub.bindEvents();
 
     $("#sizeChips")?.addEventListener("click", (event) => {
       const chip = event.target.closest(".chip[data-size]");
