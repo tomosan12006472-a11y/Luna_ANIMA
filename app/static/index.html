@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.53-compact-generation-settings-20260626">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.54-assist-hub-settings-20260626">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -298,67 +298,76 @@
         </div>
       </details>
 
-      <details class="tray compact-section" data-fold="official-loras">
-        <summary><h2>ANIMA公式LoRA</h2><span class="lbl" id="officialLoraSummary">OFFICIAL</span></summary>
-        <div class="grid2 official-preset-row">
-          <label class="field"><span class="lbl">PRESET</span><select id="officialLoraPresetSelect"></select></label>
-          <div class="field">
-            <span class="lbl">APPLY</span>
-            <button type="button" class="ghost" data-action="official-lora-preset-apply">プリセット適用</button>
-          </div>
+      <details class="tray compact-section assist-hub" data-fold="assist-hub">
+        <summary><h2>Assist / LoRA</h2><span class="lbl" id="assistHubSummary">Official OFF · Slots 0 · Ready</span></summary>
+        <div class="assist-hub-tabs" id="assistHubTabs" role="tablist" aria-label="Assist Hub">
+          <button type="button" class="ghost is-active" data-assist-hub-tab="official" aria-controls="assistHubOfficial" aria-selected="true" role="tab">Official</button>
+          <button type="button" class="ghost" data-assist-hub-tab="lora" aria-controls="assistHubLora" aria-selected="false" role="tab" tabindex="-1">Slots</button>
+          <button type="button" class="ghost" data-assist-hub-tab="quick" aria-controls="assistHubQuick" aria-selected="false" role="tab" tabindex="-1">Quick</button>
         </div>
-        <p id="officialLoraPresetStatus" class="hint" aria-live="polite"></p>
-        <div class="official-lora-list">
-        <div class="switchline official-lora-row">
-          <input id="officialHighresEnabled" type="checkbox">
-          <span class="grow">Highres <span class="hint">Aesthetic Boost</span></span>
-          <input id="officialHighresStrength" class="mini-number" type="number" min="0" max="1" step="0.05" value="0.6">
-        </div>
-        <div class="switchline official-lora-row">
-          <input id="officialTurboEnabled" type="checkbox">
-          <span class="grow">Turbo <span class="hint">steps/cfg一時override</span></span>
-          <button type="button" class="ghost compact-action" data-action="official-turbo-apply-recommended">推奨値</button>
-          <input id="officialTurboStrength" class="mini-number" type="number" min="0" max="1" step="0.05" value="0.6">
-        </div>
-        <div class="switchline official-lora-row">
-          <input id="officialColorfixEnabled" type="checkbox">
-          <span class="grow">ColorFix <span class="hint">色味安定</span></span>
-          <input id="officialColorfixStrength" class="mini-number" type="number" min="0" max="1" step="0.05" value="0.6">
-        </div>
-        </div>
-      </details>
 
-      <details class="tray compact-section" data-fold="lora-slots">
-        <summary><h2>LoRAスロット</h2><span class="lbl" id="loraSlotSummary">0 ON</span></summary>
-        <div class="tray-head compact-head"><span class="hint">行は削除せずON/OFFで比較できます。</span>
-          <div class="row" style="margin:0">
-            <button type="button" class="ghost compact-action" data-action="refresh-lora-catalog">一覧更新</button>
-            <button type="button" class="ghost compact-action" data-action="add-lora">+ 追加</button>
+        <section class="assist-hub-panel" id="assistHubOfficial" data-assist-hub-panel="official" role="tabpanel">
+          <div class="assist-panel-head"><span class="lbl">ANIMA公式LoRA</span><span class="lbl" id="officialLoraSummary">OFFICIAL</span></div>
+          <div class="grid2 official-preset-row">
+            <label class="field"><span class="lbl">PRESET</span><select id="officialLoraPresetSelect"></select></label>
+            <div class="field">
+              <span class="lbl">APPLY</span>
+              <button type="button" class="ghost" data-action="official-lora-preset-apply">プリセット適用</button>
+            </div>
           </div>
-        </div>
-        <div id="loraSlots"></div>
-      </details>
+          <p id="officialLoraPresetStatus" class="hint" aria-live="polite"></p>
+          <div class="official-lora-list">
+          <div class="switchline official-lora-row">
+            <input id="officialHighresEnabled" type="checkbox">
+            <span class="grow">Highres <span class="hint">Aesthetic Boost</span></span>
+            <input id="officialHighresStrength" class="mini-number" type="number" min="0" max="1" step="0.05" value="0.6">
+          </div>
+          <div class="switchline official-lora-row">
+            <input id="officialTurboEnabled" type="checkbox">
+            <span class="grow">Turbo <span class="hint">steps/cfg一時override</span></span>
+            <button type="button" class="ghost compact-action" data-action="official-turbo-apply-recommended">推奨値</button>
+            <input id="officialTurboStrength" class="mini-number" type="number" min="0" max="1" step="0.05" value="0.6">
+          </div>
+          <div class="switchline official-lora-row">
+            <input id="officialColorfixEnabled" type="checkbox">
+            <span class="grow">ColorFix <span class="hint">色味安定</span></span>
+            <input id="officialColorfixStrength" class="mini-number" type="number" min="0" max="1" step="0.05" value="0.6">
+          </div>
+          </div>
+        </section>
 
-      <details class="tray compact-section" data-fold="quick-controls">
-        <summary><h2>Quick Controls</h2><span class="lbl" id="quickControlsSummary">SESSION</span></summary>
-        <p id="tuningQuickStatus" class="hint" aria-live="polite">snapshot未保存</p>
-        <div class="row tuning-primary">
-          <button type="button" class="ghost" data-action="tuning-snapshot">Snapshot</button>
-          <button type="button" class="ghost" data-action="tuning-restore">Restore</button>
-          <button type="button" class="ghost" data-action="assist-disable-all">Assist OFF</button>
-          <button type="button" class="ghost" data-action="assist-restore">Assist Restore</button>
-        </div>
-        <details class="compact-more" data-fold="quick-controls-bulk">
-          <summary>個別一括ON/OFF</summary>
-          <div class="row tuning-bulk">
-            <button type="button" class="ghost" data-action="lora-disable-all">LoRA OFF</button>
-            <button type="button" class="ghost" data-action="lora-enable-all">LoRA ON</button>
-            <button type="button" class="ghost" data-action="reference-disable-all">Ref OFF</button>
-            <button type="button" class="ghost" data-action="reference-enable-all">Ref ON</button>
-            <button type="button" class="ghost" data-action="detailers-disable-all">Detailer OFF</button>
-            <button type="button" class="ghost" data-action="detailers-enable-all">Detailer ON</button>
+        <section class="assist-hub-panel hidden" id="assistHubLora" data-assist-hub-panel="lora" role="tabpanel">
+          <div class="tray-head compact-head"><span><span class="lbl">LoRAスロット</span> <span class="lbl" id="loraSlotSummary">0 ON</span></span>
+            <div class="row" style="margin:0">
+              <button type="button" class="ghost compact-action" data-action="refresh-lora-catalog">一覧更新</button>
+              <button type="button" class="ghost compact-action" data-action="add-lora">+ 追加</button>
+            </div>
           </div>
-        </details>
+          <p class="hint compact-hint">削除せずON/OFFで比較できます。</p>
+          <div id="loraSlots"></div>
+        </section>
+
+        <section class="assist-hub-panel hidden" id="assistHubQuick" data-assist-hub-panel="quick" role="tabpanel">
+          <div class="assist-panel-head"><span class="lbl">Quick Controls</span><span class="lbl" id="quickControlsSummary">SESSION</span></div>
+          <p id="tuningQuickStatus" class="hint" aria-live="polite">snapshot未保存</p>
+          <div class="row tuning-primary">
+            <button type="button" class="ghost" data-action="tuning-snapshot">Snapshot</button>
+            <button type="button" class="ghost" data-action="tuning-restore">Restore</button>
+            <button type="button" class="ghost" data-action="assist-disable-all">Assist OFF</button>
+            <button type="button" class="ghost" data-action="assist-restore">Assist Restore</button>
+          </div>
+          <details class="compact-more" data-fold="quick-controls-bulk">
+            <summary>個別一括ON/OFF</summary>
+            <div class="row tuning-bulk">
+              <button type="button" class="ghost" data-action="lora-disable-all">LoRA OFF</button>
+              <button type="button" class="ghost" data-action="lora-enable-all">LoRA ON</button>
+              <button type="button" class="ghost" data-action="reference-disable-all">Ref OFF</button>
+              <button type="button" class="ghost" data-action="reference-enable-all">Ref ON</button>
+              <button type="button" class="ghost" data-action="detailers-disable-all">Detailer OFF</button>
+              <button type="button" class="ghost" data-action="detailers-enable-all">Detailer ON</button>
+            </div>
+          </details>
+        </section>
       </details>
 
       <details class="tray compact-section" data-fold="defaults">
@@ -719,7 +728,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.53-compact-generation-settings-20260626"></script>
-  <script src="/static/app.js?v=v1.53-compact-generation-settings-20260626"></script>
+  <script src="/static/ui.js?v=v1.54-assist-hub-settings-20260626"></script>
+  <script src="/static/app.js?v=v1.54-assist-hub-settings-20260626"></script>
 </body>
 </html>

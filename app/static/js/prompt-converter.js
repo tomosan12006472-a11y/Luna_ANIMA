@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.53-compact-generation-settings-20260626";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.53-compact-generation-settings-20260626";
+import { $, text, value } from "./dom.js?v=v1.54-assist-hub-settings-20260626";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v1.54-assist-hub-settings-20260626";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 
