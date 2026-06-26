@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.52-payload-preview-close-20260626";
+import { clone, setChecked, text } from "./dom.js?v=v1.53-compact-generation-settings-20260626";
 
 const SNAPSHOT_KEYS = [
   "official_loras",
@@ -136,7 +136,7 @@ export function createTuningControlsFeature({
   function loraSummary() {
     const enabled = loras?.countEnabled?.() ?? 0;
     const disabled = loras?.countDisabled?.() ?? 0;
-    return `LoRA ${enabled} ON / ${disabled} OFF`;
+    return `LoRA ${enabled}/${enabled + disabled}`;
   }
 
   function referenceSummary(request) {
@@ -152,7 +152,7 @@ export function createTuningControlsFeature({
     const parts = [];
     if (request.face_detailer?.enabled) parts.push("Face");
     if (request.hand_detailer?.enabled) parts.push("Hand");
-    return `Detailer ${parts.length ? parts.join("+") : "OFF"}`;
+    return `Det ${parts.length ? parts.join("+") : "OFF"}`;
   }
 
   function assistSummary(request = collectRequest()) {
