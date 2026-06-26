@@ -18,8 +18,8 @@
   }
   function onTab(fn) { tabHandlers.push(fn); }
   document.addEventListener("click", (event) => {
-    const tab = event.target.closest("#tabs button[data-tab]");
-    if (tab) switchTab(tab.dataset.tab);
+    const tab = event.target.closest("#tabs button[data-tab], [data-tab-jump]");
+    if (tab) switchTab(tab.dataset.tab || tab.dataset.tabJump);
   });
 
   /* ---------- sheets ---------- */

@@ -2,7 +2,7 @@ import {
   $,
   checked,
   text,
-} from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
+} from "./dom.js?v=v1.52-payload-preview-close-20260626";
 
 export function createGenerationActionsFeature({
   api,
@@ -50,8 +50,12 @@ export function createGenerationActionsFeature({
     const preview = $("#payloadPreview");
     if (preview) {
       preview.textContent = JSON.stringify(data, null, 2);
-      preview.classList.remove("hidden");
+      $("#payloadPreviewPanel")?.classList.remove("hidden");
     }
+  }
+
+  function closePayloadPreview() {
+    $("#payloadPreviewPanel")?.classList.add("hidden");
   }
 
   function assertGenerateQueued(data) {
@@ -128,12 +132,14 @@ export function createGenerationActionsFeature({
   return {
     canSubmitGenerateRequest,
     previewPayload,
+    closePayloadPreview,
     generate,
     generateFrameVariations,
     assertGenerateQueued,
     finishGenerateQueued,
     actions: {
       preview: () => previewPayload(),
+      "payload-preview-close": () => closePayloadPreview(),
       generate: () => generate(),
       "frame-variations": () => generateFrameVariations(),
     },

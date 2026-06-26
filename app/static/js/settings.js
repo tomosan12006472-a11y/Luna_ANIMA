@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
+} from "./dom.js?v=v1.52-payload-preview-close-20260626";
 
 export function createSettingsFeature({
   api,

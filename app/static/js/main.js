@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.50-turbo-default-isolation-20260626";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.50-turbo-default-isolation-20260626";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.50-turbo-default-isolation-20260626";
-import { onDomReady } from "./bootstrap.js?v=v1.50-turbo-default-isolation-20260626";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.52-payload-preview-close-20260626";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.52-payload-preview-close-20260626";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.52-payload-preview-close-20260626";
+import { onDomReady } from "./bootstrap.js?v=v1.52-payload-preview-close-20260626";
 import {
   $,
   $$,
@@ -11,24 +11,24 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
-import { createCharacterFeature } from "./characters.js?v=v1.50-turbo-default-isolation-20260626";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.50-turbo-default-isolation-20260626";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.50-turbo-default-isolation-20260626";
-import { createHistoryFeature } from "./history.js?v=v1.50-turbo-default-isolation-20260626";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.50-turbo-default-isolation-20260626";
-import { createI2iFeature } from "./i2i.js?v=v1.50-turbo-default-isolation-20260626";
-import { createLoraFeature } from "./loras.js?v=v1.50-turbo-default-isolation-20260626";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.50-turbo-default-isolation-20260626";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.50-turbo-default-isolation-20260626";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.50-turbo-default-isolation-20260626";
-import { createQueueFeature } from "./queue.js?v=v1.50-turbo-default-isolation-20260626";
-import { createReferenceFeature } from "./reference.js?v=v1.50-turbo-default-isolation-20260626";
-import { createSettingsFeature } from "./settings.js?v=v1.50-turbo-default-isolation-20260626";
-import { createInitialState } from "./state.js?v=v1.50-turbo-default-isolation-20260626";
-import { createDetailerFeature } from "./detailers.js?v=v1.50-turbo-default-isolation-20260626";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.50-turbo-default-isolation-20260626";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.50-turbo-default-isolation-20260626";
+} from "./dom.js?v=v1.52-payload-preview-close-20260626";
+import { createCharacterFeature } from "./characters.js?v=v1.52-payload-preview-close-20260626";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.52-payload-preview-close-20260626";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.52-payload-preview-close-20260626";
+import { createHistoryFeature } from "./history.js?v=v1.52-payload-preview-close-20260626";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.52-payload-preview-close-20260626";
+import { createI2iFeature } from "./i2i.js?v=v1.52-payload-preview-close-20260626";
+import { createLoraFeature } from "./loras.js?v=v1.52-payload-preview-close-20260626";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.52-payload-preview-close-20260626";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.52-payload-preview-close-20260626";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.52-payload-preview-close-20260626";
+import { createQueueFeature } from "./queue.js?v=v1.52-payload-preview-close-20260626";
+import { createReferenceFeature } from "./reference.js?v=v1.52-payload-preview-close-20260626";
+import { createSettingsFeature } from "./settings.js?v=v1.52-payload-preview-close-20260626";
+import { createInitialState } from "./state.js?v=v1.52-payload-preview-close-20260626";
+import { createDetailerFeature } from "./detailers.js?v=v1.52-payload-preview-close-20260626";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.52-payload-preview-close-20260626";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.52-payload-preview-close-20260626";
 
 (() => {
   "use strict";
@@ -252,10 +252,13 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.50-turbo-
 
   function updateSummaries() {
     const req = collectRequest();
-    text("#techSummary", [
+    const officialParts = officialLoraSummaryParts(req.official_loras);
+    const techSummary = [
       `${req.width}×${req.height} · ${req.steps} · ${req.cfg} · shift${req.shift}`,
-      ...officialLoraSummaryParts(req.official_loras),
-    ].join(" · "));
+      ...officialParts,
+    ].join(" · ");
+    text("#techSummary", techSummary);
+    text("#heroTechSummary", `${req.width}×${req.height} · ${req.steps} steps · CFG ${req.cfg}`);
     const sceneParts = [
       req.outfit_prompt,
       req.expression_prompt,
@@ -285,6 +288,17 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.50-turbo-
       background.enabled ? `BG ${background.mode || "depth"} ${Number(background.strength || 0).toFixed(2)}` : "BG OFF",
     ];
     text("#refModSummary", refParts.join(" / "));
+    const loraRows = Array.isArray(req.loras) ? req.loras : [];
+    const loraOn = loraRows.filter((row) => row?.enabled !== false && row?.name).length + officialParts.length;
+    const loraOff = loraRows.filter((row) => row?.enabled === false && row?.name).length;
+    const assistParts = [
+      loraOn ? `LoRA ${loraOn} ON${loraOff ? `/${loraOff} OFF` : ""}` : (loraOff ? `LoRA ${loraOff} OFF` : "LoRA OFF"),
+      background.enabled ? `BG ${background.mode || "depth"}` : ((modules.outfit?.enabled || modules.pose?.enabled) ? "Ref ON" : "Ref OFF"),
+      req.prompt_random_collect.enabled ? "Random ON" : "",
+      req.hires_fix.enabled ? "Hires ON" : "",
+      (checked("#fdEnabled") || checked("#hdEnabled")) ? "Detailer ON" : "",
+    ].filter(Boolean);
+    text("#heroAssistSummary", assistParts.join(" · "));
     text("#fdSummary", checked("#fdEnabled") ? `ON · ${Number(req.face_detailer.denoise).toFixed(2)}` : "OFF");
     text("#hdSummary", checked("#hdEnabled") ? `ON · ${Number(req.hand_detailer.denoise).toFixed(2)} · L${Number(req.hand_detailer.lllite_strength).toFixed(2)}` : "OFF");
     tuningControls?.renderStatus(req);

@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
+import { clone, setChecked, text } from "./dom.js?v=v1.52-payload-preview-close-20260626";
 
 const SNAPSHOT_KEYS = [
   "official_loras",
