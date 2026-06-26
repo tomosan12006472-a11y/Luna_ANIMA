@@ -1,70 +1,87 @@
-import { $, $$ } from "./dom.js?v=v1.54-assist-hub-settings-20260626";
-
-const ASSIST_HUB_TABS = ["official", "lora", "quick"];
+import { $, $$ } from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
 
 export function createAssistHubFeature() {
-  let activeTab = "official";
+  const activeTabs = new Map();
 
-  function activate(tab = "official") {
-    const next = ASSIST_HUB_TABS.includes(tab) ? tab : "official";
-    activeTab = next;
+  function groupTabs(group) {
+    return $$(`[data-workbench-tabs="${group}"] [data-workbench-tab]`);
+  }
 
-    $$("#assistHubTabs [data-assist-hub-tab]").forEach((button) => {
-      const isActive = button.dataset.assistHubTab === next;
+  function groupPanels(group) {
+    const root = $(`[data-workbench-tabs="${group}"]`)?.closest(".workbench");
+    return root ? Array.from(root.querySelectorAll("[data-workbench-panel]")) : [];
+  }
+
+  function activate(group = "tuning", tab = "") {
+    const buttons = groupTabs(group);
+    if (!buttons.length) return;
+    const tabs = buttons.map((button) => button.dataset.workbenchTab);
+    const next = tabs.includes(tab) ? tab : (activeTabs.get(group) || tabs[0]);
+    activeTabs.set(group, next);
+
+    buttons.forEach((button) => {
+      const isActive = button.dataset.workbenchTab === next;
       button.classList.toggle("is-active", isActive);
       button.setAttribute("aria-selected", isActive ? "true" : "false");
       button.tabIndex = isActive ? 0 : -1;
     });
 
-    $$("[data-assist-hub-panel]").forEach((panel) => {
-      const isActive = panel.dataset.assistHubPanel === next;
+    groupPanels(group).forEach((panel) => {
+      const isActive = panel.dataset.workbenchPanel === next;
       panel.classList.toggle("hidden", !isActive);
       panel.toggleAttribute("hidden", !isActive);
     });
   }
 
-  function moveBy(offset) {
-    const current = ASSIST_HUB_TABS.indexOf(activeTab);
-    const nextIndex = (current + offset + ASSIST_HUB_TABS.length) % ASSIST_HUB_TABS.length;
-    activate(ASSIST_HUB_TABS[nextIndex]);
-    $(`#assistHubTabs [data-assist-hub-tab="${ASSIST_HUB_TABS[nextIndex]}"]`)?.focus();
+  function moveBy(group, offset) {
+    const buttons = groupTabs(group);
+    if (!buttons.length) return;
+    const tabs = buttons.map((button) => button.dataset.workbenchTab);
+    const current = Math.max(0, tabs.indexOf(activeTabs.get(group)));
+    const nextIndex = (current + offset + tabs.length) % tabs.length;
+    activate(group, tabs[nextIndex]);
+    buttons[nextIndex]?.focus();
   }
 
   function bindEvents() {
-    const tabs = $("#assistHubTabs");
-    if (!tabs) return;
+    $$("[data-workbench-tabs]").forEach((tabs) => {
+      const group = tabs.dataset.workbenchTabs;
 
-    tabs.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-assist-hub-tab]");
-      if (!button) return;
-      activate(button.dataset.assistHubTab);
+      tabs.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-workbench-tab]");
+        if (!button) return;
+        activate(group, button.dataset.workbenchTab);
+      });
+
+      tabs.addEventListener("keydown", (event) => {
+        const buttons = groupTabs(group);
+        if (!buttons.length) return;
+        const first = buttons[0]?.dataset.workbenchTab;
+        const last = buttons.at(-1)?.dataset.workbenchTab;
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          moveBy(group, 1);
+        } else if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          moveBy(group, -1);
+        } else if (event.key === "Home") {
+          event.preventDefault();
+          activate(group, first);
+          buttons[0]?.focus();
+        } else if (event.key === "End") {
+          event.preventDefault();
+          activate(group, last);
+          buttons.at(-1)?.focus();
+        }
+      });
+
+      activate(group, tabs.querySelector("[data-workbench-tab]")?.dataset.workbenchTab);
     });
-
-    tabs.addEventListener("keydown", (event) => {
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        moveBy(1);
-      } else if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        moveBy(-1);
-      } else if (event.key === "Home") {
-        event.preventDefault();
-        activate(ASSIST_HUB_TABS[0]);
-        $(`#assistHubTabs [data-assist-hub-tab="${ASSIST_HUB_TABS[0]}"]`)?.focus();
-      } else if (event.key === "End") {
-        event.preventDefault();
-        const last = ASSIST_HUB_TABS.at(-1);
-        activate(last);
-        $(`#assistHubTabs [data-assist-hub-tab="${last}"]`)?.focus();
-      }
-    });
-
-    activate(activeTab);
   }
 
   return {
     activate,
     bindEvents,
-    selectedTab: () => activeTab,
+    selectedTab: (group = "tuning") => activeTabs.get(group),
   };
 }

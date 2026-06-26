@@ -1,4 +1,4 @@
-import { $, escapePathSegment, text } from "./dom.js?v=v1.54-assist-hub-settings-20260626";
+import { $, escapePathSegment, text } from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
 
 export function createRecipesFeature({
   api,

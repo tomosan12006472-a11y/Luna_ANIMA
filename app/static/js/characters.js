@@ -5,8 +5,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.54-assist-hub-settings-20260626";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.54-assist-hub-settings-20260626";
+} from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.55-frequency-workbench-layout-20260626";
 
 const EMPTY_SLOT_LABELS = {
   character1: "未選択",

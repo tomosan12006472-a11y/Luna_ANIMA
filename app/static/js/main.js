@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.54-assist-hub-settings-20260626";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.54-assist-hub-settings-20260626";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.54-assist-hub-settings-20260626";
-import { onDomReady } from "./bootstrap.js?v=v1.54-assist-hub-settings-20260626";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.55-frequency-workbench-layout-20260626";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.55-frequency-workbench-layout-20260626";
+import { onDomReady } from "./bootstrap.js?v=v1.55-frequency-workbench-layout-20260626";
 import {
   $,
   $$,
@@ -11,25 +11,25 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.54-assist-hub-settings-20260626";
-import { createAssistHubFeature } from "./assist-hub.js?v=v1.54-assist-hub-settings-20260626";
-import { createCharacterFeature } from "./characters.js?v=v1.54-assist-hub-settings-20260626";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.54-assist-hub-settings-20260626";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.54-assist-hub-settings-20260626";
-import { createHistoryFeature } from "./history.js?v=v1.54-assist-hub-settings-20260626";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.54-assist-hub-settings-20260626";
-import { createI2iFeature } from "./i2i.js?v=v1.54-assist-hub-settings-20260626";
-import { createLoraFeature } from "./loras.js?v=v1.54-assist-hub-settings-20260626";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.54-assist-hub-settings-20260626";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.54-assist-hub-settings-20260626";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.54-assist-hub-settings-20260626";
-import { createQueueFeature } from "./queue.js?v=v1.54-assist-hub-settings-20260626";
-import { createReferenceFeature } from "./reference.js?v=v1.54-assist-hub-settings-20260626";
-import { createSettingsFeature } from "./settings.js?v=v1.54-assist-hub-settings-20260626";
-import { createInitialState } from "./state.js?v=v1.54-assist-hub-settings-20260626";
-import { createDetailerFeature } from "./detailers.js?v=v1.54-assist-hub-settings-20260626";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.54-assist-hub-settings-20260626";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.54-assist-hub-settings-20260626";
+} from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createAssistHubFeature } from "./assist-hub.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createCharacterFeature } from "./characters.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createHistoryFeature } from "./history.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createI2iFeature } from "./i2i.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createLoraFeature } from "./loras.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createQueueFeature } from "./queue.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createReferenceFeature } from "./reference.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createSettingsFeature } from "./settings.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createInitialState } from "./state.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createDetailerFeature } from "./detailers.js?v=v1.55-frequency-workbench-layout-20260626";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.55-frequency-workbench-layout-20260626";
 
 (() => {
   "use strict";
@@ -287,6 +287,13 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.54-assist
       background.enabled ? `BG ${background.mode || "depth"} ${Number(background.strength || 0).toFixed(2)}` : "BG OFF",
     ];
     text("#refModSummary", refParts.join(" / "));
+    const promptLength = String(req.positive_prompt || "").trim().length;
+    text("#promptWorkbenchSummary", [
+      `Prompt ${promptLength}`,
+      `Neg ${negMode}`,
+      req.prompt_random_collect.enabled ? "Random ON" : "Random OFF",
+      value("#promptConverterSummary", "LOCAL"),
+    ].join(" · "));
     const loraRows = Array.isArray(req.loras) ? req.loras : [];
     const loraOn = loraRows.filter((row) => row?.enabled !== false && row?.name).length + officialParts.length;
     const loraOff = loraRows.filter((row) => row?.enabled === false && row?.name).length;
@@ -313,14 +320,18 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.54-assist
       ? `Official ${presetLabel}`
       : (officialParts.length ? `Official ${officialParts.length} ON` : "Official OFF");
     const slotsLabel = loraRows.length ? `Slots ${slotOn}/${loraRows.length}${slotOff ? ` (${slotOff} OFF)` : ""}` : "Slots 0";
-    const quickLabel = [
-      req.prompt_random_collect.enabled ? "Random" : "",
-      req.hires_fix.enabled ? "Hires" : "",
-      checked("#i2iEnabled") ? "i2i" : "",
-      (modules.outfit?.enabled || modules.pose?.enabled || background.enabled) ? "Ref" : "",
-      (checked("#fdEnabled") || checked("#hdEnabled")) ? "Detailer" : "",
-    ].filter(Boolean).slice(0, 2).join("+") || "Ready";
-    text("#assistHubSummary", `${officialLabel} · ${slotsLabel} · ${quickLabel}`);
+    const hiresLabel = req.hires_fix.enabled ? `Hires ${req.hires_fix.mode || "latent"} ×${Number(req.hires_fix.upscale_factor || 1.5)}` : "Hires OFF";
+    text("#assistHubSummary", `${officialLabel} · ${slotsLabel} · ${hiresLabel}`);
+    const advancedLabel = [
+      checked("#i2iEnabled") ? `i2i ${req.image_to_image.denoise}` : "i2i OFF",
+      background.enabled ? `BG ${background.mode || "depth"}` : ((modules.outfit?.enabled || modules.pose?.enabled) ? "Ref ON" : "Ref OFF"),
+      (checked("#fdEnabled") || checked("#hdEnabled")) ? [
+        checked("#fdEnabled") ? "Face" : "",
+        checked("#hdEnabled") ? "Hand" : "",
+      ].filter(Boolean).join("+") : "Detailer OFF",
+      req.dynamic_prompt.enabled ? "Dyn ON" : "Dyn OFF",
+    ];
+    text("#advancedAssistSummary", advancedLabel.join(" · "));
     const assistParts = [
       loraOn ? `LoRA ${loraOn} ON${loraOff ? `/${loraOff} OFF` : ""}` : (loraOff ? `LoRA ${loraOff} OFF` : "LoRA OFF"),
       background.enabled ? `BG ${background.mode || "depth"}` : ((modules.outfit?.enabled || modules.pose?.enabled) ? "Ref ON" : "Ref OFF"),

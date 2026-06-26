@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.54-assist-hub-settings-20260626";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.54-assist-hub-settings-20260626";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.54-assist-hub-settings-20260626";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.55-frequency-workbench-layout-20260626";
 
 export function createHistoryReuseFeature({
   state,

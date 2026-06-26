@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.54-assist-hub-settings-20260626";
+} from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 
@@ -137,6 +137,9 @@ export function createI2iFeature({
     applyItem(data.item);
     UI.closeSheets();
     UI.switchTab("expose");
+    const advanced = $("details[data-fold='advanced-assist']");
+    if (advanced) advanced.open = true;
+    $("[data-workbench-tabs='advanced'] [data-workbench-tab='image']")?.click();
     const fold = $("details[data-fold='i2i']");
     if (fold) fold.open = true;
     text("#i2iStatus", "下絵を設定しました");
