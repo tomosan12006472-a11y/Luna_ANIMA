@@ -206,6 +206,34 @@ class ComfyUiControlTests(unittest.TestCase):
         self.assertTrue(capability["enabled"])
         self.assertEqual(capability["command_label"], "configured")
 
+    def test_local_restart_config_disabled_json_disables_capability(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "ComfyRoot"
+            main = root / "ComfyUI" / "main.py"
+            python = root / "venv" / "Scripts" / "python.exe"
+            config = {
+                "enabled": False,
+                "mode": "windows_wrapper",
+                "comfyui_root": str(root),
+                "python_executable": str(python),
+                "main_script": str(main),
+                "cwd": str(root),
+                "args": [str(main), "--port", "8188"],
+                "port": 8188,
+            }
+            config_path = Path(tmp) / "comfyui_restart.local.json"
+            config_path.write_text(json.dumps(config), encoding="utf-8")
+            with self.env(
+                COMFYUI_RESTART_CONFIG_PATH=str(config_path),
+                LUNA_COMFY_RESTART_ENABLED="1",
+                COMFYUI_RESTART_COMMAND=python_command("print('legacy should not win')"),
+            ):
+                capability = comfyui_control.restart_capability()
+
+        self.assertTrue(capability["configured"])
+        self.assertFalse(capability["enabled"])
+        self.assertEqual(capability["message"], "")
+
     def test_local_restart_config_missing_executable_is_disabled(self) -> None:
         config = {
             "enabled": True,
@@ -294,9 +322,10 @@ class ComfyUiControlTests(unittest.TestCase):
 
     def test_local_restart_env_uses_wrapper_without_shell(self) -> None:
         lines = "\n".join(local_restart_env_lines(Path(r"D:\repo\user_data\comfyui_restart.local.json")))
-        self.assertIn("COMFYUI_RESTART_COMMAND=powershell.exe", lines)
-        self.assertIn("restart_comfyui_windows.ps1", lines)
-        self.assertIn('set "COMFYUI_RESTART_SHELL=0"', lines)
+        self.assertIn(r'COMFYUI_RESTART_CONFIG_PATH=D:\repo\user_data\comfyui_restart.local.json', lines)
+        self.assertNotIn("COMFYUI_RESTART_COMMAND", lines)
+        self.assertNotIn("LUNA_COMFY_RESTART_ENABLED", lines)
+        self.assertNotIn("COMFYUI_RESTART_SHELL", lines)
 
 
 if __name__ == "__main__":

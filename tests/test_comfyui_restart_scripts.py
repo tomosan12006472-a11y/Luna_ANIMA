@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import unittest
 
 
@@ -33,7 +33,7 @@ class ComfyUiRestartScriptTests(unittest.TestCase):
 
     def test_comfy_root_is_parent_of_comfyui_package_dir(self) -> None:
         module = load_configure_module()
-        root = module.comfy_root_for_main(Path(r"D:\AI\ComfyUI\ComfyUI\main.py"))
+        root = module.comfy_root_for_main(PureWindowsPath(r"D:\AI\ComfyUI\ComfyUI\main.py"))
         self.assertEqual(str(root), r"D:\AI\ComfyUI")
 
     def test_run_luna_anima_loads_machine_local_restart_env(self) -> None:
@@ -41,6 +41,14 @@ class ComfyUiRestartScriptTests(unittest.TestCase):
         self.assertIn('if exist "user_data\\comfyui_restart_env.bat"', script)
         self.assertIn('call "user_data\\comfyui_restart_env.bat"', script)
         self.assertNotIn("D:\\AI\\ComfyUI", script)
+
+    def test_run_luna_anima_verifies_listener_before_stopping(self) -> None:
+        script = (ROOT_DIR / "run_luna_anima.bat").read_text(encoding="utf-8")
+        self.assertIn("function Test-LunaProcess", script)
+        self.assertIn("app\\.main:app", script)
+        self.assertIn("uvicorn", script)
+        self.assertIn("skip non-matching listener PID", script)
+        self.assertIn("Get-CimInstance Win32_Process -Filter", script)
 
     def test_wrapper_does_not_target_all_python_processes(self) -> None:
         script = (ROOT_DIR / "scripts" / "restart_comfyui_windows.ps1").read_text(encoding="utf-8")

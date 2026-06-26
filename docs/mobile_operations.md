@@ -24,7 +24,9 @@ These files are machine-local and ignored by Git. They can contain absolute path
 
 `run_luna_anima.bat` loads `user_data/comfyui_restart_env.bat` when it exists, so restart capability is available immediately after Luna ANIMA is relaunched. Re-run setup whenever you move ComfyUI, change the Python executable, change launch arguments, or change the port.
 
-To disable the button, delete or rename `user_data/comfyui_restart_env.bat`, or set `"enabled": false` in `user_data/comfyui_restart.local.json`, then restart Luna ANIMA.
+The generated env file only points Luna ANIMA at `user_data/comfyui_restart.local.json`. That JSON is the source of truth for managed local restart mode.
+
+To disable the button, set `"enabled": false` in `user_data/comfyui_restart.local.json`, then restart Luna ANIMA. You can also delete or rename `user_data/comfyui_restart_env.bat` to stop loading the managed local config.
 
 The Windows wrapper stops only the verified ComfyUI listener process tree. It checks the listener PID, `main.py`, ComfyUI root, and configured Python executable before stopping anything. It never kills all `python.exe` processes.
 

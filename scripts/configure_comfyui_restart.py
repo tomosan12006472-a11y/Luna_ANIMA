@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import shlex
 import subprocess
 import sys
@@ -107,28 +107,30 @@ def split_windows_command_line(command_line: str) -> list[str]:
     return [part.strip('"') for part in shlex.split(str(command_line or ""), posix=False)]
 
 
-def find_main_script(argv: list[str], command_line_parts: list[str]) -> Path | None:
+def find_main_script(argv: list[str], command_line_parts: list[str]) -> PureWindowsPath | None:
     for part in [*argv, *command_line_parts]:
         cleaned = str(part or "").strip('"')
         if cleaned.lower().endswith("main.py") and "comfyui" in cleaned.lower():
-            return Path(cleaned)
+            return PureWindowsPath(cleaned)
     return None
 
 
-def comfy_root_for_main(main_script: Path) -> Path:
-    parent = main_script.parent
+def comfy_root_for_main(main_script: PureWindowsPath | str) -> PureWindowsPath:
+    path = PureWindowsPath(str(main_script))
+    parent = path.parent
     if parent.name.lower() == "comfyui":
         return parent.parent
     return parent
 
 
-def derive_args(argv: list[str], command_line_parts: list[str], main_script: Path) -> list[str]:
+def derive_args(argv: list[str], command_line_parts: list[str], main_script: PureWindowsPath | str) -> list[str]:
     if argv:
         return [str(item) for item in argv]
+    main_path = PureWindowsPath(str(main_script))
     for index, part in enumerate(command_line_parts):
-        if Path(str(part).strip('"')).name.lower() == main_script.name.lower():
+        if PureWindowsPath(str(part).strip('"')).name.lower() == main_path.name.lower():
             return [str(item).strip('"') for item in command_line_parts[index:]]
-    return [str(main_script)]
+    return [str(main_path)]
 
 
 def detect_config() -> tuple[dict[str, Any], dict[str, Any]]:

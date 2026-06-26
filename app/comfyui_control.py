@@ -63,10 +63,40 @@ def _command_label(command: str) -> str:
     return "configured"
 
 
+def _restart_config_from_local(path: Path, timeout: float, interval: float) -> dict[str, Any] | None:
+    try:
+        local_config = load_local_restart_config(path)
+    except Exception:
+        local_config = {}
+    if local_config is None:
+        return None
+    local_enabled = bool(local_config.get("enabled")) if isinstance(local_config, dict) else False
+    normalized, errors = validate_local_restart_config(local_config, require_exists=local_enabled)
+    enabled = bool(normalized.get("enabled")) and not errors
+    return {
+        "enabled": enabled,
+        "configured": True,
+        "command": local_restart_command(path),
+        "command_label": "configured",
+        "timeout_seconds": float(normalized.get("startup_timeout_seconds") or timeout),
+        "poll_interval_seconds": float(normalized.get("poll_interval_seconds") or interval),
+        "cwd": str(os.environ.get("COMFYUI_RESTART_CWD", "") or "").strip(),
+        "shell": False,
+        "source": "local",
+        "message": "local restart config invalid" if normalized.get("enabled") and errors else "",
+    }
+
+
 def restart_config() -> dict[str, Any]:
-    command = str(os.environ.get("COMFYUI_RESTART_COMMAND", "") or "").strip()
     timeout = _float_env("COMFYUI_RESTART_TIMEOUT_SECONDS", 180.0, 1.0)
     interval = _float_env("COMFYUI_RESTART_POLL_INTERVAL_SECONDS", 3.0, 0.2)
+    explicit_local_path = str(os.environ.get("COMFYUI_RESTART_CONFIG_PATH", "") or "").strip()
+    if explicit_local_path:
+        local_result = _restart_config_from_local(Path(explicit_local_path), timeout, interval)
+        if local_result is not None:
+            return local_result
+
+    command = str(os.environ.get("COMFYUI_RESTART_COMMAND", "") or "").strip()
     if command:
         enabled = _bool_env("LUNA_COMFY_RESTART_ENABLED") and bool(command)
         return {
@@ -82,27 +112,23 @@ def restart_config() -> dict[str, Any]:
             "message": "",
         }
 
-    local_path = Path(os.environ.get("COMFYUI_RESTART_CONFIG_PATH") or LOCAL_RESTART_CONFIG_PATH)
-    local_config = None
-    try:
-        local_config = load_local_restart_config(local_path)
-    except Exception:
-        local_config = {}
-    if local_config is not None:
-        normalized, errors = validate_local_restart_config(local_config)
-        enabled = bool(normalized.get("enabled")) and not errors
+    if explicit_local_path:
         return {
-            "enabled": enabled,
-            "configured": True,
-            "command": local_restart_command(local_path),
-            "command_label": "configured",
-            "timeout_seconds": float(normalized.get("startup_timeout_seconds") or timeout),
-            "poll_interval_seconds": float(normalized.get("poll_interval_seconds") or interval),
+            "enabled": False,
+            "configured": False,
+            "command": "",
+            "command_label": "",
+            "timeout_seconds": timeout,
+            "poll_interval_seconds": interval,
             "cwd": str(os.environ.get("COMFYUI_RESTART_CWD", "") or "").strip(),
-            "shell": False,
-            "source": "local",
-            "message": "local restart config invalid" if errors else "",
+            "shell": _bool_env("COMFYUI_RESTART_SHELL"),
+            "source": "disabled",
+            "message": "",
         }
+
+    local_result = _restart_config_from_local(LOCAL_RESTART_CONFIG_PATH, timeout, interval)
+    if local_result is not None:
+        return local_result
 
     return {
         "enabled": False,
