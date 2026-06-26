@@ -43,6 +43,25 @@ class CharacterNameLocalizationTest(unittest.TestCase):
         self.assertNotRegex(prompts["positive"], re.compile(r"[\u3400-\u9fff]"))
         self.assertEqual(prompts["characters"], ["スカサハ（Fate）"])
 
+    def test_multi_character_prompt_avoids_visual_separation_terms(self) -> None:
+        request = dict(BASE_REQUEST)
+        request["character1"] = "None"
+        request["character2"] = "raiden shogun"
+        request["character3"] = "scathach (fate)"
+        prompts = build_prompts(request)
+
+        self.assertIn("raiden shogun", prompts["positive"])
+        self.assertIn("scathach \\(fate\\)", prompts["positive"])
+        self.assertIn(
+            "An anime illustration with multiple characters, "
+            "the left girl is Raiden Shogun, the right girl is Scathach from Fate.",
+            prompts["positive"],
+        )
+        self.assertNotIn("clearly separated", prompts["positive"])
+        self.assertNotIn("silhouette", prompts["positive"])
+        self.assertNotIn("Raiden Shogun (left)", prompts["positive"])
+        self.assertNotIn("Scathach from Fate (right)", prompts["positive"])
+
     def test_quality_prompt_override_replaces_default_quality_tags(self) -> None:
         request = dict(BASE_REQUEST)
         request["quality_prompt_overrides"] = {"standard": "custom quality tag, crisp detail"}

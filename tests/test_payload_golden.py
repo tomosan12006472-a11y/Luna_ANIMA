@@ -215,6 +215,41 @@ class PayloadGoldenTests(unittest.TestCase):
         )
         self.assertEqual(result, "A white-haired woman drinks at an izakaya.")
 
+    def test_multi_character_natural_description_escapes_parenthesized_names(self) -> None:
+        result = payload_builder.build_natural_description(
+            [
+                {"name": "Juri (Part-Time) from Blue Archive", "role": "left"},
+                {"name": "Scathach (Fate)", "role": "right"},
+            ],
+            {},
+        )
+        self.assertEqual(
+            result,
+            "An anime illustration with multiple characters, "
+            "the left girl is Juri \\(Part-Time\\) from Blue Archive, "
+            "the right girl is Scathach \\(Fate\\).",
+        )
+
+    def test_old_multi_character_generated_description_is_rebuilt(self) -> None:
+        result = payload_builder.build_natural_description(
+            [
+                {"name": "Raiden Shogun", "role": "left"},
+                {"name": "Scathach from Fate", "role": "right"},
+            ],
+            {
+                "natural_description": (
+                    "An anime illustration with multiple characters. "
+                    "Raiden Shogun (left) is clearly separated by position and silhouette. "
+                    "Scathach from Fate (right) is clearly separated by position and silhouette."
+                )
+            },
+        )
+        self.assertEqual(
+            result,
+            "An anime illustration with multiple characters, "
+            "the left girl is Raiden Shogun, the right girl is Scathach from Fate.",
+        )
+
     def test_build_lora_sample_prompts(self) -> None:
         request = {
             **base_request(),

@@ -65,6 +65,11 @@ def escape_standard_character_tag(tag: str) -> str:
     return tag.replace("\\", "\\\\").replace("(", r"\(").replace(")", r"\)")
 
 
+def escape_prompt_parentheses(text: str) -> str:
+    text = re.sub(r"(?<!\\)\(", r"\\(", text)
+    return re.sub(r"(?<!\\)\)", r"\\)", text)
+
+
 def format_weighted(tag: str, weight: float) -> str:
     tag = tag.strip()
     if not tag:
@@ -126,7 +131,9 @@ def original_identity_sentence(entry: Any, role: str) -> str:
     return identity
 
 
-def build_character_parts(request: dict[str, Any], seed: int) -> tuple[list[str], list[str], list[dict[str, Any]], list[str], list[str]]:
+def build_character_parts(
+    request: dict[str, Any], seed: int
+) -> tuple[list[str], list[str], list[dict[str, Any]], list[str], list[dict[str, str]]]:
     character_values = [
         request.get("character1", "Random"),
         request.get("character2", "None"),
@@ -146,7 +153,7 @@ def build_character_parts(request: dict[str, Any], seed: int) -> tuple[list[str]
     names: list[str] = []
     metadata: list[dict[str, Any]] = []
     natural_parts: list[str] = []
-    natural_names: list[str] = []
+    natural_names: list[dict[str, str]] = []
     for index, value in enumerate(character_values):
         tag, name, entry = catalog.resolve_character_entry(str(value), index, seed, original=False)
         if not tag:
@@ -161,7 +168,7 @@ def build_character_parts(request: dict[str, Any], seed: int) -> tuple[list[str]
         tags.append(weighted)
         names.append(f"{display_name} ({role})" if role and role != "main" else display_name)
         if safe_name:
-            natural_names.append(f"{safe_name} ({role})" if role and role != "main" else safe_name)
+            natural_names.append({"name": safe_name, "role": role})
         if entry:
             metadata.append(character_metadata(entry, index + 1, role))
             if getattr(entry, "kind", "") == "original":
@@ -174,22 +181,55 @@ def build_character_parts(request: dict[str, Any], seed: int) -> tuple[list[str]
         names.append(display_name_ja(original_name, original_tag))
         safe_name = prompt_safe_character_name(original_name, original_tag)
         if safe_name:
-            natural_names.append(safe_name)
+            natural_names.append({"name": safe_name, "role": "main"})
         if original_entry:
             metadata.append(character_metadata(original_entry, 4, "original"))
             natural_parts.append(original_identity_sentence(original_entry, "main"))
     return tags, names, metadata, natural_parts, natural_names
 
 
-def generated_natural_description(character_names: list[str]) -> str:
-    if not character_names:
+def _natural_character_name_and_role(character: Any) -> tuple[str, str]:
+    if isinstance(character, dict):
+        name = str(character.get("name") or "").strip()
+        role = str(character.get("role") or "").strip().lower()
+    else:
+        text = str(character or "").strip()
+        match = re.fullmatch(r"(.+?)\s+\((left|right|main|original)\)", text, flags=re.IGNORECASE)
+        name = match.group(1).strip() if match else text
+        role = match.group(2).lower() if match else ""
+    return escape_prompt_parentheses(name), role
+
+
+def _natural_character_subject(role: str, index: int) -> str:
+    if role == "left":
+        return "the left girl"
+    if role == "right":
+        return "the right girl"
+    if role == "main":
+        return "the main girl"
+    if role:
+        return f"the {role} character"
+    if index == 0:
+        return "the left girl"
+    if index == 1:
+        return "the right girl"
+    return f"girl {index + 1}"
+
+
+def generated_natural_description(characters: list[Any]) -> str:
+    if not characters:
         return ""
-    if len(character_names) == 1:
-        return f"An anime illustration of {character_names[0]} in a clean, expressive composition."
-    lines = ["An anime illustration with multiple characters."]
-    for name in character_names:
-        lines.append(f"{name} is clearly separated by position and silhouette.")
-    return " ".join(lines)
+    natural_characters = [_natural_character_name_and_role(character) for character in characters]
+    natural_characters = [(name, role) for name, role in natural_characters if name]
+    if not natural_characters:
+        return ""
+    if len(natural_characters) == 1:
+        return f"An anime illustration of {natural_characters[0][0]} in a clean, expressive composition."
+    clauses = [
+        f"{_natural_character_subject(role, index)} is {name}"
+        for index, (name, role) in enumerate(natural_characters)
+    ]
+    return f"An anime illustration with multiple characters, {', '.join(clauses)}."
 
 
 def normalize_natural_description(value: str) -> str:
@@ -200,17 +240,21 @@ def is_generated_natural_description(value: str) -> bool:
     text = normalize_natural_description(value)
     if re.fullmatch(r"An anime illustration of .+ in a clean, expressive composition\.", text):
         return True
-    return text.startswith("An anime illustration with multiple characters.") and (
+    if not text.startswith("An anime illustration with multiple characters"):
+        return False
+    return (
         " is clearly separated by position and silhouette." in text
+        or re.search(r"\b(?:the )?(?:left|right|main) girl is ", text, flags=re.IGNORECASE) is not None
+        or re.search(r"\bgirl \d+ is ", text, flags=re.IGNORECASE) is not None
     )
 
 
-def build_natural_description(character_names: list[str], request: dict[str, Any], natural_parts: list[str] | None = None) -> str:
+def build_natural_description(characters: list[Any], request: dict[str, Any], natural_parts: list[str] | None = None) -> str:
     manual = str(request.get("natural_description") or "").strip()
     parts = [item for item in natural_parts or [] if item]
-    generated = generated_natural_description(character_names)
+    generated = generated_natural_description(characters)
     if manual and is_generated_natural_description(manual):
-        if not character_names:
+        if not characters:
             manual = ""
         elif normalize_natural_description(manual) != normalize_natural_description(generated):
             manual = ""
