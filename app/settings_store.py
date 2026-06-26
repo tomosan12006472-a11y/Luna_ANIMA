@@ -104,6 +104,11 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
         },
     },
     "official_lora_preset": "off",
+    "turbo_restore_settings": {
+        "steps": 32,
+        "cfg": 4.5,
+        "strength": 0.6,
+    },
     "reference_assist": {
         "enabled": False,
         "mode": "auto",
@@ -207,8 +212,28 @@ def sanitize_prompt_random_instruction_favorites(items: Any) -> list[dict[str, A
     return result
 
 
+def _safe_float(value: Any, default: float) -> float:
+    if isinstance(value, bool):
+        return default
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = default
+    return number
+
+
+def sanitize_turbo_restore_settings(value: Any, fallback: dict[str, Any] | None = None) -> dict[str, Any]:
+    raw = value if isinstance(value, dict) else {}
+    base = fallback if isinstance(fallback, dict) else DEFAULT_APP_SETTINGS["turbo_restore_settings"]
+    steps = int(clamp_float(_safe_float(raw.get("steps"), _safe_float(base.get("steps"), 32.0)), 32.0, 1.0, 100.0))
+    cfg = clamp_float(_safe_float(raw.get("cfg"), _safe_float(base.get("cfg"), 4.5)), 4.5, 1.0, 20.0)
+    strength = clamp_float(_safe_float(raw.get("strength"), _safe_float(base.get("strength"), 0.6)), 0.6, 0.0, 1.0)
+    return {"steps": steps, "cfg": cfg, "strength": strength}
+
+
 def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     has_official_lora_preset = isinstance(settings, dict) and "official_lora_preset" in settings
+    has_turbo_restore_settings = isinstance(settings, dict) and isinstance(settings.get("turbo_restore_settings"), dict)
     result = deep_merge(DEFAULT_APP_SETTINGS, settings)
     workflow_mode = str(result.get("workflow_mode") or "anima")
     if workflow_mode not in {"anima", "anima_mobile_extended", "anima_lora_sample"}:
@@ -257,6 +282,21 @@ def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
         if has_official_lora_preset
         else infer_builtin_official_lora_preset_id(result.get("official_loras"))
     )
+    turbo = result["official_loras"].get("turbo", {})
+    if has_turbo_restore_settings:
+        restore_fallback = DEFAULT_APP_SETTINGS["turbo_restore_settings"]
+        restore_source = settings.get("turbo_restore_settings")
+    elif not turbo.get("enabled"):
+        restore_fallback = {
+            "steps": result.get("steps"),
+            "cfg": result.get("cfg"),
+            "strength": turbo.get("strength", 0.6),
+        }
+        restore_source = restore_fallback
+    else:
+        restore_fallback = DEFAULT_APP_SETTINGS["turbo_restore_settings"]
+        restore_source = restore_fallback
+    result["turbo_restore_settings"] = sanitize_turbo_restore_settings(restore_source, restore_fallback)
     result["loras"] = sanitize_lora_list(result.get("loras"))
     lora_settings = result.setdefault("lora_settings", {})
     lora_settings["slots"] = sanitize_lora_list(lora_settings.get("slots"))

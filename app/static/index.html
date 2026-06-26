@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.49-share-prefetch-20260625">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.50-turbo-default-isolation-20260626">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -289,7 +289,8 @@
         </div>
         <div class="switchline">
           <input id="officialTurboEnabled" type="checkbox">
-          <span class="grow">Turbo <span class="lbl">AUTO→V0.2</span><br><span class="hint">ONでsteps/cfg/strengthを推奨値へ調整します</span></span>
+          <span class="grow">Turbo <span class="lbl">AUTO→V0.2</span><br><span class="hint">ONはsteps/cfg/strengthを一時override。既定値保存時もOFF復元値を保持します</span></span>
+          <button type="button" class="ghost" data-action="official-turbo-apply-recommended" style="min-height:32px;padding:4px 10px">推奨値</button>
           <input id="officialTurboStrength" type="number" min="0" max="1" step="0.05" value="0.6" style="width:72px">
         </div>
         <div class="switchline">
@@ -681,6 +682,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/ui.js?v=v1.11-fold-prefs-20260617"></script>
-  <script src="/static/app.js?v=v1.49-share-prefetch-20260625"></script>
+  <script src="/static/app.js?v=v1.50-turbo-default-isolation-20260626"></script>
 </body>
 </html>

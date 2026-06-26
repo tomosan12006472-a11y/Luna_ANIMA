@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.49-share-prefetch-20260625";
+import { clone, setChecked, text } from "./dom.js?v=v1.50-turbo-default-isolation-20260626";
 
 const SNAPSHOT_KEYS = [
   "official_loras",
@@ -54,11 +54,14 @@ export function createTuningControlsFeature({
     for (const key of SNAPSHOT_KEYS) {
       if (request[key] !== undefined) snapshot[key] = copySnapshot(request[key]);
     }
+    if (loras?.snapshotOfficialUiState) snapshot.official_ui_state = copySnapshot(loras.snapshotOfficialUiState());
     return snapshot;
   }
 
   function restoreAssistSnapshot(snapshot = {}) {
-    if (snapshot.official_loras) {
+    if (snapshot.official_ui_state && loras?.restoreOfficialUiState) {
+      loras.restoreOfficialUiState(copySnapshot(snapshot.official_ui_state));
+    } else if (snapshot.official_loras) {
       loras?.applyOfficialToForm?.(copySnapshot(snapshot.official_loras), snapshot.official_lora_preset || "custom");
     }
     if (Array.isArray(snapshot.loras)) loras?.restoreRows?.(copySnapshot(snapshot.loras));
