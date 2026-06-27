@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .schemas.history import PublicSaveRequest
 from .settings_store import load_app_settings
+from .public_save_finish import resolve_public_save_finish
 
 
 class CachedStaticFiles(StaticFiles):
@@ -40,3 +41,11 @@ def resolve_public_save_watermark(data: PublicSaveRequest, settings: dict[str, A
     public_save_settings = app_settings.get("public_save") if isinstance(app_settings.get("public_save"), dict) else {}
     configured["enabled"] = bool(public_save_settings.get("apply_watermark", configured.get("enabled", False)))
     return configured
+
+
+__all__ = [
+    "CachedStaticFiles",
+    "cached_file_response",
+    "resolve_public_save_finish",
+    "resolve_public_save_watermark",
+]

@@ -48,6 +48,25 @@ class PublicWatermarkTests(unittest.TestCase):
         with Image.open(source).convert("RGB") as original, Image.open(output).convert("RGB") as watermarked:
             self.assertIsNotNone(ImageChops.difference(original, watermarked).getbbox())
 
+    def test_public_save_url_changes_when_settings_hash_changes(self) -> None:
+        source = self.root / "source.png"
+        Image.new("RGB", (320, 180), (20, 30, 40)).save(source)
+        item = {"id": "frame-versioned", "image_path": str(source)}
+
+        first = history_store.copy_public_image(
+            item,
+            {"enabled": True, "text": "OLD", "opacity": 0.8, "size": 28, "position": "bottom_right"},
+        )
+        second = history_store.copy_public_image(
+            item,
+            {"enabled": True, "text": "NEW", "opacity": 0.8, "size": 28, "position": "bottom_right"},
+        )
+
+        self.assertTrue(first["url"].startswith("/api/history/frame-versioned/public-image?v="))
+        self.assertTrue(second["url"].startswith("/api/history/frame-versioned/public-image?v="))
+        self.assertNotEqual(first["url"], second["url"])
+        self.assertNotEqual(first["settings_hash"], second["settings_hash"])
+
     def test_public_save_preserves_newer_history_status(self) -> None:
         source = self.root / "source.png"
         Image.new("RGB", (320, 180), (20, 30, 40)).save(source)

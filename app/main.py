@@ -14,6 +14,7 @@ from .api import history as history_api
 from .api import i2i as i2i_api
 from .api import loras as loras_api
 from .api import reference as reference_api
+from .api import signatures as signatures_api
 from .api import settings as settings_api
 from .api import system as system_api
 from .auth import SESSIONS, require_auth
@@ -21,7 +22,7 @@ from .config import ROOT_DIR, validate_startup_security
 from .generation_helpers import reset_comfy_cache_for_character_prompt
 from .generation_prepare import history_page_with_flags, refresh_pending_history_items
 from .history_store import history_collection_revision, lite_history_item
-from .responses import CachedStaticFiles, cached_file_response, resolve_public_save_watermark
+from .responses import CachedStaticFiles, cached_file_response, resolve_public_save_finish, resolve_public_save_watermark
 from .schemas import (
     DynamicPromptPreviewRequest,
     FaceDetailerPostprocessRequest,
@@ -53,6 +54,7 @@ def include_routers(app: FastAPI) -> None:
         reference_api.router,
         i2i_api.router,
         loras_api.router,
+        signatures_api.router,
         diagnostics_api.router,
         system_api.router,
     ):
@@ -117,5 +119,6 @@ __all__ = [
     "include_routers",
     "require_auth",
     "reset_comfy_cache_for_character_prompt",
+    "resolve_public_save_finish",
     "resolve_public_save_watermark",
 ]

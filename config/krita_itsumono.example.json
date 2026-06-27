@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "preset": "krita_itsumono",
+  "description": "Copy this file to user_data/public_save_finish/krita_itsumono.json and replace operations with the real local finish values. The committed example is never applied as production behavior. Supported types include brightness_contrast, saturation/color, gamma, sharpness, and krita_perchannel.",
+  "operations": []
+}

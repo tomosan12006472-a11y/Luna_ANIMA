@@ -7,7 +7,7 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
+} from "./dom.js?v=v1.59-public-image-url-version-20260628";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
@@ -31,6 +31,8 @@ export function createHistoryFeature({
   historyPositiveText,
   historyNegativeText,
   collectWatermark,
+  collectPublicSaveFinish = () => ({ finish_enabled: false, finish_preset: "krita_itsumono" }),
+  collectPublicSaveRequestSettings = null,
 } = {}) {
   const textProviders = {
     historyPositiveText: typeof historyPositiveText === "function" ? historyPositiveText : () => "",
@@ -589,7 +591,7 @@ export function createHistoryFeature({
 
   function publicImageUrl(item = state.detailItem) {
     if (!item?.id) return "";
-    return item.public_image_url || (item.public_save?.saved ? `/api/history/${escapePathSegment(item.id)}/public-image` : "");
+    return item.public_image_url || item.public_save?.url || (item.public_save?.saved ? `/api/history/${escapePathSegment(item.id)}/public-image` : "");
   }
 
   function isPublicImageReady(item = state.detailItem) {
@@ -612,6 +614,12 @@ export function createHistoryFeature({
       publicSave.height || "",
       publicSave.watermark_text || "",
       publicSave.watermark_position || "",
+      publicSave.watermark_mode || "",
+      publicSave.signature_image_id || "",
+      publicSave.signature_scale || "",
+      publicSave.finish_enabled ? "finish" : "",
+      publicSave.finish_preset || "",
+      publicSave.finish_content_hash || "",
     ].join("|");
   }
 
@@ -722,9 +730,14 @@ export function createHistoryFeature({
       const data = await api(`/api/history/${escapePathSegment(historyId)}/public-save`, {
         method: "POST",
         body: JSON.stringify({
-          apply_watermark: checked("#watermarkEnabled"),
-          watermark: collectWatermark(),
-          watermark_client: "current",
+          ...(typeof collectPublicSaveRequestSettings === "function"
+            ? collectPublicSaveRequestSettings()
+            : {
+              apply_watermark: checked("#watermarkEnabled"),
+              watermark: collectWatermark(),
+              watermark_client: "current",
+              ...collectPublicSaveFinish(),
+            }),
           async_save: true,
         }),
       });

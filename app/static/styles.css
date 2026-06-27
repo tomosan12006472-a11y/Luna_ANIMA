@@ -617,6 +617,14 @@ button.ghost.action-primary:active {
 #settingsSheet .row .ghost {
   flex: 1 1 148px;
 }
+.signature-preview {
+  max-width: 180px;
+  max-height: 58px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: 4px;
+}
 
 /* ---------- login ---------- */
 #loginView { padding-top: 18dvh; text-align: center; }

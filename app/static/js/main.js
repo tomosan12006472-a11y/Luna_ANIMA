@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.55-frequency-workbench-layout-20260626";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.55-frequency-workbench-layout-20260626";
-import { onDomReady } from "./bootstrap.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.59-public-image-url-version-20260628";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.59-public-image-url-version-20260628";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.59-public-image-url-version-20260628";
+import { onDomReady } from "./bootstrap.js?v=v1.59-public-image-url-version-20260628";
 import {
   $,
   $$,
@@ -11,25 +11,25 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createAssistHubFeature } from "./assist-hub.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createCharacterFeature } from "./characters.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createHistoryFeature } from "./history.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createI2iFeature } from "./i2i.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createLoraFeature } from "./loras.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createQueueFeature } from "./queue.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createReferenceFeature } from "./reference.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createSettingsFeature } from "./settings.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createInitialState } from "./state.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createDetailerFeature } from "./detailers.js?v=v1.55-frequency-workbench-layout-20260626";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.55-frequency-workbench-layout-20260626";
+} from "./dom.js?v=v1.59-public-image-url-version-20260628";
+import { createAssistHubFeature } from "./assist-hub.js?v=v1.59-public-image-url-version-20260628";
+import { createCharacterFeature } from "./characters.js?v=v1.59-public-image-url-version-20260628";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.59-public-image-url-version-20260628";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.59-public-image-url-version-20260628";
+import { createHistoryFeature } from "./history.js?v=v1.59-public-image-url-version-20260628";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.59-public-image-url-version-20260628";
+import { createI2iFeature } from "./i2i.js?v=v1.59-public-image-url-version-20260628";
+import { createLoraFeature } from "./loras.js?v=v1.59-public-image-url-version-20260628";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.59-public-image-url-version-20260628";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.59-public-image-url-version-20260628";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.59-public-image-url-version-20260628";
+import { createQueueFeature } from "./queue.js?v=v1.59-public-image-url-version-20260628";
+import { createReferenceFeature } from "./reference.js?v=v1.59-public-image-url-version-20260628";
+import { createSettingsFeature } from "./settings.js?v=v1.59-public-image-url-version-20260628";
+import { createInitialState } from "./state.js?v=v1.59-public-image-url-version-20260628";
+import { createDetailerFeature } from "./detailers.js?v=v1.59-public-image-url-version-20260628";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.59-public-image-url-version-20260628";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.59-public-image-url-version-20260628";
 
 (() => {
   "use strict";
@@ -106,6 +106,8 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.55-freque
     historyPositiveText: () => "",
     historyNegativeText: () => "",
     collectWatermark: () => settingsFeature.collectWatermark(),
+    collectPublicSaveFinish: () => settingsFeature.collectPublicSaveFinish(),
+    collectPublicSaveRequestSettings: () => settingsFeature.collectPublicSaveRequestSettings(),
   });
   const queue = createQueueFeature({
     api,
@@ -224,6 +226,7 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.55-freque
     promptRandom.applyToForm(settings.prompt_random_collect || {});
     promptRandom.renderInstructionFavorites(settings);
     settingsFeature.applyWatermark(settings.watermark || {});
+    settingsFeature.applyPublicSaveSettings(settings.public_save || {});
     updateSizeChips();
     updateSummaries();
   }
@@ -393,6 +396,7 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.55-freque
       public_save: {
         ...(next.public_save || {}),
         apply_watermark: checked("#watermarkEnabled"),
+        ...settingsFeature.collectPublicSaveFinish(),
       },
     });
     return next;

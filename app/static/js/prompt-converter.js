@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.55-frequency-workbench-layout-20260626";
+import { $, text, value } from "./dom.js?v=v1.59-public-image-url-version-20260628";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v1.59-public-image-url-version-20260628";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 

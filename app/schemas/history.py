@@ -10,6 +10,8 @@ class PublicSaveRequest(BaseModel):
     watermark: dict[str, Any] = Field(default_factory=dict)
     watermark_client: str = ""
     async_save: bool = False
+    finish_enabled: bool | None = None
+    finish_preset: str | None = None
 
 
 class HistoryFlagsRequest(BaseModel):

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.55-frequency-workbench-layout-20260626">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.59-public-image-url-version-20260628">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -702,18 +702,43 @@
         <div class="tray-head"><h2>透かし / 公開保存</h2><span class="lbl">FIX</span></div>
         <div class="switchline">
           <input id="watermarkEnabled" type="checkbox" checked>
-          <span class="grow">公開保存時に透かしを焼き込む</span>
+          <span class="grow">公開保存時に透かし / サインを焼き込む</span>
         </div>
         <div class="grid2">
+          <label class="field"><span class="lbl">MODE</span>
+            <select id="watermarkMode">
+              <option value="text">テキスト</option>
+              <option value="signature_image">サイン画像</option>
+            </select>
+          </label>
           <label class="field"><span class="lbl">TEXT</span><input id="watermarkText" type="text" value="@Luna_AIart_"></label>
           <label class="field"><span class="lbl">POSITION</span>
             <select id="watermarkPosition">
               <option value="bottom_right">右下</option><option value="bottom_left">左下</option>
+              <option value="bottom_center">下中央</option>
               <option value="top_right">右上</option><option value="top_left">左上</option>
             </select>
           </label>
           <label class="field"><span class="lbl">OPACITY</span><input id="watermarkOpacity" type="number" min="0" max="1" step="0.05" value="0.72"></label>
           <label class="field"><span class="lbl">SIZE</span><input id="watermarkSize" type="number" min="10" max="160" value="36"></label>
+          <label class="field"><span class="lbl">SIGN SCALE</span><input id="signatureScale" type="number" min="0.02" max="0.6" step="0.01" value="0.18"></label>
+        </div>
+        <div class="row">
+          <label class="ghost file-btn">サイン画像を選択<input id="signatureImageUpload" type="file" accept="image/png,image/jpeg,image/webp" hidden></label>
+          <button type="button" class="ghost" id="signatureImageClear" data-action="signature-image-clear">サインを解除</button>
+          <img id="signatureImagePreview" class="signature-preview" alt="サイン画像プレビュー" hidden>
+        </div>
+        <div class="switchline">
+          <input id="publicSaveFinishEnabled" type="checkbox">
+          <span class="grow">公開保存時に Krita「いつもの」仕上げを適用</span>
+        </div>
+        <div class="grid2">
+          <label class="field"><span class="lbl">FINISH PRESET</span>
+            <select id="publicSaveFinishPreset">
+              <option value="krita_itsumono">krita_itsumono</option>
+            </select>
+          </label>
+          <p id="publicSaveFinishStatus" class="hint" aria-live="polite">仕上げプリセットを確認します。</p>
         </div>
       </div>
       <div class="tray">
@@ -757,7 +782,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.55-frequency-workbench-layout-20260626"></script>
-  <script src="/static/app.js?v=v1.55-frequency-workbench-layout-20260626"></script>
+  <script src="/static/ui.js?v=v1.59-public-image-url-version-20260628"></script>
+  <script src="/static/app.js?v=v1.59-public-image-url-version-20260628"></script>
 </body>
 </html>

@@ -81,6 +81,7 @@ See `docs/background_reference.md` for Background Reference v1 setup notes, expe
 See `docs/official_loras.md` for optional official ANIMA LoRA setup, including ColorFix.
 See `docs/reference_setup.md` for IPAdapter / ControlNet / ControlNet Aux setup checks for Reference Modules.
 See `docs/mobile_operations.md` for mobile ComfyUI restart control and async public-save behavior.
+See `docs/public_save_finish.md` for optional public-save finish presets and transparent signature-image watermarks.
 
 ## Notes
 

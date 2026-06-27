@@ -1,4 +1,4 @@
-import { $, displayValue, unique } from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
+import { $, displayValue, unique } from "./dom.js?v=v1.59-public-image-url-version-20260628";
 
 export function fillSelect(selector, options, selected) {
   const select = typeof selector === "string" ? $(selector) : selector;

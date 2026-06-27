@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
+} from "./dom.js?v=v1.59-public-image-url-version-20260628";
 
 export function createSettingsFeature({
   api,
@@ -23,29 +23,114 @@ export function createSettingsFeature({
   let comfyRestartCapability = null;
   let comfyRestartPollTimer = null;
 
+  function signatureCacheKey(item = {}) {
+    return encodeURIComponent(String(item.sha256 || item.updated_at || item.signature_id || Date.now()));
+  }
+
+  function signatureAssetUrl(item = {}, kind = "thumbnail") {
+    const signatureId = item?.signature_id || "";
+    if (!signatureId) return "";
+    const rawUrl = kind === "image" ? item.image_url : item.thumbnail_url;
+    const fallback = `/api/signatures/${encodeURIComponent(signatureId)}/${kind === "image" ? "image" : "thumbnail"}`;
+    const url = rawUrl || fallback;
+    if (/[?&]v=/.test(url)) return url;
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}v=${signatureCacheKey(item)}`;
+  }
+
   function collectWatermark() {
     const previous = state.appSettings?.watermark || {};
+    const preview = $("#signatureImagePreview");
+    const signatureId = preview ? (preview.dataset.signatureId || "") : (previous.signature_image_id || "");
     return {
       ...previous,
       enabled: checked("#watermarkEnabled"),
+      mode: value("#watermarkMode", "text"),
       text: value("#watermarkText", "@Luna_AIart_"),
       position: value("#watermarkPosition", "bottom_right"),
       opacity: numberValue("#watermarkOpacity", 0.72),
       size: numberValue("#watermarkSize", 36),
+      signature_image_id: signatureId,
+      signature_scale: numberValue("#signatureScale", 0.18),
     };
   }
 
   function applyWatermark(watermark = {}) {
     setChecked("#watermarkEnabled", watermark.enabled !== false);
+    setValue("#watermarkMode", watermark.mode || "text");
     setValue("#watermarkText", watermark.text || "@Luna_AIart_");
     setValue("#watermarkPosition", watermark.position || "bottom_right");
     setValue("#watermarkOpacity", watermark.opacity ?? 0.72);
     setValue("#watermarkSize", watermark.size ?? 36);
+    setValue("#signatureScale", watermark.signature_scale ?? 0.18);
+    setSignaturePreview(
+      watermark.signature_image_id
+        ? { signature_id: watermark.signature_image_id, thumbnail_url: `/api/signatures/${encodeURIComponent(watermark.signature_image_id)}/thumbnail` }
+        : null,
+    );
+  }
+
+  function collectPublicSaveFinish() {
+    return {
+      finish_enabled: checked("#publicSaveFinishEnabled"),
+      finish_preset: value("#publicSaveFinishPreset", "krita_itsumono"),
+    };
+  }
+
+  function collectPublicSaveRequestSettings() {
+    const watermark = collectWatermark();
+    const publicSave = state.appSettings?.public_save || {};
+    const applyWatermark = $("#watermarkEnabled")
+      ? checked("#watermarkEnabled")
+      : Boolean(publicSave.apply_watermark ?? watermark.enabled);
+    const finish = collectPublicSaveFinish();
+    watermark.enabled = applyWatermark;
+    return {
+      apply_watermark: applyWatermark,
+      watermark,
+      watermark_client: "current",
+      finish_enabled: $("#publicSaveFinishEnabled") ? Boolean(finish.finish_enabled) : Boolean(publicSave.finish_enabled),
+      finish_preset: $("#publicSaveFinishPreset") ? finish.finish_preset : (publicSave.finish_preset || "krita_itsumono"),
+    };
+  }
+
+  function applyPublicSaveSettings(publicSave = {}) {
+    setChecked("#publicSaveFinishEnabled", Boolean(publicSave.finish_enabled));
+    setValue("#publicSaveFinishPreset", publicSave.finish_preset || "krita_itsumono");
+  }
+
+  function setSignaturePreview(item) {
+    const preview = $("#signatureImagePreview");
+    if (!preview) return;
+    const signatureId = item?.signature_id || "";
+    if (!signatureId) {
+      preview.hidden = true;
+      preview.removeAttribute("src");
+      preview.dataset.signatureId = "";
+      return;
+    }
+    preview.dataset.signatureId = signatureId;
+    preview.src = signatureAssetUrl(item, "thumbnail");
+    preview.hidden = false;
+  }
+
+  function syncPublicSaveStateFromDom() {
+    const watermark = collectWatermark();
+    state.appSettings = {
+      ...state.appSettings,
+      watermark,
+      public_save: {
+        ...(state.appSettings?.public_save || {}),
+        apply_watermark: checked("#watermarkEnabled"),
+        ...collectPublicSaveFinish(),
+      },
+    };
+    return state.appSettings;
   }
 
   function syncWatermarkSettings(event) {
     if (!event.target.closest("#settingsSheet")) return;
-    state.appSettings = { ...state.appSettings, watermark: collectWatermark() };
+    syncPublicSaveStateFromDom();
   }
 
   function setupStateLabel(value) {
@@ -214,9 +299,53 @@ export function createSettingsFeature({
       addMetaRow(table, "CATALOG", `${data.catalog_count ?? "-"} + custom ${data.custom_count ?? 0} / original ${data.original_count ?? "-"}`);
       addMetaRow(table, "HISTORY", data.history_count ?? "-");
       addMetaRow(table, "SHIFT", data.anima_shift || {});
+      const finish = data.public_save_finish || {};
+      addMetaRow(table, "PUBLIC_SAVE_FINISH", finish.enabled ? `${finish.preset || "-"} / ${finish.available ? "ready" : "missing"}` : "off");
     }
     renderReferenceSetup(data.reference_setup || {});
+    renderPublicSaveFinishStatus(data.public_save_finish || {});
     text("#diagBadge", data.api_addr || "-");
+  }
+
+  function renderPublicSaveFinishStatus(finish = {}) {
+    if (!finish || !Object.keys(finish).length) {
+      text("#publicSaveFinishStatus", "仕上げプリセットを確認します。");
+      return;
+    }
+    if (!finish.enabled) {
+      text("#publicSaveFinishStatus", finish.path_label ? `OFF / ${finish.path_label}` : "OFF / user_data/public_save_finish/krita_itsumono.json で設定できます");
+      return;
+    }
+    if (finish.available) {
+      text("#publicSaveFinishStatus", `READY / ${finish.path_label || finish.preset} / ${finish.operation_count || 0} ops`);
+      return;
+    }
+    text("#publicSaveFinishStatus", `MISSING / ${(finish.warnings || []).join(" / ") || "preset not configured"}`);
+  }
+
+  async function uploadSignatureImage() {
+    const input = $("#signatureImageUpload");
+    const file = input?.files?.[0];
+    if (!file) return null;
+    const form = new FormData();
+    form.append("file", file);
+    text("#settingsStatus", "サイン画像を保存中...");
+    const data = await api("/api/signatures/upload", { method: "POST", body: form });
+    setSignaturePreview(data.item);
+    setValue("#watermarkMode", "signature_image");
+    syncPublicSaveStateFromDom();
+    text("#settingsStatus", "サイン画像を設定しました");
+    UI.toast("サイン画像を設定しました");
+    if (input) input.value = "";
+    return data.item;
+  }
+
+  function clearSignatureImage() {
+    setSignaturePreview(null);
+    setValue("#watermarkMode", "text");
+    $("#signatureImageClear")?.blur?.();
+    syncPublicSaveStateFromDom();
+    text("#settingsStatus", "サイン画像を解除しました");
   }
 
   async function loadDiagnostics() {
@@ -291,11 +420,20 @@ export function createSettingsFeature({
     });
     document.addEventListener("input", syncWatermarkSettings);
     document.addEventListener("change", syncWatermarkSettings);
+    $("#signatureImageUpload")?.addEventListener("change", () => {
+      uploadSignatureImage().catch((error) => {
+        text("#settingsStatus", errorMessage(error));
+        UI.toast(errorMessage(error), "error");
+      });
+    });
   }
 
   return {
     collectWatermark,
+    collectPublicSaveFinish,
+    collectPublicSaveRequestSettings,
     applyWatermark,
+    applyPublicSaveSettings,
     renderDiagnostics,
     loadDiagnostics,
     reloadModels,
@@ -310,6 +448,7 @@ export function createSettingsFeature({
       "reload-ui": () => reloadUi(),
       "comfy-restart": () => restartComfyUi(),
       "comfy-restart-status": () => refreshComfyRestartStatus(),
+      "signature-image-clear": () => clearSignatureImage(),
     },
   };
 }

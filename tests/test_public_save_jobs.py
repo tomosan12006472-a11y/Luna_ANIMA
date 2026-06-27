@@ -34,6 +34,18 @@ class PublicSaveJobsTests(unittest.TestCase):
         history_store.THUMBNAIL_DIR = self.thumbnail_dir
         history_store._reset_history_cache_for_tests()
         public_save_jobs._reset_public_save_jobs_for_tests()
+        self._settings_patch = mock.patch(
+            "app.api.history.load_app_settings",
+            return_value={
+                "public_save": {
+                    "apply_watermark": False,
+                    "finish_enabled": False,
+                    "finish_preset": "krita_itsumono",
+                },
+                "watermark": {"enabled": False},
+            },
+        )
+        self._settings_patch.start()
 
         self.session = "public-save-test-session"
         main.SESSIONS.add(self.session)
@@ -45,6 +57,7 @@ class PublicSaveJobsTests(unittest.TestCase):
         history_store.PUBLIC_DIR = self._original_public_dir
         history_store.IMAGE_DIR = self._original_image_dir
         history_store.THUMBNAIL_DIR = self._original_thumbnail_dir
+        self._settings_patch.stop()
         history_store._reset_history_cache_for_tests()
         public_save_jobs._reset_public_save_jobs_for_tests()
         self._tmp.cleanup()
@@ -123,7 +136,7 @@ class PublicSaveJobsTests(unittest.TestCase):
         self.assertTrue(body["queued"])
         self.assertEqual(done["status"], "done")
         self.assertTrue(done["public_save"]["saved"])
-        self.assertEqual(done["public_image_url"], "/api/history/frame-async/public-image")
+        self.assertTrue(done["public_image_url"].startswith("/api/history/frame-async/public-image?v="))
         self.assert_no_async_path_leak(done)
         current = json.loads((self.history_dir / "frame-async.json").read_text(encoding="utf-8"))
         self.assertTrue(current["public_save"]["saved"])
@@ -219,7 +232,7 @@ class PublicSaveJobsTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(body["status"], "done")
-        self.assertEqual(body["public_image_url"], "/api/history/frame-recover/public-image")
+        self.assertTrue(body["public_image_url"].startswith("/api/history/frame-recover/public-image?v="))
         self.assert_no_async_path_leak(body)
 
     def test_public_image_serves_saved_file_when_public_save_path_is_missing(self) -> None:
@@ -244,6 +257,25 @@ class PublicSaveJobsTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content[:8], b"\x89PNG\r\n\x1a\n")
+
+    def test_public_image_endpoint_is_not_immutable_cached(self) -> None:
+        self.write_history("frame-public-cache")
+        saved = self.client.post(
+            "/api/history/frame-public-cache/public-save",
+            json={"apply_watermark": False, "watermark_client": "current"},
+            cookies=self.cookies(),
+        )
+        self.assertEqual(saved.status_code, 200)
+
+        response = self.client.get(
+            "/api/history/frame-public-cache/public-image",
+            cookies=self.cookies(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        cache_control = response.headers.get("cache-control", "")
+        self.assertIn("no-store", cache_control)
+        self.assertNotIn("immutable", cache_control)
 
     def test_public_image_does_not_serve_conventional_file_when_not_saved(self) -> None:
         self.write_history("frame-not-saved")
@@ -289,9 +321,9 @@ class PublicSaveJobsTests(unittest.TestCase):
     def test_async_public_save_conflicts_when_settings_differ_from_active_job(self) -> None:
         self.write_history("frame-conflict")
 
-        def slow_copy(item: dict, watermark: dict) -> dict:
+        def slow_copy(item: dict, watermark: dict, finish: dict | None = None) -> dict:
             time.sleep(0.5)
-            return history_store.copy_public_image(item, watermark)
+            return history_store.copy_public_image(item, watermark, finish)
 
         with mock.patch.object(public_save_jobs, "copy_public_image", side_effect=slow_copy):
             first = self.client.post(

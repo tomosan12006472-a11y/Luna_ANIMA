@@ -167,7 +167,7 @@ class HistoryJsonStoreMutationTests(unittest.TestCase):
         public_save = history_store.copy_public_image(item or {}, {"enabled": False})
 
         self.assertTrue(public_save["saved"])
-        self.assertEqual(public_save["url"], "/api/history/frame-1/public-image")
+        self.assertTrue(public_save["url"].startswith("/api/history/frame-1/public-image?v="))
         self.assertEqual(Path(public_save["path"]).name, "frame-1_public.png")
         stored = json.loads((self.history_dir / "frame-1.json").read_text(encoding="utf-8"))
         self.assertEqual(stored["status"], "completed")

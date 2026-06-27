@@ -1,9 +1,9 @@
-import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.55-frequency-workbench-layout-20260626";
-import { createRecipesFeature } from "./recipes.js?v=v1.55-frequency-workbench-layout-20260626";
+import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.59-public-image-url-version-20260628";
+import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.59-public-image-url-version-20260628";
+import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.59-public-image-url-version-20260628";
+import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.59-public-image-url-version-20260628";
+import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.59-public-image-url-version-20260628";
+import { createRecipesFeature } from "./recipes.js?v=v1.59-public-image-url-version-20260628";
 
 export function createPromptLibraryFeature({
   api,
