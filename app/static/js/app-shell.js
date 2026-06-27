@@ -1,5 +1,5 @@
-import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.54-assist-hub-settings-20260626";
-import { $, $$, text, value } from "./dom.js?v=v1.54-assist-hub-settings-20260626";
+import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.55-frequency-workbench-layout-20260626";
+import { $, $$, text, value } from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
 
 export function exitToLogin(message = "", { UI = window.UI } = {}) {
   UI.closeSheets();

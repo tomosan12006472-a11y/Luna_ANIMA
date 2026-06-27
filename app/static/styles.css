@@ -326,6 +326,9 @@ button.ghost.action-primary:active {
   gap: 6px;
   margin-bottom: 9px;
 }
+.workbench-tabs {
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+}
 .assist-hub-tabs .ghost {
   min-width: 0;
   min-height: 36px;
@@ -357,6 +360,14 @@ button.ghost.action-primary:active {
 }
 .compact-hint {
   margin: -2px 0 6px;
+}
+.nested-workbench {
+  background: var(--tray-deep);
+  border-color: var(--line);
+  margin-top: 8px;
+}
+.assist-hub-panel > .nested-workbench:first-child {
+  margin-top: 0;
 }
 .tray[data-lora-row].is-disabled {
   opacity: 0.58;
