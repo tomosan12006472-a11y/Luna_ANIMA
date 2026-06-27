@@ -30,6 +30,18 @@ _PUBLIC_SAVE_RESPONSE_KEYS = {
     "height",
     "watermark_text",
     "watermark_position",
+    "watermark_mode",
+    "signature_image_id",
+    "signature_scale",
+    "finish_enabled",
+    "finish_preset",
+    "finish_applied",
+    "finish_configured",
+    "finish_available",
+    "finish_content_hash",
+    "finish_operation_count",
+    "finish_effective_operation_count",
+    "finish_warnings",
 }
 
 
@@ -74,10 +86,10 @@ def _cleanup_locked() -> None:
                 _LATEST_BY_HISTORY.pop(str(job.get("history_id") or ""), None)
 
 
-def _settings_hash(item: dict[str, Any], watermark: dict[str, Any]) -> str:
+def _settings_hash(item: dict[str, Any], watermark: dict[str, Any], finish: dict[str, Any]) -> str:
     source = Path(str(item.get("image_path") or ""))
     apply_watermark = bool(watermark and watermark.get("enabled", False))
-    return public_save_settings_hash(source, apply_watermark, watermark)
+    return public_save_settings_hash(source, apply_watermark, watermark, finish)
 
 
 def _active_job_locked(history_id: str) -> dict[str, Any] | None:
@@ -115,10 +127,10 @@ def _done_response(history_id: str, public_save: dict[str, Any], *, message: str
     }
 
 
-def _run_public_save_job(job_id: str, history_id: str, item: dict[str, Any], watermark: dict[str, Any]) -> None:
+def _run_public_save_job(job_id: str, history_id: str, item: dict[str, Any], watermark: dict[str, Any], finish: dict[str, Any]) -> None:
     _mark(job_id, status="running", started_at=_now_iso(), message="saving")
     try:
-        public_save = copy_public_image(dict(item), watermark)
+        public_save = copy_public_image(dict(item), watermark, finish)
         current = load_history_item(history_id) or item
         public_image_url = current.get("public_image_url") or public_save.get("url")
         _mark(
@@ -140,11 +152,12 @@ def _run_public_save_job(job_id: str, history_id: str, item: dict[str, Any], wat
         )
 
 
-def start_public_save_job(history_id: str, item: dict[str, Any], watermark: dict[str, Any]) -> dict[str, Any]:
-    cached = public_save_cached_info(item, watermark)
+def start_public_save_job(history_id: str, item: dict[str, Any], watermark: dict[str, Any], finish: dict[str, Any] | None = None) -> dict[str, Any]:
+    finish = dict(finish or {})
+    cached = public_save_cached_info(item, watermark, finish)
     if cached:
         return _done_response(history_id, cached, message="cached")
-    settings_hash = _settings_hash(item, watermark)
+    settings_hash = _settings_hash(item, watermark, finish)
     with _LOCK:
         _cleanup_locked()
         active = _active_job_locked(history_id)
@@ -183,7 +196,7 @@ def start_public_save_job(history_id: str, item: dict[str, Any], watermark: dict
         }
         _JOBS[job_id] = job
         _LATEST_BY_HISTORY[history_id] = job_id
-    thread = Thread(target=_run_public_save_job, args=(job_id, history_id, dict(item), dict(watermark or {})), daemon=True)
+    thread = Thread(target=_run_public_save_job, args=(job_id, history_id, dict(item), dict(watermark or {}), dict(finish or {})), daemon=True)
     thread.start()
     return {
         "ok": True,

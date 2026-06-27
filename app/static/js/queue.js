@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
+import { $, text } from "./dom.js?v=v1.59-public-image-url-version-20260628";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);

@@ -41,12 +41,25 @@ from ..payload_builder import (
     build_face_detailer_postprocess_payload,
     build_hand_detailer_postprocess_payload,
 )
-from ..responses import cached_file_response, resolve_public_save_watermark
+from ..responses import cached_file_response, resolve_public_save_finish, resolve_public_save_watermark
 from ..schemas.generation import FaceDetailerPostprocessRequest, HandDetailerPostprocessRequest
 from ..schemas.history import HistoryFlagsRequest, PublicSaveRequest
+from ..settings_store import load_app_settings
 from ..public_save_jobs import public_save_status, start_public_save_job
 
 router = APIRouter()
+
+
+def mutable_file_response(path: Path, media_type: str | None = None) -> FileResponse:
+    return FileResponse(
+        path,
+        media_type=media_type,
+        headers={
+            "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+            "Pragma": "no-cache",
+        },
+    )
+
 
 @router.get("/api/history")
 def history(
@@ -345,7 +358,7 @@ def history_public_image(history_id: str, anima_claude_session: str | None = Coo
     path = resolve_public_image_path(item)
     if not path or not path.exists():
         raise HTTPException(status_code=404, detail="public image not found")
-    return cached_file_response(path)
+    return mutable_file_response(path)
 
 
 @router.post("/api/history/{history_id}/public-save")
@@ -354,7 +367,9 @@ def public_save(history_id: str, data: PublicSaveRequest, anima_claude_session: 
     item = load_history_item(history_id)
     if not item:
         raise HTTPException(status_code=404, detail="history item not found")
-    watermark = resolve_public_save_watermark(data)
+    app_settings = load_app_settings()
+    watermark = resolve_public_save_watermark(data, app_settings)
+    finish = resolve_public_save_finish(data, app_settings)
     source = Path(str(item.get("image_path") or ""))
     if not source.exists():
         public_save_info = item.get("public_save") if isinstance(item.get("public_save"), dict) else {}
@@ -371,11 +386,11 @@ def public_save(history_id: str, data: PublicSaveRequest, anima_claude_session: 
             }
         raise HTTPException(status_code=404, detail="source image not found")
     if data.async_save:
-        result = start_public_save_job(history_id, item, watermark)
+        result = start_public_save_job(history_id, item, watermark, finish)
         if not result.get("ok"):
             raise HTTPException(status_code=409, detail=result.get("message") or "public save conflict")
         return result
-    public_info = copy_public_image(item, watermark)
+    public_info = copy_public_image(item, watermark, finish)
     updated = load_history_item(history_id) or item
     public_image_url = updated.get("public_image_url") or public_info.get("url")
     return {

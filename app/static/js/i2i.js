@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
+} from "./dom.js?v=v1.59-public-image-url-version-20260628";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 

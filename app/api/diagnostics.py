@@ -25,6 +25,8 @@ from ..face_detailer import face_detailer_capabilities
 from ..generation_prepare import face_detailer_capability_payload, reference_capability_payload, reference_modules_availability_payload, reference_setup_payload
 from ..history_store import list_history
 from ..model_info_cache import _object_choice, cached_object_info, model_cache_status as _model_cache_status
+from ..public_save_finish import public_save_finish_status
+from ..settings_store import load_app_settings
 
 router = APIRouter()
 
@@ -43,6 +45,7 @@ def health() -> dict[str, Any]:
 def diagnostics(anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
     require_auth(anima_claude_session)
     settings = load_settings()
+    app_settings = load_app_settings()
     addr = settings.get("api_addr") or COMFYUI_ADDR_DEFAULT
     official_loras = official_lora_diagnostics()
     return {
@@ -63,6 +66,7 @@ def diagnostics(anima_claude_session: str | None = Cookie(default=None)) -> dict
         "background_reference": (reference_modules_availability_payload(addr).get("reference_modules") or {}).get("background", {}),
         "reference_setup": reference_setup_payload(addr),
         "face_detailer": face_detailer_capability_payload(addr).get("face_detailer", {}),
+        "public_save_finish": public_save_finish_status(app_settings),
         "official_loras": official_loras,
         "colorfix_lora_found": official_loras["colorfix_lora_found"],
         "colorfix_lora_file": official_loras["colorfix_lora_file"],
@@ -75,6 +79,7 @@ def diagnostics(anima_claude_session: str | None = Cookie(default=None)) -> dict
 def diagnostics_full(anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
     require_auth(anima_claude_session)
     settings = load_settings()
+    app_settings = load_app_settings()
     addr = settings.get("api_addr") or COMFYUI_ADDR_DEFAULT
     model_status: dict[str, Any] = {}
     info: dict[str, Any] | None = None
@@ -111,6 +116,7 @@ def diagnostics_full(anima_claude_session: str | None = Cookie(default=None)) ->
         "background_reference": (reference_modules_availability_payload(addr).get("reference_modules") or {}).get("background", {}),
         "reference_setup": reference_setup_payload(addr),
         "face_detailer": face_detailer_capabilities(info or {}) if info else face_detailer_capability_payload(addr).get("face_detailer", {}),
+        "public_save_finish": public_save_finish_status(app_settings),
         "official_loras": official_loras,
         "highres_lora_found": official_loras["highres_lora_found"],
         "highres_lora_file": official_loras["highres_lora_file"],

@@ -2,7 +2,7 @@ import {
   intFrom,
   numberFrom,
   setChecked,
-} from "./dom.js?v=v1.55-frequency-workbench-layout-20260626";
+} from "./dom.js?v=v1.59-public-image-url-version-20260628";
 
 export function createHistoryReuseDataFeature({
   state,

@@ -10,6 +10,7 @@ from .face_detailer import DEFAULT_FACE_DETAILER_SETTINGS, DEFAULT_HAND_DETAILER
 from .i2i_store import sanitize_image_to_image
 from .official_lora_presets import infer_builtin_official_lora_preset_id, normalize_official_lora_preset_id, sanitize_official_loras
 from .prompt_converter import DEFAULT_PROMPT_CONVERTER_SETTINGS, sanitize_prompt_converter_settings
+from .public_save_finish import FINISH_PRESET_ID, sanitize_public_save_finish_settings
 from .reference_modules import DEFAULT_REFERENCE_MODULES, sanitize_reference_modules
 from .storage.json_store import JsonStore
 
@@ -66,14 +67,19 @@ DEFAULT_APP_SETTINGS: dict[str, Any] = {
     "selected_character_mode": "single",
     "watermark": {
         "enabled": True,
+        "mode": "text",
         "text": "@Luna_AIart_",
         "position": "bottom_right",
         "opacity": 0.72,
         "size": 36,
         "margin": 28,
+        "signature_image_id": "",
+        "signature_scale": 0.18,
     },
     "public_save": {
         "apply_watermark": True,
+        "finish_enabled": False,
+        "finish_preset": FINISH_PRESET_ID,
     },
     "hires_fix": {
         "enabled": False,
@@ -222,6 +228,51 @@ def _safe_float(value: Any, default: float) -> float:
     return number
 
 
+def _safe_int(value: Any, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def sanitize_watermark_settings(value: Any) -> dict[str, Any]:
+    raw = value if isinstance(value, dict) else {}
+    defaults = DEFAULT_APP_SETTINGS["watermark"]
+    mode = str(raw.get("mode") or defaults["mode"]).strip().lower()
+    if mode not in {"text", "signature_image"}:
+        mode = "text"
+    position = str(raw.get("position") or defaults["position"]).strip().lower()
+    if position not in {"bottom_right", "bottom_left", "top_right", "top_left", "bottom_center"}:
+        position = "bottom_right"
+    return {
+        "enabled": bool(raw.get("enabled", defaults["enabled"])),
+        "mode": mode,
+        "text": str(raw.get("text") or defaults["text"]).strip()[:120],
+        "position": position,
+        "opacity": clamp_float(_safe_float(raw.get("opacity"), defaults["opacity"]), defaults["opacity"], 0.0, 1.0),
+        "size": int(clamp_float(_safe_int(raw.get("size"), defaults["size"]), defaults["size"], 10, 160)),
+        "margin": int(clamp_float(_safe_int(raw.get("margin"), defaults["margin"]), defaults["margin"], 0, 256)),
+        "signature_image_id": str(raw.get("signature_image_id") or "").strip()[:120],
+        "signature_scale": clamp_float(_safe_float(raw.get("signature_scale"), defaults["signature_scale"]), defaults["signature_scale"], 0.02, 0.6),
+    }
+
+
+def sanitize_public_save_settings(value: Any) -> dict[str, Any]:
+    raw = value if isinstance(value, dict) else {}
+    finish = sanitize_public_save_finish_settings(
+        {
+            "finish_enabled": raw.get("finish_enabled", False),
+            "finish_preset": raw.get("finish_preset", FINISH_PRESET_ID),
+        }
+    )
+    return {
+        "apply_watermark": bool(raw.get("apply_watermark", DEFAULT_APP_SETTINGS["public_save"]["apply_watermark"])),
+        **finish,
+    }
+
+
 def sanitize_turbo_restore_settings(value: Any, fallback: dict[str, Any] | None = None) -> dict[str, Any]:
     raw = value if isinstance(value, dict) else {}
     base = fallback if isinstance(fallback, dict) else DEFAULT_APP_SETTINGS["turbo_restore_settings"]
@@ -277,6 +328,8 @@ def sanitize_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
     hires["upscale_model"] = upscale_model
     hires["mode"] = "model" if mode == "model" else "latent"
     result["official_loras"] = sanitize_official_loras(result.get("official_loras"))
+    result["watermark"] = sanitize_watermark_settings(result.get("watermark"))
+    result["public_save"] = sanitize_public_save_settings(result.get("public_save"))
     result["official_lora_preset"] = (
         normalize_official_lora_preset_id(result.get("official_lora_preset"))
         if has_official_lora_preset

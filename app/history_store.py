@@ -11,6 +11,7 @@ from threading import Lock, RLock
 import time
 import uuid
 from typing import Any
+from urllib.parse import quote
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -18,6 +19,13 @@ from .anima_adapter import catalog
 from .config import HISTORY_DIR, IMAGE_DIR, PUBLIC_DIR, THUMBNAIL_DIR
 from .output_organizer import infer_anima_generation_method, organization_metadata
 from .payload_builder import compute_hires_size, official_lora_summary
+from .public_save_finish import (
+    apply_public_save_finish,
+    public_save_finish_hash_part,
+    public_save_finish_will_apply,
+    sanitize_public_save_finish_settings,
+)
+from .signature_store import get_signature, signature_image_path
 from .storage.json_store import JsonStore, JsonStoreReadError
 
 ACTIVE_STATUSES = {"queued", "running", "stale", "missing"}
@@ -159,9 +167,22 @@ def normalize_history_item(item: dict[str, Any]) -> dict[str, Any]:
         item["image_url"] = f"/api/history/{history_id}/image" if has_images else None
         item["thumbnail_url"] = f"/api/history/{history_id}/thumbnail" if has_images else None
         item["thumbnail_small_url"] = f"/api/history/{history_id}/thumbnail-small" if has_images else None
-        if item.get("public_save", {}).get("saved"):
-            item["public_image_url"] = f"/api/history/{history_id}/public-image"
+        public_save = item.get("public_save") if isinstance(item.get("public_save"), dict) else {}
+        if public_save.get("saved"):
+            public_url = public_image_url_for(history_id, public_save)
+            public_save["url"] = public_url
+            item["public_save"] = public_save
+            item["public_image_url"] = public_url
     return item
+
+
+def public_image_url_for(history_id: str, public_save: dict[str, Any] | None = None) -> str:
+    base = f"/api/history/{history_id}/public-image"
+    payload = public_save if isinstance(public_save, dict) else {}
+    version = str(payload.get("settings_hash") or payload.get("updated_at") or "").strip()
+    if not version:
+        return base
+    return f"{base}?v={quote(version, safe='')}"
 
 
 def save_history_item(item: dict[str, Any]) -> None:
@@ -751,22 +772,49 @@ def update_pending_history_status(history_id: str, status: str, error: str | Non
         return normalize_history_item(store.update(update_status, strict=True))
 
 
-def public_save_settings_hash(source: Path, apply_watermark: bool, watermark: dict[str, Any] | None) -> str:
+def _public_save_watermark_payload(apply_watermark: bool, watermark: dict[str, Any] | None) -> dict[str, Any]:
+    if not apply_watermark:
+        return {}
+    raw = watermark or {}
+    mode = str(raw.get("mode") or "text").strip().lower()
+    if mode not in {"text", "signature_image"}:
+        mode = "text"
+    payload = {
+        "mode": mode,
+        "position": str(raw.get("position", "bottom_right")),
+        "opacity": float(raw.get("opacity", 0.72)),
+        "margin": int(raw.get("margin", 28)),
+    }
+    if mode == "signature_image":
+        payload.update(
+            {
+                "signature_image_id": str(raw.get("signature_image_id") or ""),
+                "signature_scale": float(raw.get("signature_scale", 0.18)),
+            }
+        )
+    else:
+        payload.update(
+            {
+                "text": str(raw.get("text", "")),
+                "size": int(raw.get("size", 36)),
+            }
+        )
+    return payload
+
+
+def public_save_settings_hash(
+    source: Path,
+    apply_watermark: bool,
+    watermark: dict[str, Any] | None,
+    finish: dict[str, Any] | None = None,
+) -> str:
     source_stat = source.stat()
-    watermark_payload = {}
-    if apply_watermark:
-        watermark_payload = {
-            "text": str((watermark or {}).get("text", "")),
-            "position": str((watermark or {}).get("position", "bottom_right")),
-            "opacity": float((watermark or {}).get("opacity", 0.72)),
-            "size": int((watermark or {}).get("size", 36)),
-            "margin": int((watermark or {}).get("margin", 28)),
-        }
     payload = {
         "source_mtime_ns": source_stat.st_mtime_ns,
         "source_size_bytes": source_stat.st_size,
         "apply_watermark": apply_watermark,
-        "watermark": watermark_payload,
+        "watermark": _public_save_watermark_payload(apply_watermark, watermark),
+        "finish": public_save_finish_hash_part(finish),
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -790,7 +838,11 @@ def _public_save_output_path(history_id: str, source: Path, apply_watermark: boo
     return output
 
 
-def public_save_cached_info(item: dict[str, Any], watermark: dict[str, Any] | None = None) -> dict[str, Any] | None:
+def public_save_cached_info(
+    item: dict[str, Any],
+    watermark: dict[str, Any] | None = None,
+    finish: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     current = normalize_history_item(dict(item))
     history_id = str(current.get("id") or "")
     if not history_id:
@@ -799,18 +851,20 @@ def public_save_cached_info(item: dict[str, Any], watermark: dict[str, Any] | No
     if not source.exists():
         return None
     apply_watermark = bool(watermark and watermark.get("enabled", False))
-    output = _public_save_output_path(history_id, source, apply_watermark)
+    finish_settings = sanitize_public_save_finish_settings(finish)
+    processed = apply_watermark or public_save_finish_will_apply(finish_settings)
+    output = _public_save_output_path(history_id, source, processed)
     existing = current.get("public_save") if isinstance(current.get("public_save"), dict) else {}
     if not (
         output.exists()
         and bool(existing.get("saved"))
-        and existing.get("settings_hash") == public_save_settings_hash(source, apply_watermark, watermark)
+        and existing.get("settings_hash") == public_save_settings_hash(source, apply_watermark, watermark, finish_settings)
         and existing.get("path") == str(output)
     ):
         return None
     cached = dict(existing)
     cached["cached"] = True
-    cached.setdefault("url", f"/api/history/{history_id}/public-image")
+    cached.setdefault("url", public_image_url_for(history_id, cached))
     cached.setdefault("filename", output.name)
     return cached
 
@@ -861,7 +915,11 @@ def resolve_public_image_path(item: dict[str, Any]) -> Path | None:
     return None
 
 
-def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = None) -> dict[str, Any]:
+def copy_public_image(
+    item: dict[str, Any],
+    watermark: dict[str, Any] | None = None,
+    finish: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     history_id = str(item.get("id") or "")
     store = _history_item_store(history_id)
     public_save: dict[str, Any] = {}
@@ -874,9 +932,13 @@ def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = N
         if not source.exists():
             raise FileNotFoundError("source image is missing")
         apply_watermark = bool(watermark and watermark.get("enabled", False))
-        output = _public_save_output_path(history_id, source, apply_watermark)
+        finish_settings = sanitize_public_save_finish_settings(finish)
+        finish_enabled = bool(finish_settings.get("finish_enabled"))
+        finish_will_apply = public_save_finish_will_apply(finish_settings)
+        processed = apply_watermark or finish_will_apply
+        output = _public_save_output_path(history_id, source, processed)
         source_stat = source.stat()
-        settings_hash = public_save_settings_hash(source, apply_watermark, watermark)
+        settings_hash = public_save_settings_hash(source, apply_watermark, watermark, finish_settings)
         existing = current.get("public_save") if isinstance(current.get("public_save"), dict) else {}
         cached = (
             output.exists()
@@ -884,18 +946,36 @@ def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = N
             and existing.get("settings_hash") == settings_hash
             and existing.get("path") == str(output)
         )
+        finish_metadata = {
+            "applied": False,
+            "preset": finish_settings.get("finish_preset"),
+            "configured": False,
+            "available": False,
+            "content_hash": "",
+            "warnings": [],
+        }
+        watermark_metadata: dict[str, Any] = {"applied": False}
         if not cached:
-            if apply_watermark:
-                with Image.open(source).convert("RGBA") as image:
-                    watermarked = apply_text_watermark(image, watermark or {})
-                    watermarked.save(output)
+            if processed:
+                with Image.open(source) as raw_image:
+                    image = raw_image.convert("RGBA")
+                    finished, finish_metadata = apply_public_save_finish(image, finish_settings)
+                    if apply_watermark:
+                        watermarked, watermark_metadata = apply_watermark_image(finished, watermark or {})
+                        save_public_output(watermarked, output)
+                    else:
+                        save_public_output(finished, output)
             else:
                 shutil.copy2(source, output)
+        else:
+            finish_metadata = current.get("public_save_finish") if isinstance(current.get("public_save_finish"), dict) else finish_metadata
+            watermark_metadata = current.get("watermark") if isinstance(current.get("watermark"), dict) else watermark_metadata
         output_stat = output.stat()
+        public_url = public_image_url_for(history_id, {"settings_hash": settings_hash})
         public_save = {
             "saved": True,
             "path": str(output),
-            "url": f"/api/history/{history_id}/public-image",
+            "url": public_url,
             "filename": output.name,
             "created_at": existing.get("created_at") if cached else now_iso(),
             "updated_at": now_iso(),
@@ -906,19 +986,23 @@ def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = N
             "size_bytes": output_stat.st_size,
             "watermark_text": (watermark or {}).get("text", ""),
             "watermark_position": (watermark or {}).get("position", "bottom_right"),
+            "watermark_mode": (watermark or {}).get("mode", "text"),
+            "signature_image_id": (watermark or {}).get("signature_image_id", ""),
+            "signature_scale": (watermark or {}).get("signature_scale", 0.18),
+            "finish_enabled": finish_enabled,
+            "finish_preset": finish_settings.get("finish_preset"),
+            "finish_applied": bool(finish_metadata.get("applied")),
+            "finish_configured": bool(finish_metadata.get("configured")),
+            "finish_available": bool(finish_metadata.get("available")),
+            "finish_content_hash": finish_metadata.get("content_hash", ""),
+            "finish_operation_count": finish_metadata.get("operation_count", 0),
+            "finish_effective_operation_count": finish_metadata.get("effective_operation_count", 0),
+            "finish_warnings": finish_metadata.get("warnings", []),
         }
         public_save.update(public_image_dimensions(output))
         current["public_save"] = public_save
-        if apply_watermark:
-            current["watermark"] = {
-                "applied": True,
-                "text": watermark.get("text", ""),
-                "position": watermark.get("position", "bottom_right"),
-                "opacity": watermark.get("opacity", 0.72),
-                "size": watermark.get("size", 36),
-            }
-        else:
-            current["watermark"] = {"applied": False}
+        current["watermark"] = watermark_metadata if apply_watermark else {"applied": False}
+        current["public_save_finish"] = finish_metadata if finish_enabled else {"applied": False, "preset": finish_settings.get("finish_preset")}
         return current
 
     with _locked_history_item(history_id):
@@ -929,6 +1013,30 @@ def copy_public_image(item: dict[str, Any], watermark: dict[str, Any] | None = N
             store.write(_validate_history_item_json(current))
         item.update(current)
         return public_save
+
+
+def apply_watermark_image(image: Image.Image, watermark: dict[str, Any]) -> tuple[Image.Image, dict[str, Any]]:
+    mode = str(watermark.get("mode") or "text").strip().lower()
+    if mode == "signature_image":
+        return apply_signature_watermark(image, watermark)
+    output = apply_text_watermark(image, watermark)
+    return output, {
+        "applied": True,
+        "mode": "text",
+        "text": watermark.get("text", ""),
+        "position": watermark.get("position", "bottom_right"),
+        "opacity": watermark.get("opacity", 0.72),
+        "size": watermark.get("size", 36),
+        "margin": watermark.get("margin", 28),
+    }
+
+
+def save_public_output(image: Image.Image, output: Path) -> None:
+    suffix = output.suffix.lower()
+    if suffix in {".jpg", ".jpeg"}:
+        image.convert("RGB").save(output)
+        return
+    image.save(output)
 
 
 def apply_text_watermark(image: Image.Image, watermark: dict[str, Any]) -> Image.Image:
@@ -949,6 +1057,7 @@ def apply_text_watermark(image: Image.Image, watermark: dict[str, Any]) -> Image
     positions = {
         "bottom_right": (image.width - text_w - margin, image.height - text_h - margin),
         "bottom_left": (margin, image.height - text_h - margin),
+        "bottom_center": ((image.width - text_w) // 2, image.height - text_h - margin),
         "top_right": (image.width - text_w - margin, margin),
         "top_left": (margin, margin),
     }
@@ -958,3 +1067,53 @@ def apply_text_watermark(image: Image.Image, watermark: dict[str, Any]) -> Image
     fill = (255, 255, 255, alpha)
     draw.text((x, y), text, font=font, fill=fill, stroke_width=max(1, size // 18), stroke_fill=stroke)
     return Image.alpha_composite(image, overlay)
+
+
+def apply_signature_watermark(image: Image.Image, watermark: dict[str, Any]) -> tuple[Image.Image, dict[str, Any]]:
+    signature_id = str(watermark.get("signature_image_id") or "").strip()
+    opacity = max(0.0, min(float(watermark.get("opacity", 0.72)), 1.0))
+    margin = max(0, int(watermark.get("margin", 28)))
+    scale = max(0.02, min(float(watermark.get("signature_scale", 0.18)), 0.6))
+    position = str(watermark.get("position", "bottom_right"))
+    metadata = {
+        "applied": False,
+        "mode": "signature_image",
+        "signature_image_id": signature_id,
+        "position": position,
+        "opacity": opacity,
+        "margin": margin,
+        "signature_scale": scale,
+        "warning": "",
+    }
+    path = signature_image_path(signature_id)
+    item = get_signature(signature_id) if signature_id else None
+    if not signature_id or not path or not path.exists() or not item:
+        metadata["warning"] = "signature image missing"
+        return image, metadata
+    base = image.convert("RGBA")
+    with Image.open(path) as raw_signature:
+        signature = raw_signature.convert("RGBA")
+    target_width = max(1, int(min(base.size) * scale))
+    signature.thumbnail((target_width, target_width), Image.Resampling.LANCZOS)
+    if opacity < 1.0:
+        alpha = signature.getchannel("A").point(lambda value: int(value * opacity))
+        signature.putalpha(alpha)
+    positions = {
+        "bottom_right": (base.width - signature.width - margin, base.height - signature.height - margin),
+        "bottom_left": (margin, base.height - signature.height - margin),
+        "bottom_center": ((base.width - signature.width) // 2, base.height - signature.height - margin),
+        "top_right": (base.width - signature.width - margin, margin),
+        "top_left": (margin, margin),
+    }
+    x, y = positions.get(position, positions["bottom_right"])
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    overlay.alpha_composite(signature, (max(0, x), max(0, y)))
+    metadata.update(
+        {
+            "applied": True,
+            "filename": item.get("filename", ""),
+            "width": signature.width,
+            "height": signature.height,
+        }
+    )
+    return Image.alpha_composite(base, overlay), metadata
