@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.59-public-image-url-version-20260628";
+} from "./dom.js?v=v1.60-history-load-more-stability-20260628";
 
 const REFERENCE_MODULES = ["outfit", "pose", "background"];
 const REFMOD_EMPTY_TEXT = {

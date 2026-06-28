@@ -7,7 +7,7 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.59-public-image-url-version-20260628";
+} from "./dom.js?v=v1.60-history-load-more-stability-20260628";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
@@ -41,6 +41,8 @@ export function createHistoryFeature({
   let publicSavePollSeq = 0;
   let shareBlobPrefetchSeq = 0;
   let shareBlobCache = null;
+  let contactListRequestSeq = 0;
+  let contactListContextSeq = Number(state.contactListContextSeq || 0);
 
   function setTextProviders(providers = {}) {
     if (typeof providers.historyPositiveText === "function") {
@@ -137,6 +139,75 @@ export function createHistoryFeature({
     }
   }
 
+  function debugContactStale(reason, details = {}) {
+    if (typeof console !== "undefined" && typeof console.debug === "function") {
+      console.debug("Ignored stale history list response", { reason, ...details });
+    }
+  }
+
+  function beginContactListContext() {
+    contactListContextSeq += 1;
+    state.contactListContextSeq = contactListContextSeq;
+    state.contactRevision = "";
+    state.contactRevisionLimit = 0;
+    state.contactRevisionOffset = 0;
+    return contactListContextSeq;
+  }
+
+  function contactItemId(item) {
+    return String(item?.id || "");
+  }
+
+  function normalizeContactItemIndices(items) {
+    return (Array.isArray(items) ? items : []).map((item, index) => ({
+      ...item,
+      _absoluteIndex: index,
+    }));
+  }
+
+  function mergeAppendContactItems(currentItems, incomingItems) {
+    const nextItems = Array.isArray(currentItems) ? [...currentItems] : [];
+    const indexById = new Map();
+    nextItems.forEach((item, index) => {
+      const id = contactItemId(item);
+      if (id) indexById.set(id, index);
+    });
+    for (const item of incomingItems) {
+      const id = contactItemId(item);
+      if (id && indexById.has(id)) {
+        const index = indexById.get(id);
+        nextItems[index] = { ...nextItems[index], ...item };
+      } else {
+        if (id) indexById.set(id, nextItems.length);
+        nextItems.push(item);
+      }
+    }
+    return normalizeContactItemIndices(nextItems);
+  }
+
+  function mergeWindowContactItems(currentItems, incomingItems) {
+    const incomingIds = new Set(incomingItems.map(contactItemId).filter(Boolean));
+    const tailItems = (Array.isArray(currentItems) ? currentItems : []).filter((item) => {
+      const id = contactItemId(item);
+      return !id || !incomingIds.has(id);
+    });
+    return normalizeContactItemIndices([...incomingItems, ...tailItems]);
+  }
+
+  function setLoadMoreLoading(loading) {
+    state.contactLoadMoreInFlight = Boolean(loading);
+    updateLoadMoreButton();
+  }
+
+  function updateLoadMoreButton() {
+    const button = $("#loadMoreBtn");
+    if (!button) return;
+    const hidden = state.contactFilter === "active" || !state.contactHasMore;
+    button.classList.toggle("hidden", hidden);
+    button.disabled = Boolean(state.contactLoadMoreInFlight || state.contactRefreshInFlight);
+    button.textContent = state.contactLoadMoreInFlight ? "読み込み中..." : "さらに読み込む";
+  }
+
   async function applyContactSearch() {
     state.contactSearch = collectContactSearchFromUi();
     state.contactSearch.requestSeq += 1;
@@ -221,6 +292,7 @@ export function createHistoryFeature({
     });
     text("#contactCount", `${state.contactItems.length} / ${state.contactTotal || 0}`);
     updateContactSearchStatus();
+    updateLoadMoreButton();
   }
 
   function stopContactPolling(message = "") {
@@ -267,10 +339,16 @@ export function createHistoryFeature({
   }
 
   async function loadContact(reset = false, options = {}) {
-    const replaceItems = reset || options.polling;
-    const offset = replaceItems ? 0 : state.contactOffset;
-    const limit = options.polling
-      ? Math.max(state.contactOffset || CONTACT_LIMIT, CONTACT_LIMIT)
+    const mode = options.polling ? "polling" : reset ? "reset" : "append";
+    if (mode === "append" && (state.contactFilter === "active" || state.contactLoadMoreInFlight || state.contactRefreshInFlight)) {
+      return null;
+    }
+    const contextSeq = mode === "reset" ? beginContactListContext() : contactListContextSeq;
+    const requestId = ++contactListRequestSeq;
+    const expectedOffset = mode === "append" ? Number(state.contactOffset || 0) : 0;
+    const offset = mode === "append" ? expectedOffset : 0;
+    const limit = mode === "polling"
+      ? (state.contactFilter === "active" ? 100 : Math.max(Number(state.contactOffset || 0), CONTACT_LIMIT))
       : state.contactFilter === "active" ? 100 : CONTACT_LIMIT;
     const params = new URLSearchParams({
       view: "list",
@@ -282,34 +360,81 @@ export function createHistoryFeature({
     for (const [key, value] of Object.entries(contactSearchParams())) {
       params.set(key, value);
     }
-    if (options.knownRevision && state.contactRevision) params.set("known_revision", state.contactRevision);
-    const data = await api(`/api/history?${params.toString()}`);
-    if (seq !== (state.contactSearch.requestSeq || 0)) return data;
-    state.contactPollFailures = 0;
-    if (data.unchanged) {
-      updateContactPolling((state.contactItems || []).filter(isActiveItem).length);
-      return data;
+    const canUseKnownRevision = options.knownRevision
+      && mode === "polling"
+      && state.contactRevision
+      && Number(state.contactRevisionLimit || 0) === Number(limit || 0)
+      && Number(state.contactRevisionOffset || 0) === Number(offset || 0);
+    if (canUseKnownRevision) params.set("known_revision", state.contactRevision);
+
+    if (mode === "append") setLoadMoreLoading(true);
+    if (mode === "reset") {
+      state.contactRefreshInFlight = true;
+      updateLoadMoreButton();
     }
 
-    const pageItems = (Array.isArray(data.items) ? data.items : []).map((item, index) => ({
-      ...item,
-      _absoluteIndex: Number(data.offset || 0) + index,
-    }));
-    const visibleItems = visibleContactItems(pageItems);
-    state.contactItems = replaceItems ? visibleItems : [...state.contactItems, ...visibleItems];
-    state.contactOffset = Number(data.offset || 0) + pageItems.length;
-    state.contactRevision = data.revision || state.contactRevision;
-    state.contactLoaded = true;
-    state.contactTotal = state.contactFilter === "active"
-      ? Number(data.summary?.active ?? visibleItems.length)
-      : Number(data.filtered_total ?? data.total ?? visibleItems.length);
+    try {
+      const data = await api(`/api/history?${params.toString()}`);
+      if (seq !== (state.contactSearch.requestSeq || 0)) {
+        debugContactStale("search sequence changed", { requestId, mode });
+        return data;
+      }
+      if (contextSeq !== contactListContextSeq) {
+        debugContactStale("history context changed", { requestId, mode, contextSeq, currentContextSeq: contactListContextSeq });
+        return data;
+      }
+      if (mode === "append" && expectedOffset !== Number(state.contactOffset || 0)) {
+        debugContactStale("load-more offset changed", { requestId, expectedOffset, currentOffset: state.contactOffset });
+        return data;
+      }
 
-    $("#loadMoreBtn")?.classList.toggle("hidden", !data.has_more || state.contactFilter === "active");
-    updateContactSearchStatus(state.contactTotal);
-    renderContact();
-    const activeCount = Number(data.summary?.active ?? state.contactItems.filter(isActiveItem).length);
-    updateContactPolling(activeCount);
-    return data;
+      state.contactPollFailures = 0;
+      if (data.unchanged) {
+        updateContactPolling((state.contactItems || []).filter(isActiveItem).length);
+        return data;
+      }
+
+      const pageOffset = Number(data.offset || 0);
+      const pageItems = (Array.isArray(data.items) ? data.items : []).map((item, index) => ({
+        ...item,
+        _absoluteIndex: pageOffset + index,
+      }));
+      const visibleItems = visibleContactItems(pageItems);
+
+      if (mode === "append") {
+        state.contactItems = mergeAppendContactItems(state.contactItems, visibleItems);
+      } else if (mode === "polling") {
+        state.contactItems = mergeWindowContactItems(state.contactItems, visibleItems);
+      } else {
+        state.contactItems = normalizeContactItemIndices(visibleItems);
+      }
+
+      state.contactOffset = state.contactItems.length;
+      state.contactLoaded = true;
+      state.contactTotal = state.contactFilter === "active"
+        ? Number(data.summary?.active ?? visibleItems.length)
+        : Number(data.filtered_total ?? data.total ?? visibleItems.length);
+      state.contactHasMore = mode === "polling"
+        ? Boolean(data.has_more || Number(state.contactOffset || 0) < Number(state.contactTotal || 0))
+        : Boolean(data.has_more);
+      if (pageOffset === 0 && Number(limit || 0) >= Number(state.contactOffset || 0)) {
+        state.contactRevision = data.revision || state.contactRevision;
+        state.contactRevisionLimit = Number(limit || 0);
+        state.contactRevisionOffset = pageOffset;
+      }
+
+      updateContactSearchStatus(state.contactTotal);
+      renderContact();
+      const activeCount = Number(data.summary?.active ?? state.contactItems.filter(isActiveItem).length);
+      updateContactPolling(activeCount);
+      return data;
+    } finally {
+      if (mode === "append") setLoadMoreLoading(false);
+      if (mode === "reset" && contextSeq === contactListContextSeq) {
+        state.contactRefreshInFlight = false;
+        updateLoadMoreButton();
+      }
+    }
   }
 
   function updateFrameFavoriteButton(item = state.detailItem) {
