@@ -1,4 +1,4 @@
-import { $, setValue, value } from "./dom.js?v=v1.59-public-image-url-version-20260628";
+import { $, setValue, value } from "./dom.js?v=v1.60-history-load-more-stability-20260628";
 
 export function createPositivePromptHelpers({ updateSummaries = () => {} } = {}) {
   function insertPositivePromptText(insertText) {

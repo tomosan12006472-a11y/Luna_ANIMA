@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.59-public-image-url-version-20260628";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.59-public-image-url-version-20260628";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.59-public-image-url-version-20260628";
-import { onDomReady } from "./bootstrap.js?v=v1.59-public-image-url-version-20260628";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.60-history-load-more-stability-20260628";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.60-history-load-more-stability-20260628";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.60-history-load-more-stability-20260628";
+import { onDomReady } from "./bootstrap.js?v=v1.60-history-load-more-stability-20260628";
 import {
   $,
   $$,
@@ -11,25 +11,25 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.59-public-image-url-version-20260628";
-import { createAssistHubFeature } from "./assist-hub.js?v=v1.59-public-image-url-version-20260628";
-import { createCharacterFeature } from "./characters.js?v=v1.59-public-image-url-version-20260628";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.59-public-image-url-version-20260628";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.59-public-image-url-version-20260628";
-import { createHistoryFeature } from "./history.js?v=v1.59-public-image-url-version-20260628";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.59-public-image-url-version-20260628";
-import { createI2iFeature } from "./i2i.js?v=v1.59-public-image-url-version-20260628";
-import { createLoraFeature } from "./loras.js?v=v1.59-public-image-url-version-20260628";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.59-public-image-url-version-20260628";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.59-public-image-url-version-20260628";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.59-public-image-url-version-20260628";
-import { createQueueFeature } from "./queue.js?v=v1.59-public-image-url-version-20260628";
-import { createReferenceFeature } from "./reference.js?v=v1.59-public-image-url-version-20260628";
-import { createSettingsFeature } from "./settings.js?v=v1.59-public-image-url-version-20260628";
-import { createInitialState } from "./state.js?v=v1.59-public-image-url-version-20260628";
-import { createDetailerFeature } from "./detailers.js?v=v1.59-public-image-url-version-20260628";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.59-public-image-url-version-20260628";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.59-public-image-url-version-20260628";
+} from "./dom.js?v=v1.60-history-load-more-stability-20260628";
+import { createAssistHubFeature } from "./assist-hub.js?v=v1.60-history-load-more-stability-20260628";
+import { createCharacterFeature } from "./characters.js?v=v1.60-history-load-more-stability-20260628";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.60-history-load-more-stability-20260628";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.60-history-load-more-stability-20260628";
+import { createHistoryFeature } from "./history.js?v=v1.60-history-load-more-stability-20260628";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.60-history-load-more-stability-20260628";
+import { createI2iFeature } from "./i2i.js?v=v1.60-history-load-more-stability-20260628";
+import { createLoraFeature } from "./loras.js?v=v1.60-history-load-more-stability-20260628";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.60-history-load-more-stability-20260628";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.60-history-load-more-stability-20260628";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.60-history-load-more-stability-20260628";
+import { createQueueFeature } from "./queue.js?v=v1.60-history-load-more-stability-20260628";
+import { createReferenceFeature } from "./reference.js?v=v1.60-history-load-more-stability-20260628";
+import { createSettingsFeature } from "./settings.js?v=v1.60-history-load-more-stability-20260628";
+import { createInitialState } from "./state.js?v=v1.60-history-load-more-stability-20260628";
+import { createDetailerFeature } from "./detailers.js?v=v1.60-history-load-more-stability-20260628";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.60-history-load-more-stability-20260628";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.60-history-load-more-stability-20260628";
 
 (() => {
   "use strict";

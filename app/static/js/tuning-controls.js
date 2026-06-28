@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.59-public-image-url-version-20260628";
+import { clone, setChecked, text } from "./dom.js?v=v1.60-history-load-more-stability-20260628";
 
 const SNAPSHOT_KEYS = [
   "official_loras",

@@ -3,7 +3,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.59-public-image-url-version-20260628";
+} from "./dom.js?v=v1.60-history-load-more-stability-20260628";
 
 const QUALITY_PROMPTS = Object.freeze({
   standard: "masterpiece, best quality, score_7",

@@ -2,7 +2,7 @@ import {
   $,
   checked,
   text,
-} from "./dom.js?v=v1.59-public-image-url-version-20260628";
+} from "./dom.js?v=v1.60-history-load-more-stability-20260628";
 
 export function createGenerationActionsFeature({
   api,
