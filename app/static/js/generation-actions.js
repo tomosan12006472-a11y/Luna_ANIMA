@@ -2,7 +2,7 @@ import {
   $,
   checked,
   text,
-} from "./dom.js?v=v1.60-history-load-more-stability-20260628";
+} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
 
 export function createGenerationActionsFeature({
   api,
@@ -79,7 +79,7 @@ export function createGenerationActionsFeature({
     UI.toast(toastMessage);
     UI.safelight("developing", safelightMessage);
     state.pollHadActive = true;
-    await history.loadContact(true);
+    await history.loadContact(true, { preserveLoadedWindow: true, reason: "generate" });
     return queued;
   }
 

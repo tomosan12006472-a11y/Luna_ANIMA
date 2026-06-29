@@ -6,7 +6,7 @@ import {
   setChecked,
   setValue,
   text,
-} from "./dom.js?v=v1.60-history-load-more-stability-20260628";
+} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
 
 export function createDetailerFeature({
   api,
@@ -161,7 +161,7 @@ export function createDetailerFeature({
     UI.toast("顔補正をキューに入れました");
     UI.safelight("developing", "FACE DETAILING");
     state.pollHadActive = true;
-    await history.loadContact(true);
+    await history.loadContact(true, { preserveLoadedWindow: true, reason: "face-detailer" });
     if (Array.isArray(data.warnings) && data.warnings.length) {
       UI.toast(data.warnings.slice(0, 2).join(" / "));
     }
@@ -182,7 +182,7 @@ export function createDetailerFeature({
     UI.toast("手補正をキューに入れました");
     UI.safelight("developing", "HAND DETAILING");
     state.pollHadActive = true;
-    await history.loadContact(true);
+    await history.loadContact(true, { preserveLoadedWindow: true, reason: "hand-detailer" });
     if (Array.isArray(data.warnings) && data.warnings.length) {
       UI.toast(data.warnings.slice(0, 2).join(" / "));
     }

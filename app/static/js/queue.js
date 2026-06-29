@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.60-history-load-more-stability-20260628";
+import { $, text } from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);

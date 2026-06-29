@@ -537,6 +537,27 @@ button.ghost.action-primary:active {
 #contactSearchStatus {
   margin: 0;
 }
+.history-debug {
+  margin: 0 0 8px;
+  border: 1px dashed var(--line);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.history-debug summary {
+  cursor: pointer;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+}
+.history-debug pre {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+}
 @media (max-width: 520px) {
   .contact-search-content,
   .contact-search-grid {
