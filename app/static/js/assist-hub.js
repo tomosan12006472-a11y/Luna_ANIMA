@@ -1,4 +1,4 @@
-import { $, $$ } from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { $, $$ } from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
 
 export function createAssistHubFeature() {
   const activeTabs = new Map();

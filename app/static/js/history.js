@@ -7,13 +7,13 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+} from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
 const PUBLIC_SAVE_POLL_INTERVAL_MS = 1200;
 const PUBLIC_SAVE_MAX_POLLS = 90;
-const HISTORY_RUNTIME_TOKEN = "v1.61-history-pagination-diagnostics-hardfix-20260629";
+const HISTORY_RUNTIME_TOKEN = "v1.62-detailer-detection-controls-20260630";
 const HISTORY_DEBUG_EVENT_LIMIT = 20;
 
 function fallbackErrorMessage(error) {
@@ -849,8 +849,17 @@ export function createHistoryFeature({
     if (!Object.keys(source).length) return `${label} not recorded`;
     const parts = [`${label} ${onOff(source.enabled)}`];
     if (source.mode) parts.push(source.mode);
+    if (source.preset) parts.push(`preset ${source.preset}`);
+    if (source.bbox_threshold !== undefined) parts.push(`bbox ${Number(source.bbox_threshold).toFixed(2)}`);
+    if (source.max_detections !== undefined) parts.push(`max ${source.max_detections}`);
+    if (source.runaway_guard_enabled !== undefined) {
+      parts.push(source.runaway_guard_enabled ? `guard ${source.runaway_action || "on"}` : "guard OFF");
+    }
+    if (source.candidates_detected !== undefined && source.candidates_detected !== null) parts.push(`${source.candidates_detected} detected`);
+    if (source.candidates_processed !== undefined && source.candidates_processed !== null) parts.push(`${source.candidates_processed} processed`);
+    if (source.elapsed_seconds !== undefined && source.elapsed_seconds !== null) parts.push(`${Number(source.elapsed_seconds).toFixed(1)}s`);
     if (source.applied !== undefined) parts.push(source.applied ? "applied" : "skipped");
-    const reason = shortText(source.unsupported_reason || warningsText(source.warnings, 56), 56);
+    const reason = shortText(source.skip_reason || source.unsupported_reason || warningsText(source.warnings, 56), 56);
     if (reason) parts.push(reason);
     return parts.join(" ");
   }

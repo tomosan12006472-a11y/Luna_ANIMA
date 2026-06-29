@@ -260,6 +260,7 @@ const requestBuilderFiles = [
   "app/static/js/history-reuse-data.js",
   "app/static/js/reference.js",
   "app/static/js/history.js",
+  "app/static/js/detailers.js",
 ];
 const payloadKeys = [
   "workflow_mode",
@@ -307,6 +308,13 @@ const payloadKeys = [
   "image_to_image",
   "face_detailer",
   "hand_detailer",
+  "bbox_threshold",
+  "min_area_ratio",
+  "max_area_ratio",
+  "max_detections",
+  "runaway_guard_enabled",
+  "runaway_max_candidates",
+  "runaway_action",
   "reference_modules",
   "background",
 ];
@@ -371,7 +379,23 @@ const domIds = [
   "#queueStatus",
   "#settingsStatus",
   "#fdEnabled",
+  "#fdPreset",
+  "#fdBbox",
+  "#fdMinAreaRatio",
+  "#fdMaxAreaRatio",
+  "#fdMaxDetections",
+  "#fdRunawayGuard",
+  "#fdRunawayMaxCandidates",
+  "#fdRunawayAction",
   "#hdEnabled",
+  "#hdPreset",
+  "#hdBbox",
+  "#hdMinAreaRatio",
+  "#hdMaxAreaRatio",
+  "#hdMaxDetections",
+  "#hdRunawayGuard",
+  "#hdRunawayMaxCandidates",
+  "#hdRunawayAction",
 ];
 
 for (const selector of domIds) {

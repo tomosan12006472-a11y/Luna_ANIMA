@@ -210,6 +210,7 @@ class PromptRandomCollectSettings(CompatSettingsModel):
 class FaceDetailerRequestSettings(CompatSettingsModel):
     enabled: bool = False
     mode: str = "generation"
+    preset: str = "normal"
     detector: str = "bbox/face_yolov8m.pt"
     steps: int = 12
     cfg: float = 5.0
@@ -220,11 +221,17 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     bbox_dilation: int = 10
     bbox_crop_factor: float = 3.0
     drop_size: int = 64
+    min_area_ratio: float = 0.0008
+    max_area_ratio: float = 0.30
+    max_detections: int = 8
+    runaway_guard_enabled: bool = True
+    runaway_max_candidates: int = 20
+    runaway_action: str = "skip"
     sam_enabled: bool = False
     seed_policy: str = "image_seed_plus_offset"
     seed_offset: int = 100000
 
-    @field_validator("enabled", "sam_enabled", mode="before")
+    @field_validator("enabled", "sam_enabled", "runaway_guard_enabled", mode="before")
     @classmethod
     def _normalize_bool(cls, value: Any) -> bool:
         return _bool_value(value)
@@ -238,6 +245,12 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     @classmethod
     def _normalize_string(cls, value: Any) -> str:
         return _string_value(value)
+
+    @field_validator("preset", mode="before")
+    @classmethod
+    def _normalize_preset(cls, value: Any) -> str:
+        preset = str(value or "normal").strip().lower()
+        return preset if preset in {"safe", "normal", "aggressive", "custom"} else "normal"
 
     @field_validator("steps", mode="before")
     @classmethod
@@ -267,27 +280,59 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     @field_validator("bbox_threshold", mode="before")
     @classmethod
     def _normalize_bbox_threshold(cls, value: Any) -> float:
-        return _clamp_float(value, 0.65, 0.0, 1.0)
+        return _clamp_float(value, 0.65, 0.05, 0.95)
 
     @field_validator("bbox_dilation", mode="before")
     @classmethod
     def _normalize_bbox_dilation(cls, value: Any) -> int:
-        return _clamp_int(value, 10, -512, 512)
+        return _clamp_int(value, 10, 0, 128)
 
     @field_validator("bbox_crop_factor", mode="before")
     @classmethod
     def _normalize_bbox_crop_factor(cls, value: Any) -> float:
-        return _clamp_float(value, 3.0, 1.0, 10.0)
+        return _clamp_float(value, 3.0, 1.0, 4.0)
 
     @field_validator("drop_size", mode="before")
     @classmethod
     def _normalize_drop_size(cls, value: Any) -> int:
         return _clamp_int(value, 64, 4, 512)
 
+    @field_validator("min_area_ratio", mode="before")
+    @classmethod
+    def _normalize_min_area_ratio(cls, value: Any) -> float:
+        return _clamp_float(value, 0.0008, 0.0, 0.1)
+
+    @field_validator("max_area_ratio", mode="before")
+    @classmethod
+    def _normalize_max_area_ratio(cls, value: Any) -> float:
+        return _clamp_float(value, 0.30, 0.01, 1.0)
+
+    @field_validator("max_detections", mode="before")
+    @classmethod
+    def _normalize_max_detections(cls, value: Any) -> int:
+        return _clamp_int(value, 8, 1, 64)
+
+    @field_validator("runaway_max_candidates", mode="before")
+    @classmethod
+    def _normalize_runaway_max_candidates(cls, value: Any) -> int:
+        return _clamp_int(value, 20, 1, 128)
+
+    @field_validator("runaway_action", mode="before")
+    @classmethod
+    def _normalize_runaway_action(cls, value: Any) -> str:
+        action = str(value or "skip").strip().lower()
+        return action if action in {"skip", "limit", "warn"} else "skip"
+
     @field_validator("seed_offset", mode="before")
     @classmethod
     def _normalize_seed_offset(cls, value: Any) -> int:
         return _clamp_int(value, 100000, 0, 2147483647)
+
+    @model_validator(mode="after")
+    def _order_area_range(self) -> "FaceDetailerRequestSettings":
+        if self.max_area_ratio < self.min_area_ratio:
+            self.max_area_ratio = self.min_area_ratio
+        return self
 
 
 class HandDetailerRequestSettings(FaceDetailerRequestSettings):
@@ -295,10 +340,14 @@ class HandDetailerRequestSettings(FaceDetailerRequestSettings):
     steps: int = 14
     cfg: float = 4.0
     denoise: float = 0.45
-    bbox_threshold: float = 0.35
+    bbox_threshold: float = 0.45
     bbox_dilation: int = 16
     bbox_crop_factor: float = 2.5
     drop_size: int = 24
+    min_area_ratio: float = 0.0005
+    max_area_ratio: float = 0.35
+    max_detections: int = 12
+    runaway_max_candidates: int = 30
     seed_offset: int = 200000
     lllite_enabled: bool = True
     lllite_model: str = "anima-lllite-inpainting-v2.safetensors"
@@ -324,22 +373,42 @@ class HandDetailerRequestSettings(FaceDetailerRequestSettings):
     @field_validator("bbox_threshold", mode="before")
     @classmethod
     def _normalize_hand_bbox_threshold(cls, value: Any) -> float:
-        return _clamp_float(value, 0.35, 0.0, 1.0)
+        return _clamp_float(value, 0.45, 0.05, 0.95)
 
     @field_validator("bbox_dilation", mode="before")
     @classmethod
     def _normalize_hand_bbox_dilation(cls, value: Any) -> int:
-        return _clamp_int(value, 16, -512, 512)
+        return _clamp_int(value, 16, 0, 128)
 
     @field_validator("bbox_crop_factor", mode="before")
     @classmethod
     def _normalize_hand_bbox_crop_factor(cls, value: Any) -> float:
-        return _clamp_float(value, 2.5, 1.0, 10.0)
+        return _clamp_float(value, 2.5, 1.0, 4.0)
 
     @field_validator("drop_size", mode="before")
     @classmethod
     def _normalize_hand_drop_size(cls, value: Any) -> int:
         return _clamp_int(value, 24, 4, 512)
+
+    @field_validator("min_area_ratio", mode="before")
+    @classmethod
+    def _normalize_hand_min_area_ratio(cls, value: Any) -> float:
+        return _clamp_float(value, 0.0005, 0.0, 0.1)
+
+    @field_validator("max_area_ratio", mode="before")
+    @classmethod
+    def _normalize_hand_max_area_ratio(cls, value: Any) -> float:
+        return _clamp_float(value, 0.35, 0.01, 1.0)
+
+    @field_validator("max_detections", mode="before")
+    @classmethod
+    def _normalize_hand_max_detections(cls, value: Any) -> int:
+        return _clamp_int(value, 12, 1, 64)
+
+    @field_validator("runaway_max_candidates", mode="before")
+    @classmethod
+    def _normalize_hand_runaway_max_candidates(cls, value: Any) -> int:
+        return _clamp_int(value, 30, 1, 128)
 
     @field_validator("seed_offset", mode="before")
     @classmethod

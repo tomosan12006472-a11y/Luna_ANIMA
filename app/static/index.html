@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.61-history-pagination-diagnostics-hardfix-20260629">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.62-detailer-detection-controls-20260630">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -512,11 +512,26 @@
           <span class="grow">生成時に顔を補正する</span>
         </div>
         <div class="grid2">
+          <label class="field"><span class="lbl">PRESET</span><select id="fdPreset"><option value="safe">Safe</option><option value="normal" selected>Normal</option><option value="aggressive">Aggressive</option><option value="custom">Custom</option></select></label>
+          <label class="field"><span class="lbl">MAX DETECTIONS</span><input id="fdMaxDetections" type="number" min="1" max="64" step="1" value="8"></label>
           <label class="field"><span class="lbl">DENOISE</span><input id="fdDenoise" type="number" min="0" max="1" step="0.01" value="0.30"></label>
           <label class="field"><span class="lbl">STEPS</span><input id="fdSteps" type="number" min="1" max="60" value="12"></label>
           <label class="field"><span class="lbl">CFG</span><input id="fdCfg" type="number" min="0" max="30" step="0.1" value="4.0"></label>
-          <label class="field"><span class="lbl">BBOX THRESHOLD</span><input id="fdBbox" type="number" min="0" max="1" step="0.01" value="0.50"></label>
+          <label class="field"><span class="lbl">BBOX THRESHOLD</span><input id="fdBbox" type="number" min="0.05" max="0.95" step="0.01" value="0.65"></label>
         </div>
+        <details class="compact-more">
+          <summary><span class="lbl">Detection guard</span><span class="hint">area / runaway</span></summary>
+          <div class="grid2">
+            <label class="field"><span class="lbl">MIN AREA</span><input id="fdMinAreaRatio" type="number" min="0" max="0.1" step="0.0001" value="0.0008"></label>
+            <label class="field"><span class="lbl">MAX AREA</span><input id="fdMaxAreaRatio" type="number" min="0.01" max="1" step="0.01" value="0.30"></label>
+            <label class="field"><span class="lbl">RUNAWAY MAX</span><input id="fdRunawayMaxCandidates" type="number" min="1" max="128" step="1" value="20"></label>
+            <label class="field"><span class="lbl">RUNAWAY ACTION</span><select id="fdRunawayAction"><option value="skip" selected>Skip</option><option value="limit">Limit</option><option value="warn">Warn</option></select></label>
+          </div>
+          <div class="switchline">
+            <input id="fdRunawayGuard" type="checkbox" checked>
+            <span class="grow">候補が多すぎる時に処理を止める</span>
+          </div>
+        </details>
         <p id="fdStatus" class="hint" aria-live="polite"></p>
         </div>
 
@@ -528,12 +543,27 @@
           <span class="grow">生成時に手を補正する</span>
         </div>
         <div class="grid2">
+          <label class="field"><span class="lbl">PRESET</span><select id="hdPreset"><option value="safe">Safe</option><option value="normal" selected>Normal</option><option value="aggressive">Aggressive</option><option value="custom">Custom</option></select></label>
+          <label class="field"><span class="lbl">MAX DETECTIONS</span><input id="hdMaxDetections" type="number" min="1" max="64" step="1" value="12"></label>
           <label class="field"><span class="lbl">DENOISE</span><input id="hdDenoise" type="number" min="0" max="1" step="0.01" value="0.45"></label>
           <label class="field"><span class="lbl">STEPS</span><input id="hdSteps" type="number" min="1" max="60" value="14"></label>
           <label class="field"><span class="lbl">CFG</span><input id="hdCfg" type="number" min="0" max="30" step="0.1" value="4.0"></label>
-          <label class="field"><span class="lbl">BBOX THRESHOLD</span><input id="hdBbox" type="number" min="0" max="1" step="0.01" value="0.35"></label>
+          <label class="field"><span class="lbl">BBOX THRESHOLD</span><input id="hdBbox" type="number" min="0.05" max="0.95" step="0.01" value="0.45"></label>
           <label class="field"><span class="lbl">LLLITE</span><input id="hdLlliteStrength" type="number" min="0" max="2" step="0.05" value="0.85"></label>
         </div>
+        <details class="compact-more">
+          <summary><span class="lbl">Detection guard</span><span class="hint">area / runaway</span></summary>
+          <div class="grid2">
+            <label class="field"><span class="lbl">MIN AREA</span><input id="hdMinAreaRatio" type="number" min="0" max="0.1" step="0.0001" value="0.0005"></label>
+            <label class="field"><span class="lbl">MAX AREA</span><input id="hdMaxAreaRatio" type="number" min="0.01" max="1" step="0.01" value="0.35"></label>
+            <label class="field"><span class="lbl">RUNAWAY MAX</span><input id="hdRunawayMaxCandidates" type="number" min="1" max="128" step="1" value="30"></label>
+            <label class="field"><span class="lbl">RUNAWAY ACTION</span><select id="hdRunawayAction"><option value="skip" selected>Skip</option><option value="limit">Limit</option><option value="warn">Warn</option></select></label>
+          </div>
+          <div class="switchline">
+            <input id="hdRunawayGuard" type="checkbox" checked>
+            <span class="grow">候補が多すぎる時に処理を止める</span>
+          </div>
+        </details>
         <p id="hdStatus" class="hint" aria-live="polite"></p>
         </div>
         </section>
@@ -786,7 +816,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629"></script>
-  <script src="/static/app.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629"></script>
+  <script src="/static/ui.js?v=v1.62-detailer-detection-controls-20260630"></script>
+  <script src="/static/app.js?v=v1.62-detailer-detection-controls-20260630"></script>
 </body>
 </html>

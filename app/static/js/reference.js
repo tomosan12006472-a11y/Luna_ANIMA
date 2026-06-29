@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+} from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
 
 const REFERENCE_MODULES = ["outfit", "pose", "background"];
 const REFMOD_EMPTY_TEXT = {

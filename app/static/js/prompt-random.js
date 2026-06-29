@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+} from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
 
 const PROMPT_RANDOM_MODES = new Set(["random", "positive_completion"]);
 const PROMPT_RANDOM_DEFAULT_INSTRUCTIONS = {

@@ -15,7 +15,8 @@ from app.api import reference as reference_api
 from app.config import APP_PIN
 from app.generation_prepare import generation_request_dict
 from app.main import app
-from app.schemas.generation import GenerateRequest, HiresFixSettings, OfficialLorasSettings
+from app.face_detailer import sanitize_hand_detailer_settings
+from app.schemas.generation import GenerateRequest, HandDetailerRequestSettings, HiresFixSettings, OfficialLorasSettings
 from app.schemas.reference import ImageToImageSettings, ReferenceAssistSettings
 from app.workflow import loras as workflow_loras
 
@@ -48,6 +49,51 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(dumped["reference_modules"]["background"]["mode"], "canny")
         self.assertEqual(dumped["image_to_image"]["resize_mode"], "cover")
         self.assertFalse(dumped["prompt_random_collect"]["include_characters"])
+
+    def test_detailer_detection_controls_are_preserved_and_clamped(self) -> None:
+        data = GenerateRequest(
+            face_detailer={
+                "enabled": True,
+                "preset": "aggressive",
+                "bbox_threshold": "2",
+                "min_area_ratio": "0.02",
+                "max_area_ratio": "0.01",
+                "max_detections": "999",
+                "runaway_guard_enabled": "false",
+                "runaway_max_candidates": "999",
+                "runaway_action": "limit",
+            },
+            hand_detailer={
+                "enabled": True,
+                "preset": "safe",
+                "bbox_threshold": "0",
+                "max_detections": "0",
+                "runaway_guard_enabled": "true",
+                "runaway_max_candidates": "0",
+                "runaway_action": "bad",
+            },
+        )
+
+        dumped = data.model_dump()
+        face = dumped["face_detailer"]
+        hand = dumped["hand_detailer"]
+        self.assertEqual(face["preset"], "aggressive")
+        self.assertEqual(face["bbox_threshold"], 0.95)
+        self.assertEqual(face["max_area_ratio"], face["min_area_ratio"])
+        self.assertEqual(face["max_detections"], 64)
+        self.assertFalse(face["runaway_guard_enabled"])
+        self.assertEqual(face["runaway_max_candidates"], 128)
+        self.assertEqual(face["runaway_action"], "limit")
+        self.assertEqual(hand["preset"], "safe")
+        self.assertEqual(hand["bbox_threshold"], 0.05)
+        self.assertEqual(hand["max_detections"], 1)
+        self.assertTrue(hand["runaway_guard_enabled"])
+        self.assertEqual(hand["runaway_max_candidates"], 1)
+        self.assertEqual(hand["runaway_action"], "skip")
+
+    def test_hand_detailer_default_bbox_matches_normal_preset(self) -> None:
+        self.assertEqual(HandDetailerRequestSettings().bbox_threshold, 0.45)
+        self.assertEqual(sanitize_hand_detailer_settings({})["bbox_threshold"], 0.45)
 
     def test_hires_fix_defaults_clamp_and_mode_fallback(self) -> None:
         data = HiresFixSettings.model_validate({"enabled": True, "mode": "bad", "upscale_factor": 99, "denoise": -1, "steps": 999})

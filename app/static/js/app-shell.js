@@ -1,5 +1,5 @@
-import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { $, $$, text, value } from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.62-detailer-detection-controls-20260630";
+import { $, $$, text, value } from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
 
 export function exitToLogin(message = "", { UI = window.UI } = {}) {
   UI.closeSheets();

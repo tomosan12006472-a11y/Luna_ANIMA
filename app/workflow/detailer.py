@@ -6,6 +6,7 @@ from typing import Any
 from .._shared_utils import next_node_id, sanitize_prompt_text
 from ..anima_adapter import generate_seed
 from ..face_detailer import (
+    add_detection_segs_to_workflow,
     add_face_detailer_to_workflow,
     face_detailer_seed,
     sanitize_face_detailer_settings,
@@ -66,6 +67,9 @@ def build_face_detailer_postprocess_workflow(request: dict[str, Any], image_name
         output_input_name="images",
         seed=fd_seed,
         settings=settings,
+        target="face",
+        image_width=request.get("width"),
+        image_height=request.get("height"),
     )
     request["face_detailer"] = metadata
     return workflow
@@ -114,6 +118,8 @@ def build_hand_detailer_postprocess_workflow(request: dict[str, Any], image_name
         image=["10", 0],
         model=["46", 0],
         settings=settings,
+        image_width=request.get("width"),
+        image_height=request.get("height"),
     )
     metadata = add_face_detailer_to_workflow(
         workflow,
@@ -128,6 +134,9 @@ def build_hand_detailer_postprocess_workflow(request: dict[str, Any], image_name
         seed=hd_seed,
         settings=settings,
         title_prefix="Hand Detailer",
+        target="hand",
+        image_width=request.get("width"),
+        image_height=request.get("height"),
     )
     metadata["target"] = "hand"
     metadata["lllite"] = lllite_metadata
@@ -152,6 +161,9 @@ def apply_face_detailer(workflow: dict[str, Any], request: dict[str, Any], seed:
         output_input_name="images",
         seed=fd_seed,
         settings=settings,
+        target="face",
+        image_width=request.get("width"),
+        image_height=request.get("height"),
     )
     request["face_detailer"] = metadata
 
@@ -162,6 +174,8 @@ def add_hand_lllite_mask_to_workflow(
     image: list[Any],
     model: list[Any],
     settings: dict[str, Any],
+    image_width: Any = None,
+    image_height: Any = None,
 ) -> tuple[list[Any], dict[str, Any]]:
     metadata = {
         "enabled": bool(settings.get("lllite_enabled")),
@@ -176,30 +190,27 @@ def add_hand_lllite_mask_to_workflow(
         return model, metadata
 
     detector_id = next_node_id(workflow, 9400)
-    segs_id = next_node_id(workflow, int(detector_id) + 1)
-    mask_id = next_node_id(workflow, int(segs_id) + 1)
+    mask_id = next_node_id(workflow, int(detector_id) + 10)
     lllite_id = next_node_id(workflow, int(mask_id) + 1)
     workflow[detector_id] = {
         "class_type": "UltralyticsDetectorProvider",
         "inputs": {"model_name": settings.get("detector") or "bbox/hand_yolov8s.pt"},
         "_meta": {"title": "Hand LLLite Detector"},
     }
-    workflow[segs_id] = {
-        "class_type": "BboxDetectorSEGS",
-        "inputs": {
-            "bbox_detector": [detector_id, 0],
-            "image": image,
-            "threshold": settings["bbox_threshold"],
-            "dilation": settings["bbox_dilation"],
-            "crop_factor": settings["bbox_crop_factor"],
-            "drop_size": settings["drop_size"],
-            "labels": "hand",
-        },
-        "_meta": {"title": "Hand LLLite SEGS"},
-    }
+    segs, segs_metadata = add_detection_segs_to_workflow(
+        workflow,
+        image=image,
+        detector=[detector_id, 0],
+        settings=settings,
+        title_prefix="Hand LLLite",
+        label="hand",
+        image_width=image_width,
+        image_height=image_height,
+        start=int(detector_id) + 1,
+    )
     workflow[mask_id] = {
         "class_type": "SegsToCombinedMask",
-        "inputs": {"segs": [segs_id, 0]},
+        "inputs": {"segs": segs},
         "_meta": {"title": "Hand LLLite Mask"},
     }
     workflow[lllite_id] = {
@@ -220,7 +231,7 @@ def add_hand_lllite_mask_to_workflow(
         {
             "applied": True,
             "detector_node_id": detector_id,
-            "segs_node_id": segs_id,
+            **segs_metadata,
             "mask_node_id": mask_id,
             "node_id": lllite_id,
         }
@@ -234,9 +245,9 @@ def apply_hand_detailer(workflow: dict[str, Any], request: dict[str, Any], seed:
     hd_seed = face_detailer_seed(seed, index=int(request.get("queue_index") or 0), settings=settings)
     if not settings.get("enabled"):
         request["hand_detailer"] = {
+            **settings,
             "enabled": False,
             "mode": "generation",
-            "detector": settings.get("detector"),
             "lllite": {"enabled": bool(settings.get("lllite_enabled")), "applied": False},
         }
         return
@@ -248,6 +259,8 @@ def apply_hand_detailer(workflow: dict[str, Any], request: dict[str, Any], seed:
         image=image,
         model=model,
         settings=settings,
+        image_width=request.get("width"),
+        image_height=request.get("height"),
     )
     metadata = add_face_detailer_to_workflow(
         workflow,
@@ -262,6 +275,9 @@ def apply_hand_detailer(workflow: dict[str, Any], request: dict[str, Any], seed:
         seed=hd_seed,
         settings=settings,
         title_prefix="Hand Detailer",
+        target="hand",
+        image_width=request.get("width"),
+        image_height=request.get("height"),
     )
     metadata["target"] = "hand"
     metadata["lllite"] = lllite_metadata
