@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.60-history-load-more-stability-20260628">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.61-history-pagination-diagnostics-hardfix-20260629">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -603,6 +603,10 @@
           <p id="contactSearchStatus" class="hint" aria-live="polite"></p>
         </div>
       </details>
+      <details class="history-debug hidden" id="historyDebugPanel">
+        <summary>History Debug</summary>
+        <pre id="historyDebugMeta"></pre>
+      </details>
       <div id="contactGrid"></div>
       <div class="row" style="justify-content:center">
         <button type="button" class="ghost hidden" id="loadMoreBtn" data-action="load-more">さらに読み込む</button>
@@ -782,7 +786,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.60-history-load-more-stability-20260628"></script>
-  <script src="/static/app.js?v=v1.60-history-load-more-stability-20260628"></script>
+  <script src="/static/ui.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629"></script>
+  <script src="/static/app.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629"></script>
 </body>
 </html>

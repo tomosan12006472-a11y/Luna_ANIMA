@@ -1,9 +1,9 @@
-import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.60-history-load-more-stability-20260628";
-import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.60-history-load-more-stability-20260628";
-import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.60-history-load-more-stability-20260628";
-import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.60-history-load-more-stability-20260628";
-import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.60-history-load-more-stability-20260628";
-import { createRecipesFeature } from "./recipes.js?v=v1.60-history-load-more-stability-20260628";
+import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { createRecipesFeature } from "./recipes.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
 
 export function createPromptLibraryFeature({
   api,

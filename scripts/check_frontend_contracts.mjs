@@ -366,6 +366,8 @@ const domIds = [
   "#referenceSetupSummary",
   "#referenceSetupMeta",
   "#frameActionStatus",
+  "#historyDebugPanel",
+  "#historyDebugMeta",
   "#queueStatus",
   "#settingsStatus",
   "#fdEnabled",

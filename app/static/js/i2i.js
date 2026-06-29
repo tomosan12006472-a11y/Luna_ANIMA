@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.60-history-load-more-stability-20260628";
+} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 

@@ -7,12 +7,14 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.60-history-load-more-stability-20260628";
+} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
 const PUBLIC_SAVE_POLL_INTERVAL_MS = 1200;
 const PUBLIC_SAVE_MAX_POLLS = 90;
+const HISTORY_RUNTIME_TOKEN = "v1.61-history-pagination-diagnostics-hardfix-20260629";
+const HISTORY_DEBUG_EVENT_LIMIT = 20;
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);
@@ -110,6 +112,104 @@ export function createHistoryFeature({
     return Object.keys(contactSearchParams()).length > 0;
   }
 
+  function historyDebugEnabled() {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      if (params.get("debug_history") === "1") return true;
+      const flag = localStorage.getItem("lunaAnimaHistoryDebug");
+      return flag === "1" || flag === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  function domFrameCount() {
+    return $("#contactGrid")?.querySelectorAll(".frame").length || 0;
+  }
+
+  function activeSearchParamCount() {
+    return Object.keys(contactSearchParams()).length;
+  }
+
+  function loadedWindowLimit() {
+    return Math.max(
+      CONTACT_LIMIT,
+      Number(state.contactLoadedWindowLimit || 0),
+      Number(state.contactOffset || 0),
+      Array.isArray(state.contactItems) ? state.contactItems.length : 0,
+    );
+  }
+
+  function historyDebugSnapshot(extra = {}) {
+    return {
+      token: HISTORY_RUNTIME_TOKEN,
+      contactItems: Array.isArray(state.contactItems) ? state.contactItems.length : 0,
+      domFrames: domFrameCount(),
+      contactOffset: Number(state.contactOffset || 0),
+      contactLoadedWindowLimit: Number(state.contactLoadedWindowLimit || 0),
+      contactTotal: Number(state.contactTotal || 0),
+      contactHasMore: Boolean(state.contactHasMore),
+      contactFilter: state.contactFilter || "all",
+      activeSearchParams: activeSearchParamCount(),
+      contactRevisionLimit: Number(state.contactRevisionLimit || 0),
+      contactRevisionOffset: Number(state.contactRevisionOffset || 0),
+      contactLoadMoreInFlight: Boolean(state.contactLoadMoreInFlight),
+      contactRefreshInFlight: Boolean(state.contactRefreshInFlight),
+      contactPollingInFlight: Boolean(state.contactPollingInFlight),
+      lastRequest: state.contactLastRequest || {},
+      lastResponse: state.contactLastResponse || {},
+      lastApplied: state.contactLastApplied || {},
+      lastIgnored: state.contactLastIgnored || {},
+      lastRender: state.contactLastRender || {},
+      ...extra,
+    };
+  }
+
+  function renderHistoryDebug() {
+    const panel = $("#historyDebugPanel");
+    const meta = $("#historyDebugMeta");
+    if (!panel || !meta) return;
+    const enabled = historyDebugEnabled();
+    panel.classList.toggle("hidden", !enabled);
+    if (!enabled) return;
+    const snapshot = historyDebugSnapshot();
+    const events = (state.historyDebugEvents || []).slice(-6).map((event) => (
+      `${event.time} ${event.event} ${JSON.stringify(event.data || {})}`
+    ));
+    meta.textContent = [
+      `token ${snapshot.token}`,
+      `items/dom ${snapshot.contactItems}/${snapshot.domFrames} offset ${snapshot.contactOffset} window ${snapshot.contactLoadedWindowLimit}`,
+      `total ${snapshot.contactTotal} hasMore ${snapshot.contactHasMore} filter ${snapshot.contactFilter} search ${snapshot.activeSearchParams}`,
+      `inFlight loadMore=${snapshot.contactLoadMoreInFlight} refresh=${snapshot.contactRefreshInFlight} polling=${snapshot.contactPollingInFlight}`,
+      `last request ${JSON.stringify(snapshot.lastRequest)}`,
+      `last response ${JSON.stringify(snapshot.lastResponse)}`,
+      `last applied ${JSON.stringify(snapshot.lastApplied)}`,
+      `last ignored ${JSON.stringify(snapshot.lastIgnored)}`,
+      `last render ${JSON.stringify(snapshot.lastRender)}`,
+      ...events,
+    ].join("\n");
+  }
+
+  function historyTrace(event, data = {}) {
+    const entry = {
+      time: new Date().toISOString().slice(11, 23),
+      event,
+      data,
+    };
+    const events = Array.isArray(state.historyDebugEvents) ? state.historyDebugEvents : [];
+    events.push(entry);
+    state.historyDebugEvents = events.slice(-HISTORY_DEBUG_EVENT_LIMIT);
+    if (event === "request:start") state.contactLastRequest = data;
+    if (event === "request:response") state.contactLastResponse = data;
+    if (event === "request:applied") state.contactLastApplied = data;
+    if (event === "request:ignored") state.contactLastIgnored = data;
+    if (event === "render") state.contactLastRender = data;
+    if (historyDebugEnabled() && typeof console !== "undefined" && typeof console.debug === "function") {
+      console.debug("history trace", entry);
+    }
+    renderHistoryDebug();
+  }
+
   function updateContactSearchStatus(total = state.contactTotal) {
     const badge = $("#contactSearchBadge");
     const status = $("#contactSearchStatus");
@@ -140,8 +240,10 @@ export function createHistoryFeature({
   }
 
   function debugContactStale(reason, details = {}) {
+    const payload = { reason, ...details };
+    historyTrace("request:ignored", payload);
     if (typeof console !== "undefined" && typeof console.debug === "function") {
-      console.debug("Ignored stale history list response", { reason, ...details });
+      console.debug("Ignored stale history list response", payload);
     }
   }
 
@@ -151,6 +253,8 @@ export function createHistoryFeature({
     state.contactRevision = "";
     state.contactRevisionLimit = 0;
     state.contactRevisionOffset = 0;
+    state.contactLoadedWindowLimit = 0;
+    historyTrace("context:reset", { contextSeq: contactListContextSeq });
     return contactListContextSeq;
   }
 
@@ -196,6 +300,11 @@ export function createHistoryFeature({
 
   function setLoadMoreLoading(loading) {
     state.contactLoadMoreInFlight = Boolean(loading);
+    historyTrace(loading ? "load-more:start" : "load-more:end", {
+      items: state.contactItems.length,
+      offset: state.contactOffset,
+      total: state.contactTotal,
+    });
     updateLoadMoreButton();
   }
 
@@ -213,14 +322,16 @@ export function createHistoryFeature({
     state.contactSearch.requestSeq += 1;
     state.contactLoaded = true;
     state.contactRevision = "";
-    return loadContact(true);
+    historyTrace("search:reset", { activeSearchParams: activeSearchParamCount(), seq: state.contactSearch.requestSeq });
+    return loadContact(true, { resetContext: true, reason: "search" });
   }
 
   async function clearContactSearch() {
     clearContactSearchForm();
     state.contactSearch = { ...state.contactSearch, ...collectContactSearchFromUi(), requestSeq: (state.contactSearch?.requestSeq || 0) + 1 };
     state.contactRevision = "";
-    return loadContact(true);
+    historyTrace("search:reset", { clear: true, seq: state.contactSearch.requestSeq });
+    return loadContact(true, { resetContext: true, reason: "search-clear" });
   }
 
   async function refreshContact(options = {}) {
@@ -228,7 +339,7 @@ export function createHistoryFeature({
     state.contactPollFailures = 0;
     state.contactLoaded = true;
     text("#contactCount", "更新中...");
-    const data = await loadContact(true);
+    const data = await loadContact(true, { reason: "manual-refresh", preserveLoadedWindow: true });
     if (!options.silent) UI.toast("履歴を更新しました");
     return data;
   }
@@ -244,9 +355,11 @@ export function createHistoryFeature({
     return `#${String(no).padStart(4, "0")}`;
   }
 
-  function renderContact() {
+  function renderContact(options = {}) {
     const root = $("#contactGrid");
     if (!root) return;
+    const preserveScroll = Boolean(options.preserveScroll);
+    const previousScrollY = window.scrollY;
     root.replaceChildren();
     if (!state.contactItems.length) {
       const frame = document.createElement("div");
@@ -293,6 +406,27 @@ export function createHistoryFeature({
     text("#contactCount", `${state.contactItems.length} / ${state.contactTotal || 0}`);
     updateContactSearchStatus();
     updateLoadMoreButton();
+    const renderData = {
+      mode: options.mode || "",
+      items: state.contactItems.length,
+      domFrames: domFrameCount(),
+      offset: state.contactOffset,
+      total: state.contactTotal,
+      scrollY: window.scrollY,
+      preservedScrollY: preserveScroll ? previousScrollY : null,
+    };
+    state.contactLastRender = renderData;
+    if (preserveScroll && window.scrollY !== previousScrollY) {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: previousScrollY });
+        historyTrace("scroll:restore", {
+          mode: options.mode || "",
+          from: renderData.scrollY,
+          to: previousScrollY,
+        });
+      });
+    }
+    historyTrace("render", renderData);
   }
 
   function stopContactPolling(message = "") {
@@ -301,6 +435,7 @@ export function createHistoryFeature({
       state.contactPollTimer = 0;
     }
     state.pollHadActive = false;
+    state.contactPollingInFlight = false;
     if (message) text("#contactCount", message);
   }
 
@@ -322,7 +457,26 @@ export function createHistoryFeature({
       state.pollHadActive = true;
       if (!state.contactPollTimer) {
         state.contactPollTimer = window.setInterval(() => {
-          loadContact(false, { polling: true, knownRevision: true }).catch(handleContactPollingError);
+          if (state.contactPollingInFlight) {
+            historyTrace("polling:skip", {
+              reason: "polling already in flight",
+              items: state.contactItems.length,
+              offset: state.contactOffset,
+            });
+            return;
+          }
+          state.contactPollingInFlight = true;
+          historyTrace("polling:start", {
+            items: state.contactItems.length,
+            offset: state.contactOffset,
+            activeCount,
+          });
+          loadContact(false, { polling: true, knownRevision: true })
+            .catch(handleContactPollingError)
+            .finally(() => {
+              state.contactPollingInFlight = false;
+              renderHistoryDebug();
+            });
         }, 3000);
       }
       return;
@@ -339,16 +493,24 @@ export function createHistoryFeature({
   }
 
   async function loadContact(reset = false, options = {}) {
-    const mode = options.polling ? "polling" : reset ? "reset" : "append";
+    const preserveLoadedWindow = Boolean(options.preserveLoadedWindow || options.polling);
+    const resetContext = Boolean(options.resetContext || (reset && !preserveLoadedWindow));
+    const mode = options.polling ? "polling" : reset ? (resetContext ? "reset" : "refresh") : "append";
     if (mode === "append" && (state.contactFilter === "active" || state.contactLoadMoreInFlight || state.contactRefreshInFlight)) {
+      historyTrace("load-more:skip", {
+        filter: state.contactFilter,
+        loadMoreInFlight: state.contactLoadMoreInFlight,
+        refreshInFlight: state.contactRefreshInFlight,
+      });
       return null;
     }
     const contextSeq = mode === "reset" ? beginContactListContext() : contactListContextSeq;
     const requestId = ++contactListRequestSeq;
     const expectedOffset = mode === "append" ? Number(state.contactOffset || 0) : 0;
     const offset = mode === "append" ? expectedOffset : 0;
-    const limit = mode === "polling"
-      ? (state.contactFilter === "active" ? 100 : Math.max(Number(state.contactOffset || 0), CONTACT_LIMIT))
+    const currentWindowLimit = loadedWindowLimit();
+    const limit = mode === "polling" || mode === "refresh"
+      ? (state.contactFilter === "active" ? 100 : currentWindowLimit)
       : state.contactFilter === "active" ? 100 : CONTACT_LIMIT;
     const params = new URLSearchParams({
       view: "list",
@@ -367,14 +529,42 @@ export function createHistoryFeature({
       && Number(state.contactRevisionOffset || 0) === Number(offset || 0);
     if (canUseKnownRevision) params.set("known_revision", state.contactRevision);
 
+    historyTrace("request:start", {
+      requestId,
+      mode,
+      reason: options.reason || "",
+      offset,
+      limit,
+      contextSeq,
+      expectedOffset,
+      currentOffset: state.contactOffset,
+      currentItems: state.contactItems.length,
+      currentWindowLimit,
+      filter: state.contactFilter,
+      activeSearchParams: activeSearchParamCount(),
+      knownRevision: Boolean(canUseKnownRevision),
+      scrollY: window.scrollY,
+    });
+
     if (mode === "append") setLoadMoreLoading(true);
-    if (mode === "reset") {
+    if (mode === "reset" || mode === "refresh") {
       state.contactRefreshInFlight = true;
       updateLoadMoreButton();
     }
 
     try {
       const data = await api(`/api/history?${params.toString()}`);
+      historyTrace("request:response", {
+        requestId,
+        mode,
+        offset: Number(data.offset || 0),
+        limit: Number(data.limit || limit),
+        itemCount: Array.isArray(data.items) ? data.items.length : 0,
+        hasMore: Boolean(data.has_more),
+        filteredTotal: Number(data.filtered_total ?? data.total ?? 0),
+        total: Number(data.total ?? 0),
+        unchanged: Boolean(data.unchanged),
+      });
       if (seq !== (state.contactSearch.requestSeq || 0)) {
         debugContactStale("search sequence changed", { requestId, mode });
         return data;
@@ -390,6 +580,14 @@ export function createHistoryFeature({
 
       state.contactPollFailures = 0;
       if (data.unchanged) {
+        historyTrace("request:applied", {
+          requestId,
+          mode,
+          unchanged: true,
+          items: state.contactItems.length,
+          offset: state.contactOffset,
+        });
+        renderHistoryDebug();
         updateContactPolling((state.contactItems || []).filter(isActiveItem).length);
         return data;
       }
@@ -400,23 +598,34 @@ export function createHistoryFeature({
         _absoluteIndex: pageOffset + index,
       }));
       const visibleItems = visibleContactItems(pageItems);
+      const previousOffset = Number(state.contactOffset || 0);
+      const serverHighWater = pageOffset + pageItems.length;
 
       if (mode === "append") {
         state.contactItems = mergeAppendContactItems(state.contactItems, visibleItems);
       } else if (mode === "polling") {
         state.contactItems = mergeWindowContactItems(state.contactItems, visibleItems);
+      } else if (mode === "refresh") {
+        state.contactItems = mergeWindowContactItems(state.contactItems, visibleItems);
       } else {
         state.contactItems = normalizeContactItemIndices(visibleItems);
       }
 
-      state.contactOffset = state.contactItems.length;
+      state.contactOffset = mode === "reset"
+        ? visibleItems.length
+        : Math.max(previousOffset, serverHighWater, state.contactItems.length);
+      state.contactLoadedWindowLimit = Math.max(
+        Number(state.contactLoadedWindowLimit || 0),
+        Number(state.contactOffset || 0),
+        state.contactItems.length,
+      );
       state.contactLoaded = true;
       state.contactTotal = state.contactFilter === "active"
         ? Number(data.summary?.active ?? visibleItems.length)
         : Number(data.filtered_total ?? data.total ?? visibleItems.length);
       state.contactHasMore = mode === "polling"
         ? Boolean(data.has_more || Number(state.contactOffset || 0) < Number(state.contactTotal || 0))
-        : Boolean(data.has_more);
+        : Boolean(data.has_more || (mode !== "reset" && Number(state.contactOffset || 0) < Number(state.contactTotal || 0)));
       if (pageOffset === 0 && Number(limit || 0) >= Number(state.contactOffset || 0)) {
         state.contactRevision = data.revision || state.contactRevision;
         state.contactRevisionLimit = Number(limit || 0);
@@ -424,15 +633,31 @@ export function createHistoryFeature({
       }
 
       updateContactSearchStatus(state.contactTotal);
-      renderContact();
+      const applied = {
+        requestId,
+        mode,
+        pageOffset,
+        pageItems: pageItems.length,
+        visibleItems: visibleItems.length,
+        items: state.contactItems.length,
+        domFramesBeforeRender: domFrameCount(),
+        offset: state.contactOffset,
+        total: state.contactTotal,
+        hasMore: state.contactHasMore,
+        serverHighWater,
+        previousOffset,
+      };
+      historyTrace("request:applied", applied);
+      renderContact({ mode, preserveScroll: mode !== "reset" });
       const activeCount = Number(data.summary?.active ?? state.contactItems.filter(isActiveItem).length);
       updateContactPolling(activeCount);
       return data;
     } finally {
       if (mode === "append") setLoadMoreLoading(false);
-      if (mode === "reset" && contextSeq === contactListContextSeq) {
+      if ((mode === "reset" || mode === "refresh") && contextSeq === contactListContextSeq) {
         state.contactRefreshInFlight = false;
         updateLoadMoreButton();
+        renderHistoryDebug();
       }
     }
   }
@@ -994,6 +1219,14 @@ export function createHistoryFeature({
   }
 
   function bindEvents() {
+    try {
+      window.__historyDebugState = () => ({
+        ...historyDebugSnapshot(),
+        events: state.historyDebugEvents || [],
+      });
+    } catch {}
+    renderHistoryDebug();
+
     UI.onTab((name) => {
       if (name === "contact" && !state.contactLoaded) {
         loadContact(true).catch((error) => UI.toast(errorMessage(error), "error"));
@@ -1006,7 +1239,8 @@ export function createHistoryFeature({
       state.contactFilter = chip.dataset.filter || "all";
       $$("#contactFilters .chip").forEach((item) => item.classList.toggle("is-active", item === chip));
       state.contactRevision = "";
-      loadContact(true).catch((error) => UI.toast(errorMessage(error), "error"));
+      historyTrace("filter:reset", { filter: state.contactFilter });
+      loadContact(true, { resetContext: true, reason: "filter" }).catch((error) => UI.toast(errorMessage(error), "error"));
     });
 
     $("#contactSearchPanel")?.addEventListener("keydown", (event) => {

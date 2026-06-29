@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.60-history-load-more-stability-20260628";
+} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
 
 export function createSettingsFeature({
   api,
