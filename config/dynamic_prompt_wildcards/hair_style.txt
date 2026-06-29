@@ -1,0 +1,45 @@
+long hair
+short hair
+medium hair
+very long hair
+bob cut
+pixie cut
+hime cut
+twintails
+low twintails
+ponytail
+high ponytail
+low ponytail
+side ponytail
+braid
+single braid
+twin braids
+side braid
+french braid
+braided ponytail
+low braid
+loose hair
+messy hair
+straight hair
+wavy hair
+curly hair
+drill hair
+ahoge
+hair bun
+double bun
+side bun
+half updo
+updo
+hair over one eye
+swept bangs
+blunt bangs
+parted bangs
+side bangs
+short bangs
+long bangs
+hair between eyes
+hair intakes
+twisted hair
+fluffy hair
+wet hair
+windblown hair
