@@ -22,19 +22,23 @@ class DynamicPromptWildcardConfigTests(unittest.TestCase):
         self.assertIn("hair_color", by_name)
         self.assertIn("hair_style", by_name)
         self.assertIn("eye_color", by_name)
+        self.assertIn("outfit", by_name)
+        self.assertIn("outfit_nsfw", by_name)
         self.assertGreaterEqual(by_name["hair_color"]["count"], 20)
         self.assertGreaterEqual(by_name["hair_style"]["count"], 30)
         self.assertGreaterEqual(by_name["eye_color"]["count"], 15)
+        self.assertGreaterEqual(by_name["outfit"]["count"], 100)
+        self.assertGreaterEqual(by_name["outfit_nsfw"]["count"], 100)
         self.assertFalse(data["warnings"])
 
     def test_appearance_wildcards_are_unique(self) -> None:
-        for name in ("hair_color", "hair_style", "eye_color"):
+        for name in ("hair_color", "hair_style", "eye_color", "outfit", "outfit_nsfw"):
             lines = wildcard_lines(name)
             self.assertEqual(len(lines), len(set(lines)), name)
 
     def test_appearance_wildcards_expand(self) -> None:
         result = expand_dynamic_prompt(
-            positive_prompt="__hair_color__, __hair_style__, __eye_color__",
+            positive_prompt="__hair_color__, __hair_style__, __eye_color__, __outfit__, __outfit_nsfw__",
             negative_prompt="",
             seed=123,
             enabled=True,
@@ -44,7 +48,10 @@ class DynamicPromptWildcardConfigTests(unittest.TestCase):
 
         self.assertFalse(result["warnings"])
         self.assertNotIn("__", result["expanded_positive_prompt"])
-        self.assertEqual([item["name"] for item in result["selections"]], ["hair_color", "hair_style", "eye_color"])
+        self.assertEqual(
+            [item["name"] for item in result["selections"]],
+            ["hair_color", "hair_style", "eye_color", "outfit", "outfit_nsfw"],
+        )
 
 
 if __name__ == "__main__":
