@@ -6,7 +6,7 @@ import {
   setChecked,
   setValue,
   value,
-} from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
+} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
 
 const DEFAULT_MODEL = "Anima\\anima-preview3-base.safetensors";
 const DEFAULT_TEXT_ENCODER = "qwen_3_06b_base.safetensors";
@@ -180,6 +180,7 @@ export function createGenerationFormFeature({
       loras: loras.collect(),
       count: selectedQueueCount(),
       wait: false,
+      reset_comfy_cache: checked("#resetComfyCache"),
       dynamic_prompt: { enabled: checked("#dynamicEnabled") },
       prompt_random_collect: promptRandom.collect(),
       hires_fix: hiresFix,

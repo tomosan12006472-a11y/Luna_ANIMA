@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.64-outfit-category-wildcards-20260630";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.64-outfit-category-wildcards-20260630";
-import { onDomReady } from "./bootstrap.js?v=v1.64-outfit-category-wildcards-20260630";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { onDomReady } from "./bootstrap.js?v=v1.65-comfy-cache-stabilization-20260630";
 import {
   $,
   $$,
@@ -11,25 +11,25 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createAssistHubFeature } from "./assist-hub.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createCharacterFeature } from "./characters.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createHistoryFeature } from "./history.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createI2iFeature } from "./i2i.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createLoraFeature } from "./loras.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createQueueFeature } from "./queue.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createReferenceFeature } from "./reference.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createSettingsFeature } from "./settings.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createInitialState } from "./state.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createDetailerFeature } from "./detailers.js?v=v1.64-outfit-category-wildcards-20260630";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.64-outfit-category-wildcards-20260630";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.64-outfit-category-wildcards-20260630";
+} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createAssistHubFeature } from "./assist-hub.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createCharacterFeature } from "./characters.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createHistoryFeature } from "./history.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createI2iFeature } from "./i2i.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createLoraFeature } from "./loras.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createQueueFeature } from "./queue.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createReferenceFeature } from "./reference.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createSettingsFeature } from "./settings.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createInitialState } from "./state.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createDetailerFeature } from "./detailers.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.65-comfy-cache-stabilization-20260630";
 
 (() => {
   "use strict";

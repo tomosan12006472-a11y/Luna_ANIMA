@@ -182,6 +182,68 @@ class HistoryJsonStoreMutationTests(unittest.TestCase):
         self.assertEqual(completed["generation_metrics"]["image_fetch_seconds"], 0.5)
         self.assertEqual(completed["generation_metrics"]["total_seconds"], 2.75)
 
+    def test_pending_history_stores_comfy_cache_reset_metadata(self) -> None:
+        pending = history_store.create_pending_history_item(
+            request_data={
+                "width": 16,
+                "height": 16,
+                "model": "model.safetensors",
+                "hires_fix": {"enabled": False},
+                "comfy_cache_reset": {
+                    "requested": True,
+                    "eligible": True,
+                    "applied": True,
+                    "skipped": False,
+                    "reason": "",
+                    "status": 200,
+                },
+            },
+            prompts={"seed": 123, "positive": "positive", "negative": "negative"},
+            prompt_id="prompt-new",
+            payload_path=self.root / "payload.json",
+            workflow_mode="anima",
+            index=0,
+        )
+
+        stored = json.loads((self.history_dir / f"{pending['id']}.json").read_text(encoding="utf-8"))
+        self.assertEqual(stored["comfy_cache_reset"]["requested"], True)
+        self.assertEqual(stored["comfy_cache_reset"]["applied"], True)
+        self.assertEqual(stored["comfy_cache_reset"]["status"], 200)
+
+    def test_completed_history_stores_comfy_cache_reset_metadata(self) -> None:
+        result = SimpleNamespace(
+            image_data_url=self.image_data_url(),
+            prompt_id="prompt-new",
+            metrics={"total_seconds": 1.5},
+        )
+
+        item = history_store.create_history_item(
+            request_data={
+                "width": 16,
+                "height": 16,
+                "model": "model.safetensors",
+                "hires_fix": {"enabled": False},
+                "comfy_cache_reset": {
+                    "requested": True,
+                    "eligible": False,
+                    "applied": False,
+                    "skipped": True,
+                    "reason": "no_fixed_character",
+                },
+            },
+            prompts={"seed": 123, "positive": "positive", "negative": "negative"},
+            result=result,
+            payload_path=self.root / "payload.json",
+            workflow_mode="anima",
+        )
+
+        self.assertIsNotNone(item)
+        assert item is not None
+        stored = json.loads((self.history_dir / f"{item['id']}.json").read_text(encoding="utf-8"))
+        self.assertEqual(stored["comfy_cache_reset"]["requested"], True)
+        self.assertEqual(stored["comfy_cache_reset"]["skipped"], True)
+        self.assertEqual(stored["comfy_cache_reset"]["reason"], "no_fixed_character")
+
     def test_public_save_preserves_history_shape(self) -> None:
         source = self.root / "source.png"
         Image.new("RGB", (320, 180), (20, 30, 40)).save(source)

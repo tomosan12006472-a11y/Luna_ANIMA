@@ -15,8 +15,8 @@ from ..config import COMFYUI_ADDR_DEFAULT
 from ..generation_helpers import (
     apply_prompt_random_collect_or_error,
     pending_history_by_prompt_id,
+    prepare_comfy_cache_reset_for_character_prompt,
     queue_rows,
-    reset_comfy_cache_for_character_prompt,
 )
 from ..generation_prepare import (
     generation_request_dict,
@@ -49,6 +49,23 @@ from ..validators import (
 )
 
 router = APIRouter()
+
+
+def _comfy_cache_reset_meaningful(metadata: dict[str, Any]) -> bool:
+    return bool(
+        metadata.get("requested")
+        or metadata.get("eligible")
+        or metadata.get("applied")
+        or metadata.get("skipped")
+        or metadata.get("reason")
+        or metadata.get("error")
+    )
+
+
+def _attach_comfy_cache_reset(request_data: dict[str, Any], metadata: dict[str, Any]) -> dict[str, Any]:
+    if _comfy_cache_reset_meaningful(metadata):
+        request_data["comfy_cache_reset"] = dict(metadata)
+    return request_data
 
 @router.get("/api/models")
 def models(addr: str = COMFYUI_ADDR_DEFAULT, refresh: bool = False, anima_claude_session: str | None = Cookie(default=None)) -> dict[str, Any]:
@@ -172,7 +189,7 @@ def generate(
     invalid_ref_modules = validate_reference_modules(data, addr)
     if invalid_ref_modules:
         return invalid_ref_modules
-    cache_reset_error = reset_comfy_cache_for_character_prompt(addr, data)
+    cache_reset_error, comfy_cache_reset = prepare_comfy_cache_reset_for_character_prompt(addr, data)
     if cache_reset_error:
         return cache_reset_error
     if not data.wait:
@@ -183,6 +200,7 @@ def generate(
         for index in range(data.count):
             item_request = request_for_queue_item(data, index, wait=False)
             request_data = generation_request_dict(item_request)
+            request_data = _attach_comfy_cache_reset(request_data, comfy_cache_reset)
             request_data["queue_index"] = index
             item_requests.append(item_request)
             request_data_items.append(request_data)
@@ -240,6 +258,7 @@ def generate(
                         "payload_dump": str(dump_path),
                         "prompt_random_collect": request_data.get("prompt_random_collect", {"enabled": False}),
                         "generation_metrics": result.metrics or {},
+                        "comfy_cache_reset": comfy_cache_reset,
                     }
                 )
             else:
@@ -273,10 +292,12 @@ def generate(
                 "anima_shift": generation_request_dict(data).get("model_sampling", {}),
                 "shift": generation_request_dict(data).get("shift"),
                 "generation_metrics": [item.get("generation_metrics", {}) for item in items],
+                "comfy_cache_reset": comfy_cache_reset,
             },
         )
     client_id = f"anima-claude-{uuid.uuid4()}"
     request_data = generation_request_dict(data)
+    request_data = _attach_comfy_cache_reset(request_data, comfy_cache_reset)
     request_data["queue_index"] = 0
     random_error = apply_prompt_random_collect_or_error([request_data])
     if random_error:
@@ -351,6 +372,7 @@ def generate(
             "anima_shift": request_data.get("model_sampling", {}),
             "shift": request_data.get("shift"),
             "generation_metrics": result.metrics or {},
+            "comfy_cache_reset": comfy_cache_reset,
         },
     )
 

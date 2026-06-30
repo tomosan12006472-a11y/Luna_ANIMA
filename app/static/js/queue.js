@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
+import { $, text } from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);

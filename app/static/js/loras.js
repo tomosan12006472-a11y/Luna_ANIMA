@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
+} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();

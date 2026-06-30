@@ -4,14 +4,14 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
+} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
 import {
   parsePromptTags,
   promptExcerpt,
   promptItemPrompt,
   promptItemTagsText,
   promptItemTitle,
-} from "./prompt-library-utils.js?v=v1.64-outfit-category-wildcards-20260630";
+} from "./prompt-library-utils.js?v=v1.65-comfy-cache-stabilization-20260630";
 
 export function createPositivePromptsFeature({
   api,

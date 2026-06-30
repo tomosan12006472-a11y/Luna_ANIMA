@@ -6,7 +6,7 @@ from unittest import mock
 
 from fastapi import HTTPException, Response
 
-from app import main, reference_modules, validators
+from app import generation_helpers, main, reference_modules, validators
 from app.api import diagnostics as diagnostics_api
 
 
@@ -189,6 +189,78 @@ class MainRefactorBehaviorTests(unittest.TestCase):
         self.assertIsNotNone(response)
         self.assertEqual(response.status_code, 409)
         reset_execution_cache.assert_not_called()
+
+    def test_comfy_cache_reset_metadata_skips_without_fixed_character(self) -> None:
+        data = main.GenerateRequest(character1="Random", reset_comfy_cache=True)
+        with (
+            mock.patch.object(main.comfy_client, "queue_info") as queue_info,
+            mock.patch.object(main.comfy_client, "reset_execution_cache") as reset_execution_cache,
+        ):
+            response, metadata = generation_helpers.prepare_comfy_cache_reset_for_character_prompt("127.0.0.1:8188", data)
+
+        self.assertIsNone(response)
+        self.assertEqual(
+            metadata,
+            {
+                "requested": True,
+                "eligible": False,
+                "applied": False,
+                "skipped": True,
+                "reason": "no_fixed_character",
+                "status": None,
+                "error": "",
+            },
+        )
+        queue_info.assert_not_called()
+        reset_execution_cache.assert_not_called()
+
+    def test_comfy_cache_reset_metadata_records_applied_reset(self) -> None:
+        data = main.GenerateRequest(character1="Scathach", reset_comfy_cache=True)
+        with (
+            mock.patch.object(main.comfy_client, "queue_info", return_value={"queue_running": [], "queue_pending": []}),
+            mock.patch.object(main.comfy_client, "reset_execution_cache", return_value={"ok": True, "status": 200, "text": ""}) as reset_execution_cache,
+        ):
+            response, metadata = generation_helpers.prepare_comfy_cache_reset_for_character_prompt("127.0.0.1:8188", data)
+
+        self.assertIsNone(response)
+        self.assertTrue(metadata["requested"])
+        self.assertTrue(metadata["eligible"])
+        self.assertTrue(metadata["applied"])
+        self.assertFalse(metadata["skipped"])
+        self.assertEqual(metadata["status"], 200)
+        reset_execution_cache.assert_called_once_with("127.0.0.1:8188")
+
+    def test_comfy_cache_reset_metadata_in_queue_error_response(self) -> None:
+        data = main.GenerateRequest(character1="Scathach", reset_comfy_cache=True)
+        with (
+            mock.patch.object(main.comfy_client, "queue_info", return_value={"queue_running": [], "queue_pending": [["pending"]]}),
+            mock.patch.object(main.comfy_client, "reset_execution_cache") as reset_execution_cache,
+        ):
+            response, metadata = generation_helpers.prepare_comfy_cache_reset_for_character_prompt("127.0.0.1:8188", data)
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(metadata["reason"], "queue_not_empty")
+        body = json.loads(response.body.decode("utf-8"))
+        self.assertEqual(body["comfy_cache_reset"]["reason"], "queue_not_empty")
+        reset_execution_cache.assert_not_called()
+
+    def test_comfy_cache_reset_metadata_in_failure_error_response(self) -> None:
+        data = main.GenerateRequest(character1="Scathach", reset_comfy_cache=True)
+        with (
+            mock.patch.object(main.comfy_client, "queue_info", return_value={"queue_running": [], "queue_pending": []}),
+            mock.patch.object(main.comfy_client, "reset_execution_cache", return_value={"ok": False, "status": 500, "text": "boom"}),
+        ):
+            response, metadata = generation_helpers.prepare_comfy_cache_reset_for_character_prompt("127.0.0.1:8188", data)
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(metadata["reason"], "reset_failed")
+        self.assertEqual(metadata["status"], 500)
+        body = json.loads(response.body.decode("utf-8"))
+        self.assertEqual(body["comfy_cache_reset"]["error"], "boom")
 
     def test_history_known_revision_returns_unchanged_short_circuit(self) -> None:
         main.SESSIONS.add("test-session")

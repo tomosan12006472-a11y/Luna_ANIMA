@@ -69,6 +69,36 @@ def generation_metrics_from_result(result: Any) -> dict[str, float]:
     return sanitize_generation_metrics(getattr(result, "metrics", None))
 
 
+def sanitize_comfy_cache_reset(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    payload = {
+        "requested": bool(raw.get("requested")),
+        "eligible": bool(raw.get("eligible")),
+        "applied": bool(raw.get("applied")),
+        "skipped": bool(raw.get("skipped")),
+        "reason": str(raw.get("reason") or "").strip(),
+        "status": None,
+        "error": str(raw.get("error") or "").strip(),
+    }
+    try:
+        status = int(raw.get("status"))
+    except (TypeError, ValueError):
+        status = None
+    if status is not None and status >= 0:
+        payload["status"] = status
+    if not (
+        payload["requested"]
+        or payload["eligible"]
+        or payload["applied"]
+        or payload["skipped"]
+        or payload["reason"]
+        or payload["error"]
+    ):
+        return {}
+    return payload
+
+
 def history_path(history_id: str) -> Path:
     return HISTORY_DIR / f"{history_id}.json"
 
@@ -572,6 +602,7 @@ def create_history_item(
     output_method = infer_anima_generation_method(request_data)
     prompt_random_collect = _prompt_random_collect_summary(request_data)
     generation_metrics = generation_metrics_from_result(result)
+    comfy_cache_reset = sanitize_comfy_cache_reset(request_data.get("comfy_cache_reset"))
     item = {
         "id": history_id,
         "created_at": now_iso(),
@@ -633,6 +664,7 @@ def create_history_item(
         "watermark": {"applied": False},
         "public_save": {"saved": False},
         **({"generation_metrics": generation_metrics} if generation_metrics else {}),
+        **({"comfy_cache_reset": comfy_cache_reset} if comfy_cache_reset else {}),
     }
     save_history_item(item)
     return item
@@ -668,6 +700,7 @@ def create_pending_history_item(
     output_method = infer_anima_generation_method(request_data)
     prompt_random_collect = _prompt_random_collect_summary(request_data)
     initial_generation_metrics = sanitize_generation_metrics(generation_metrics)
+    comfy_cache_reset = sanitize_comfy_cache_reset(request_data.get("comfy_cache_reset"))
     item = {
         "id": history_id,
         "status": "queued",
@@ -732,6 +765,7 @@ def create_pending_history_item(
         "watermark": {"applied": False},
         "public_save": {"saved": False},
         **({"generation_metrics": initial_generation_metrics} if initial_generation_metrics else {}),
+        **({"comfy_cache_reset": comfy_cache_reset} if comfy_cache_reset else {}),
         "queue": {
             "status": "queued",
             "prompt_id": prompt_id,

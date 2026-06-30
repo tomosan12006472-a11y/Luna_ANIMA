@@ -1,4 +1,4 @@
-import { $, displayValue, unique } from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
+import { $, displayValue, unique } from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
 
 export function fillSelect(selector, options, selected) {
   const select = typeof selector === "string" ? $(selector) : selector;
