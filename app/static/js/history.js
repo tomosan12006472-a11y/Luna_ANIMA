@@ -7,13 +7,13 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
+} from "./dom.js?v=v1.63-history-generation-metrics-20260630";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
 const PUBLIC_SAVE_POLL_INTERVAL_MS = 1200;
 const PUBLIC_SAVE_MAX_POLLS = 90;
-const HISTORY_RUNTIME_TOKEN = "v1.62-detailer-detection-controls-20260630";
+const HISTORY_RUNTIME_TOKEN = "v1.63-history-generation-metrics-20260630";
 const HISTORY_DEBUG_EVENT_LIMIT = 20;
 
 function fallbackErrorMessage(error) {
@@ -887,6 +887,28 @@ export function createHistoryFeature({
     return markers.length ? markers.join("; ") : "no assist recorded";
   }
 
+  function generationMetricSeconds(value) {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds)) return "";
+    return `${seconds.toFixed(2)}s`;
+  }
+
+  function generationMetricsSummary(item = {}) {
+    const metrics = item?.generation_metrics && typeof item.generation_metrics === "object"
+      ? item.generation_metrics
+      : {};
+    const parts = [
+      ["total", metrics.total_seconds],
+      ["wait", metrics.queue_wait_seconds],
+      ["submit", metrics.submit_seconds],
+      ["fetch", metrics.image_fetch_seconds],
+    ].map(([label, value]) => {
+      const seconds = generationMetricSeconds(value);
+      return seconds ? `${label} ${seconds}` : "";
+    }).filter(Boolean);
+    return parts.length ? parts.join(" · ") : "not recorded";
+  }
+
   function renderFrameDetail(item) {
     const previousId = state.detailItem?.id || "";
     state.detailItem = item;
@@ -906,7 +928,8 @@ export function createHistoryFeature({
     if (table) {
       table.replaceChildren();
       addMetaRow(table, "FRAME", item.id);
-      addMetaRow(table, "TIME", formatDate(item.created_at));
+      addMetaRow(table, "CREATED", formatDate(item.created_at));
+      addMetaRow(table, "GEN TIME", generationMetricsSummary(item), true);
       addMetaRow(table, "SEED", item.seed);
       addMetaRow(table, "SIZE", `${item.output_width || item.width || "-"}×${item.output_height || item.height || "-"}`);
       addMetaRow(table, "STEPS·CFG·SHIFT", `${displayValue(item.steps)} · ${displayValue(item.cfg)} · ${displayValue(item.shift ?? item.model_sampling?.shift)}`);

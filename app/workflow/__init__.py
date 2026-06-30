@@ -3,6 +3,7 @@ from __future__ import annotations
 from .base import (
     apply_model_sampling_shift,
     build_prompt_payload,
+    build_prompt_payload_with_prompts,
     build_workflow,
     load_anima_mapping,
     load_base_workflow,

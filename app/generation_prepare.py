@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import secrets
+import time
 import traceback
 from typing import Any
 import uuid
@@ -190,7 +191,10 @@ def save_completed_generation_history(
     history_id: str | None = None,
 ) -> None:
     try:
+        total_start = time.perf_counter()
+        wait_start = time.perf_counter()
         history = comfy_client.wait_history(addr, prompt_id, timeout=3600)
+        metrics: dict[str, float] = {"queue_wait_seconds": time.perf_counter() - wait_start}
         if not history:
             print(f"[anima-mobile] prompt {prompt_id} did not finish before background history timeout")
             if history_id:
@@ -210,7 +214,10 @@ def save_completed_generation_history(
             if history_id:
                 update_pending_history_status(history_id, "failed", comfy_client.history_status_message(history))
             return
+        fetch_start = time.perf_counter()
         image_url, image_data_url = comfy_client.fetch_image_data_url(addr, image)
+        metrics["image_fetch_seconds"] = time.perf_counter() - fetch_start
+        metrics["total_seconds"] = time.perf_counter() - total_start
         result = comfy_client.ComfyResult(
             ok=True,
             prompt_id=prompt_id,
@@ -218,6 +225,7 @@ def save_completed_generation_history(
             image_data_url=image_data_url,
             history=history,
             stage="background_result_fetch",
+            metrics=metrics,
         )
         if history_id:
             complete_pending_history_item(history_id, result)
@@ -260,7 +268,9 @@ def refresh_pending_history_items(addr: str, items: list[dict[str, Any]]) -> boo
             image = comfy_client.first_output_image(comfy_history)
             if image:
                 try:
+                    fetch_start = time.perf_counter()
                     image_url, image_data_url = comfy_client.fetch_image_data_url(addr, image)
+                    image_fetch_seconds = time.perf_counter() - fetch_start
                     result = comfy_client.ComfyResult(
                         ok=True,
                         prompt_id=prompt_id,
@@ -268,6 +278,7 @@ def refresh_pending_history_items(addr: str, items: list[dict[str, Any]]) -> boo
                         image_data_url=image_data_url,
                         history=comfy_history,
                         stage="history_refresh",
+                        metrics={"image_fetch_seconds": image_fetch_seconds, "total_seconds": image_fetch_seconds},
                     )
                     complete_pending_history_item(history_id, result)
                     changed = True

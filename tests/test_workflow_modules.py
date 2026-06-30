@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 from pathlib import Path
+import tempfile
 import unittest
 from unittest import mock
 
@@ -180,6 +182,91 @@ class WorkflowModuleTests(unittest.TestCase):
         self.assertEqual(lora_nodes["9051"]["class_type"], "LoraLoaderModelOnly")
         self.assertEqual(lora_nodes["9051"]["inputs"]["lora_name"], "style\\legacy-enabled.safetensors")
         self.assertEqual(workflow["46"]["inputs"]["model"], ["9051", 0])
+
+    def test_catalog_model_clip_lora_with_zero_clip_uses_model_only_node(self) -> None:
+        request = {
+            **base_request(),
+            "loras": [
+                {
+                    "enabled": True,
+                    "name": "style/clip-zero.safetensors",
+                    "application": "model_clip",
+                    "strength_model": "0.4",
+                    "strength_clip": "0.0",
+                }
+            ],
+        }
+
+        with self.output_prefix_patches()[0], self.output_prefix_patches()[1], self.output_prefix_patches()[2]:
+            payload = payload_builder.build_prompt_payload(deepcopy(request), "module-client")
+
+        workflow = payload["prompt"]
+        self.assertEqual(workflow["9051"]["class_type"], "LoraLoaderModelOnly")
+        self.assertEqual(workflow["9051"]["inputs"]["strength_model"], 0.4)
+        self.assertNotIn("clip", workflow["9051"]["inputs"])
+        self.assertEqual(workflow["46"]["inputs"]["model"], ["9051", 0])
+        self.assertEqual(workflow["11"]["inputs"]["clip"], ["45", 0])
+        self.assertEqual(workflow["12"]["inputs"]["clip"], ["45", 0])
+
+    def test_catalog_model_clip_lora_with_nonzero_clip_keeps_clip_chain(self) -> None:
+        request = {
+            **base_request(),
+            "loras": [
+                {
+                    "enabled": True,
+                    "name": "style/clip-active.safetensors",
+                    "application": "model_clip",
+                    "strength_model": 0.4,
+                    "strength_clip": 0.2,
+                }
+            ],
+        }
+
+        with self.output_prefix_patches()[0], self.output_prefix_patches()[1], self.output_prefix_patches()[2]:
+            payload = payload_builder.build_prompt_payload(deepcopy(request), "module-client")
+
+        workflow = payload["prompt"]
+        self.assertEqual(workflow["9051"]["class_type"], "LoraLoader")
+        self.assertEqual(workflow["9051"]["inputs"]["clip"], ["45", 0])
+        self.assertEqual(workflow["9051"]["inputs"]["strength_clip"], 0.2)
+        self.assertEqual(workflow["11"]["inputs"]["clip"], ["9051", 1])
+        self.assertEqual(workflow["12"]["inputs"]["clip"], ["9051", 1])
+
+    def test_build_prompt_payload_with_prompts_matches_existing_payload_for_fixed_seed(self) -> None:
+        request = base_request()
+
+        with self.output_prefix_patches()[0], self.output_prefix_patches()[1], self.output_prefix_patches()[2]:
+            legacy_payload = payload_builder.build_prompt_payload(deepcopy(request), "module-client")
+            payload, prompts = payload_builder.build_prompt_payload_with_prompts(deepcopy(request), "module-client")
+
+        self.assertEqual(payload, legacy_payload)
+        self.assertEqual(prompts, payload_builder.build_prompts(deepcopy(request)))
+
+    def test_build_prompt_payload_with_prompts_reuses_random_seed_for_payload_and_prompts(self) -> None:
+        request = {**base_request(), "seed": -1}
+
+        with self.output_prefix_patches()[0], self.output_prefix_patches()[1], self.output_prefix_patches()[2]:
+            payload, prompts = payload_builder.build_prompt_payload_with_prompts(deepcopy(request), "module-client")
+
+        workflow = payload["prompt"]
+        self.assertEqual(workflow["19"]["inputs"]["seed"], prompts["seed"])
+        self.assertGreaterEqual(prompts["seed"], 0)
+
+    def test_base_workflow_cache_returns_isolated_copy_and_reloads_on_file_change(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "workflow.json"
+            path.write_text(json.dumps({"1": {"inputs": {"value": "first"}}}), encoding="utf-8")
+            workflow_base._JSON_CACHE.clear()
+            with mock.patch.object(workflow_base, "ANIMA_WORKFLOW_PATH", path):
+                first = workflow_base.load_base_workflow()
+                first["1"]["inputs"]["value"] = "mutated"
+                second = workflow_base.load_base_workflow()
+                self.assertEqual(second["1"]["inputs"]["value"], "first")
+
+                path.write_text(json.dumps({"1": {"inputs": {"value": "second", "extra": True}}}), encoding="utf-8")
+                reloaded = workflow_base.load_base_workflow()
+                self.assertEqual(reloaded["1"]["inputs"]["value"], "second")
+                self.assertTrue(reloaded["1"]["inputs"]["extra"])
 
     def test_generation_workflow_snapshots_match_facade(self) -> None:
         image_ref = {"name": "module.png", "subfolder": "", "type": "input"}

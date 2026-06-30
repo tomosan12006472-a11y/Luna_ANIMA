@@ -1,9 +1,9 @@
-import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.62-detailer-detection-controls-20260630";
-import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.62-detailer-detection-controls-20260630";
-import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.62-detailer-detection-controls-20260630";
-import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.62-detailer-detection-controls-20260630";
-import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.62-detailer-detection-controls-20260630";
-import { createRecipesFeature } from "./recipes.js?v=v1.62-detailer-detection-controls-20260630";
+import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.63-history-generation-metrics-20260630";
+import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.63-history-generation-metrics-20260630";
+import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.63-history-generation-metrics-20260630";
+import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.63-history-generation-metrics-20260630";
+import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.63-history-generation-metrics-20260630";
+import { createRecipesFeature } from "./recipes.js?v=v1.63-history-generation-metrics-20260630";
 
 export function createPromptLibraryFeature({
   api,

@@ -1,4 +1,4 @@
-import { $, setValue, value } from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
+import { $, setValue, value } from "./dom.js?v=v1.63-history-generation-metrics-20260630";
 
 export function createPositivePromptHelpers({ updateSummaries = () => {} } = {}) {
   function insertPositivePromptText(insertText) {

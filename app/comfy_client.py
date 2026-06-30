@@ -24,6 +24,7 @@ class ComfyResult:
     status: int | None = None
     node_errors: Any = None
     traceback_short: str = ""
+    metrics: dict[str, float] | None = None
 
 
 def _http_json(url: str, timeout: float = 10) -> Any:
@@ -273,9 +274,14 @@ def fetch_image_data_url(addr: str, image: dict[str, Any]) -> tuple[str, str]:
 
 
 def run_generation(addr: str, payload: dict[str, Any], wait: bool = True) -> ComfyResult:
+    total_start = time.perf_counter()
+    metrics: dict[str, float] = {}
     try:
+        submit_start = time.perf_counter()
         queued = queue_prompt(addr, payload)
+        metrics["submit_seconds"] = time.perf_counter() - submit_start
         if not queued["ok"]:
+            metrics["total_seconds"] = time.perf_counter() - total_start
             parsed = queued.get("json") if isinstance(queued.get("json"), dict) else {}
             return ComfyResult(
                 ok=False,
@@ -284,22 +290,33 @@ def run_generation(addr: str, payload: dict[str, Any], wait: bool = True) -> Com
                 stage="submit_prompt",
                 status=queued["status"],
                 node_errors=parsed.get("node_errors"),
+                metrics=metrics,
             )
         prompt_id = queued["json"].get("prompt_id") if isinstance(queued["json"], dict) else None
         if not wait or not prompt_id:
-            return ComfyResult(ok=True, prompt_id=prompt_id, response_text=queued["text"], stage="queued", status=queued["status"])
+            metrics["total_seconds"] = time.perf_counter() - total_start
+            return ComfyResult(ok=True, prompt_id=prompt_id, response_text=queued["text"], stage="queued", status=queued["status"], metrics=metrics)
+        wait_start = time.perf_counter()
         history = wait_history(addr, prompt_id)
+        metrics["queue_wait_seconds"] = time.perf_counter() - wait_start
         if not history:
-            return ComfyResult(ok=False, prompt_id=prompt_id, error="Timed out waiting for ComfyUI history", stage="queue_wait")
+            metrics["total_seconds"] = time.perf_counter() - total_start
+            return ComfyResult(ok=False, prompt_id=prompt_id, error="Timed out waiting for ComfyUI history", stage="queue_wait", metrics=metrics)
         image = first_output_image(history)
         if not image:
-            return ComfyResult(ok=False, prompt_id=prompt_id, history=history, error=history_status_message(history), stage="result_fetch")
+            metrics["total_seconds"] = time.perf_counter() - total_start
+            return ComfyResult(ok=False, prompt_id=prompt_id, history=history, error=history_status_message(history), stage="result_fetch", metrics=metrics)
+        fetch_start = time.perf_counter()
         image_url, image_data_url = fetch_image_data_url(addr, image)
-        return ComfyResult(ok=True, prompt_id=prompt_id, image_url=image_url, image_data_url=image_data_url, history=history, stage="result_fetch")
+        metrics["image_fetch_seconds"] = time.perf_counter() - fetch_start
+        metrics["total_seconds"] = time.perf_counter() - total_start
+        return ComfyResult(ok=True, prompt_id=prompt_id, image_url=image_url, image_data_url=image_data_url, history=history, stage="result_fetch", metrics=metrics)
     except Exception as exc:
+        metrics["total_seconds"] = time.perf_counter() - total_start
         return ComfyResult(
             ok=False,
             error=str(exc),
             stage="comfy_client",
             traceback_short="".join(traceback.format_exception_only(type(exc), exc)).strip(),
+            metrics=metrics,
         )

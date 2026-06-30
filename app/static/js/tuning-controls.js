@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
+import { clone, setChecked, text } from "./dom.js?v=v1.63-history-generation-metrics-20260630";
 
 const SNAPSHOT_KEYS = [
   "official_loras",
