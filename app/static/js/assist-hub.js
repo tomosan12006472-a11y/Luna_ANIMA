@@ -1,4 +1,4 @@
-import { $, $$ } from "./dom.js?v=v1.63-history-generation-metrics-20260630";
+import { $, $$ } from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
 
 export function createAssistHubFeature() {
   const activeTabs = new Map();

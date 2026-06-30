@@ -3,7 +3,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.63-history-generation-metrics-20260630";
+} from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
 
 const QUALITY_PROMPTS = Object.freeze({
   standard: "masterpiece, best quality, score_7",

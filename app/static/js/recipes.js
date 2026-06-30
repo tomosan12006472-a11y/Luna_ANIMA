@@ -1,4 +1,4 @@
-import { $, escapePathSegment, text } from "./dom.js?v=v1.63-history-generation-metrics-20260630";
+import { $, escapePathSegment, text } from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
 
 export function createRecipesFeature({
   api,
