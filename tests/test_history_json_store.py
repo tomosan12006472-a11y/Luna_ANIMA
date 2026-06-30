@@ -99,7 +99,11 @@ class HistoryJsonStoreMutationTests(unittest.TestCase):
         path = self.history_dir / "pending-1.json"
         path.write_text("{", encoding="utf-8")
         original_text = path.read_text(encoding="utf-8")
-        result = SimpleNamespace(image_data_url=self.image_data_url(), prompt_id="prompt-new")
+        result = SimpleNamespace(
+            image_data_url=self.image_data_url(),
+            prompt_id="prompt-new",
+            metrics={"submit_seconds": 0.12, "queue_wait_seconds": 1.5, "bad": "nope"},
+        )
 
         with self.assertRaises(JsonStoreReadError):
             history_store.complete_pending_history_item("pending-1", result)
@@ -130,7 +134,11 @@ class HistoryJsonStoreMutationTests(unittest.TestCase):
 
     def test_complete_pending_history_item_preserves_shape(self) -> None:
         self.write_pending_history()
-        result = SimpleNamespace(image_data_url=self.image_data_url(), prompt_id="prompt-new")
+        result = SimpleNamespace(
+            image_data_url=self.image_data_url(),
+            prompt_id="prompt-new",
+            metrics={"submit_seconds": 0.12, "queue_wait_seconds": 1.5, "bad": "nope"},
+        )
 
         completed = history_store.complete_pending_history_item("pending-1", result)
 
@@ -145,6 +153,34 @@ class HistoryJsonStoreMutationTests(unittest.TestCase):
         stored = json.loads((self.history_dir / "pending-1.json").read_text(encoding="utf-8"))
         self.assertEqual(stored["custom_field"], {"keep": True})
         self.assertEqual(stored["queue"]["completed_at"], completed["queue"]["completed_at"])
+        self.assertEqual(stored["generation_metrics"]["submit_seconds"], 0.12)
+        self.assertEqual(stored["generation_metrics"]["queue_wait_seconds"], 1.5)
+        self.assertNotIn("bad", stored["generation_metrics"])
+
+    def test_pending_generation_metrics_merge_on_complete(self) -> None:
+        pending = history_store.create_pending_history_item(
+            request_data={"width": 16, "height": 16, "model": "model.safetensors", "hires_fix": {"enabled": False}},
+            prompts={"seed": 123, "positive": "positive", "negative": "negative"},
+            prompt_id="prompt-new",
+            payload_path=self.root / "payload.json",
+            workflow_mode="anima",
+            index=0,
+            generation_metrics={"submit_seconds": 0.25},
+        )
+        result = SimpleNamespace(
+            image_data_url=self.image_data_url(),
+            prompt_id="prompt-new",
+            metrics={"queue_wait_seconds": 2.0, "image_fetch_seconds": 0.5},
+        )
+
+        completed = history_store.complete_pending_history_item(pending["id"], result)
+
+        self.assertIsNotNone(completed)
+        assert completed is not None
+        self.assertEqual(completed["generation_metrics"]["submit_seconds"], 0.25)
+        self.assertEqual(completed["generation_metrics"]["queue_wait_seconds"], 2.0)
+        self.assertEqual(completed["generation_metrics"]["image_fetch_seconds"], 0.5)
+        self.assertEqual(completed["generation_metrics"]["total_seconds"], 2.75)
 
     def test_public_save_preserves_history_shape(self) -> None:
         source = self.root / "source.png"

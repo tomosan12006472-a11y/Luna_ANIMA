@@ -199,6 +199,7 @@ def face_detailer_postprocess(
             payload_path=dump_path,
             workflow_mode="face_detailer_postprocess",
             index=0,
+            generation_metrics=result.metrics or {},
         )
         background_tasks.add_task(
             save_completed_generation_history,
@@ -220,6 +221,7 @@ def face_detailer_postprocess(
             "parent_history_id": item.get("id"),
             "warnings": warnings,
             "face_detailer": request_data.get("face_detailer", {}),
+            "generation_metrics": result.metrics or {},
         },
     )
 
@@ -270,6 +272,7 @@ def hand_detailer_postprocess(
             payload_path=dump_path,
             workflow_mode="hand_detailer_postprocess",
             index=0,
+            generation_metrics=result.metrics or {},
         )
         background_tasks.add_task(
             save_completed_generation_history,
@@ -291,6 +294,7 @@ def hand_detailer_postprocess(
             "parent_history_id": item.get("id"),
             "warnings": warnings,
             "hand_detailer": request_data.get("hand_detailer", {}),
+            "generation_metrics": result.metrics or {},
         },
     )
 

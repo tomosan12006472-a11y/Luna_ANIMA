@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import base64
 import hashlib
 import json
+import math
 from pathlib import Path
 import shutil
 from threading import Lock, RLock
@@ -48,6 +49,24 @@ SMALL_THUMBNAIL_DIR.mkdir(parents=True, exist_ok=True)
 
 def now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
+
+
+def sanitize_generation_metrics(raw: Any) -> dict[str, float]:
+    if not isinstance(raw, dict):
+        return {}
+    metrics: dict[str, float] = {}
+    for key, value in raw.items():
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(number) and number >= 0:
+            metrics[str(key)] = number
+    return metrics
+
+
+def generation_metrics_from_result(result: Any) -> dict[str, float]:
+    return sanitize_generation_metrics(getattr(result, "metrics", None))
 
 
 def history_path(history_id: str) -> Path:
@@ -552,6 +571,7 @@ def create_history_item(
         )
     output_method = infer_anima_generation_method(request_data)
     prompt_random_collect = _prompt_random_collect_summary(request_data)
+    generation_metrics = generation_metrics_from_result(result)
     item = {
         "id": history_id,
         "created_at": now_iso(),
@@ -612,6 +632,7 @@ def create_history_item(
         ),
         "watermark": {"applied": False},
         "public_save": {"saved": False},
+        **({"generation_metrics": generation_metrics} if generation_metrics else {}),
     }
     save_history_item(item)
     return item
@@ -639,12 +660,14 @@ def create_pending_history_item(
     payload_path: Path,
     workflow_mode: str,
     index: int,
+    generation_metrics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     history_id = f"anima_pending_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
     now = now_iso()
     size = compute_hires_size(request_data)
     output_method = infer_anima_generation_method(request_data)
     prompt_random_collect = _prompt_random_collect_summary(request_data)
+    initial_generation_metrics = sanitize_generation_metrics(generation_metrics)
     item = {
         "id": history_id,
         "status": "queued",
@@ -708,6 +731,7 @@ def create_pending_history_item(
         ),
         "watermark": {"applied": False},
         "public_save": {"saved": False},
+        **({"generation_metrics": initial_generation_metrics} if initial_generation_metrics else {}),
         "queue": {
             "status": "queued",
             "prompt_id": prompt_id,
@@ -743,6 +767,18 @@ def complete_pending_history_item(history_id: str, result: Any) -> dict[str, Any
                     "prompt_id": getattr(result, "prompt_id", item.get("prompt_id")),
                 }
             )
+            existing_metrics = sanitize_generation_metrics(item.get("generation_metrics"))
+            generation_metrics = {**existing_metrics, **generation_metrics_from_result(result)}
+            if "submit_seconds" in existing_metrics and (
+                "queue_wait_seconds" in generation_metrics or "image_fetch_seconds" in generation_metrics
+            ):
+                generation_metrics["total_seconds"] = (
+                    existing_metrics.get("submit_seconds", 0.0)
+                    + generation_metrics.get("queue_wait_seconds", 0.0)
+                    + generation_metrics.get("image_fetch_seconds", 0.0)
+                )
+            if generation_metrics:
+                item["generation_metrics"] = generation_metrics
             queue = item.get("queue") if isinstance(item.get("queue"), dict) else {}
             queue.update({"status": "completed", "completed_at": now, "last_checked_at": now, "error": None})
             item["queue"] = queue

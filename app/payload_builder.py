@@ -16,6 +16,7 @@ from .workflow.base import (
     _float_or_none,
     apply_model_sampling_shift,
     build_prompt_payload as _build_prompt_payload,
+    build_prompt_payload_with_prompts as _build_prompt_payload_with_prompts,
     build_workflow as _build_workflow,
     load_anima_mapping,
     load_base_workflow,
@@ -113,6 +114,11 @@ def build_prompt_payload(request: dict[str, object], client_id: str) -> dict[str
     return _build_prompt_payload(request, client_id)
 
 
+def build_prompt_payload_with_prompts(request: dict[str, object], client_id: str) -> tuple[dict[str, object], dict[str, object]]:
+    _sync_facade_overrides()
+    return _build_prompt_payload_with_prompts(request, client_id)
+
+
 def build_face_detailer_postprocess_workflow(request: dict[str, object], image_name: str) -> dict[str, object]:
     _sync_facade_overrides()
     return _build_face_detailer_postprocess_workflow(request, image_name)
@@ -181,6 +187,7 @@ __all__ = [
     "build_prompts",
     "build_lora_sample_prompts",
     "build_workflow",
+    "build_prompt_payload_with_prompts",
     "apply_image_to_image",
     "apply_reference_modules",
     "build_face_detailer_postprocess_workflow",

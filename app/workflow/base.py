@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 import math
+from pathlib import Path
 from typing import Any
 
 from ..config import ANIMA_MAPPING_PATH, ANIMA_WORKFLOW_PATH
@@ -14,16 +15,34 @@ from .prompts import LORA_SAMPLE_MODEL_NAME, build_prompts, is_lora_sample_mode
 from .reference import apply_reference_assist, apply_reference_modules
 
 
+_JSON_CACHE: dict[Path, tuple[tuple[int, int], dict[str, Any]]] = {}
+
+
+def _load_json_dict_cached(path: Path, *, strict: bool) -> dict[str, Any]:
+    signature: tuple[int, int] | None = None
+    try:
+        stat = path.stat()
+        signature = (stat.st_mtime_ns, stat.st_size)
+        cached = _JSON_CACHE.get(path)
+        if cached and cached[0] == signature:
+            return deepcopy(cached[1])
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        if strict:
+            raise
+        return {}
+    normalized = value if isinstance(value, dict) else {}
+    if signature is not None:
+        _JSON_CACHE[path] = (signature, normalized)
+    return deepcopy(normalized)
+
+
 def load_base_workflow() -> dict[str, Any]:
-    return json.loads(ANIMA_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    return _load_json_dict_cached(ANIMA_WORKFLOW_PATH, strict=True)
 
 
 def load_anima_mapping() -> dict[str, Any]:
-    try:
-        value = json.loads(ANIMA_MAPPING_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return value if isinstance(value, dict) else {}
+    return _load_json_dict_cached(ANIMA_MAPPING_PATH, strict=False)
 
 
 def _float_or_none(value: Any) -> float | None:
@@ -92,11 +111,12 @@ def apply_model_sampling_shift(workflow: dict[str, Any], request: dict[str, Any]
     node["inputs"][str(info["input_name"])] = float(info["shift"])
     return info
 
-def build_workflow(request: dict[str, Any]) -> dict[str, Any]:
+def build_workflow(request: dict[str, Any], prompts: dict[str, Any] | None = None) -> dict[str, Any]:
     from .detailer import apply_face_detailer, apply_hand_detailer
 
-    prompts = build_prompts(request)
-    workflow = deepcopy(load_base_workflow())
+    if prompts is None:
+        prompts = build_prompts(request)
+    workflow = load_base_workflow()
     sample_mode = is_lora_sample_mode(request)
     model = str(request.get("model") or (LORA_SAMPLE_MODEL_NAME if sample_mode else "Anima\\anima-preview3-base.safetensors"))
     text_encoder = str(request.get("text_encoder") or "qwen_3_06b_base.safetensors")
@@ -142,3 +162,8 @@ def build_workflow(request: dict[str, Any]) -> dict[str, Any]:
 
 def build_prompt_payload(request: dict[str, Any], client_id: str) -> dict[str, Any]:
     return {"prompt": build_workflow(request), "client_id": client_id}
+
+
+def build_prompt_payload_with_prompts(request: dict[str, Any], client_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    prompts = build_prompts(request)
+    return {"prompt": build_workflow(request, prompts=prompts), "client_id": client_id}, prompts

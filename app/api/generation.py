@@ -34,8 +34,7 @@ from ..history_store import (
 )
 from ..model_info_cache import _object_choice, cached_object_info, model_cache_status as _model_cache_status
 from ..payload_builder import (
-    build_prompt_payload,
-    build_prompts,
+    build_prompt_payload_with_prompts,
     compute_hires_size,
     official_lora_summary,
 )
@@ -118,8 +117,7 @@ def payload_preview(data: GenerateRequest, anima_claude_session: str | None = Co
     request_data = prepare_reference_request(request_data, addr, upload=False)
     request_data = prepare_reference_modules_request(request_data, addr, upload=False)
     request_data = prepare_i2i_request(request_data, addr, upload=True)
-    payload = build_prompt_payload(request_data, client_id)
-    prompts = build_prompts(request_data)
+    payload, prompts = build_prompt_payload_with_prompts(request_data, client_id)
     size = compute_hires_size(request_data)
     shift_info = anima_shift_capability(addr)
     request_shift_info = request_data.get("model_sampling", {}) if isinstance(request_data.get("model_sampling"), dict) else {}
@@ -197,9 +195,8 @@ def generate(
             request_data = prepare_i2i_request(request_data, addr, upload=True)
             client_id = f"anima-claude-{uuid.uuid4()}"
             try:
-                payload = build_prompt_payload(request_data, client_id)
+                payload, prompts = build_prompt_payload_with_prompts(request_data, client_id)
                 dump_path = save_mobile_payload_data(payload, request_data, item_request.workflow_mode)
-                prompts = build_prompts(request_data)
             except Exception as exc:
                 errors.append(
                     {
@@ -221,6 +218,7 @@ def generate(
                         payload_path=dump_path,
                         workflow_mode=item_request.workflow_mode,
                         index=index,
+                        generation_metrics=result.metrics or {},
                     )
                     background_tasks.add_task(
                         save_completed_generation_history,
@@ -241,6 +239,7 @@ def generate(
                         "history_id": pending_item["id"] if pending_item else None,
                         "payload_dump": str(dump_path),
                         "prompt_random_collect": request_data.get("prompt_random_collect", {"enabled": False}),
+                        "generation_metrics": result.metrics or {},
                     }
                 )
             else:
@@ -273,6 +272,7 @@ def generate(
                 "hand_detailer": generation_request_dict(data).get("hand_detailer", {"enabled": False}),
                 "anima_shift": generation_request_dict(data).get("model_sampling", {}),
                 "shift": generation_request_dict(data).get("shift"),
+                "generation_metrics": [item.get("generation_metrics", {}) for item in items],
             },
         )
     client_id = f"anima-claude-{uuid.uuid4()}"
@@ -285,9 +285,8 @@ def generate(
     request_data = prepare_reference_modules_request(request_data, addr, upload=True)
     request_data = prepare_i2i_request(request_data, addr, upload=True)
     try:
-        payload = build_prompt_payload(request_data, client_id)
+        payload, prompts = build_prompt_payload_with_prompts(request_data, client_id)
         dump_path = save_mobile_payload_data(payload, request_data, data.workflow_mode)
-        prompts = build_prompts(request_data)
     except Exception as exc:
         traceback.print_exc()
         return error_response(
@@ -351,6 +350,7 @@ def generate(
             "prompt_random_collect": request_data.get("prompt_random_collect", {"enabled": False}),
             "anima_shift": request_data.get("model_sampling", {}),
             "shift": request_data.get("shift"),
+            "generation_metrics": result.metrics or {},
         },
     )
 

@@ -122,6 +122,13 @@ def normalize_lora_application(value: Any) -> str:
     return "model_clip"
 
 
+def _is_zero_clip_strength(value: Any) -> bool:
+    try:
+        return float(value) == 0.0
+    except (TypeError, ValueError):
+        return False
+
+
 def apply_official_loras(workflow: dict[str, Any], request: dict[str, Any]) -> list[Any]:
     resolved = resolve_official_loras(request)
     previous_model: list[Any] = ["44", 0]
@@ -161,7 +168,7 @@ def apply_catalog_loras(workflow: dict[str, Any], request: dict[str, Any], previ
         if not lora_name:
             continue
         node_id = str(next_node_id)
-        if application == "model_only":
+        if application == "model_only" or _is_zero_clip_strength(raw.get("strength_clip")):
             workflow[node_id] = {
                 "class_type": "LoraLoaderModelOnly",
                 "inputs": {
