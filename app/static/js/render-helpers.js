@@ -1,4 +1,4 @@
-import { $, displayValue, unique } from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
+import { $, displayValue, unique } from "./dom.js?v=v1.63-history-generation-metrics-20260630";
 
 export function fillSelect(selector, options, selected) {
   const select = typeof selector === "string" ? $(selector) : selector;

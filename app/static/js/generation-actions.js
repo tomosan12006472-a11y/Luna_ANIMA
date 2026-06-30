@@ -2,7 +2,7 @@ import {
   $,
   checked,
   text,
-} from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
+} from "./dom.js?v=v1.63-history-generation-metrics-20260630";
 
 export function createGenerationActionsFeature({
   api,
