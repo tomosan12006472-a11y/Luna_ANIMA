@@ -7,13 +7,13 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.63-history-generation-metrics-20260630";
+} from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
 const PUBLIC_SAVE_POLL_INTERVAL_MS = 1200;
 const PUBLIC_SAVE_MAX_POLLS = 90;
-const HISTORY_RUNTIME_TOKEN = "v1.63-history-generation-metrics-20260630";
+const HISTORY_RUNTIME_TOKEN = "v1.64-outfit-category-wildcards-20260630";
 const HISTORY_DEBUG_EVENT_LIMIT = 20;
 
 function fallbackErrorMessage(error) {

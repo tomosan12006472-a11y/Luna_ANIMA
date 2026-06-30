@@ -1,4 +1,4 @@
-import { $, numberValue, value } from "./dom.js?v=v1.63-history-generation-metrics-20260630";
+import { $, numberValue, value } from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
 
 export function createDynamicPromptFeature({
   api,
@@ -6,6 +6,44 @@ export function createDynamicPromptFeature({
   helpers,
 } = {}) {
   const { insertPositivePromptText } = helpers || {};
+  const foldableWildcardPrefixes = new Set(["outfit", "outfit_nsfw"]);
+
+  function createWildcardChip(name) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.dataset.wildcardName = name;
+    chip.textContent = `__${name}__`;
+    return chip;
+  }
+
+  function foldablePrefix(name) {
+    const [prefix, child] = String(name || "").split("/", 2);
+    return child && foldableWildcardPrefixes.has(prefix) ? prefix : "";
+  }
+
+  function createWildcardFold(prefix, children) {
+    const details = document.createElement("details");
+    details.className = "wildcard-fold";
+
+    const summary = document.createElement("summary");
+    const title = document.createElement("span");
+    title.className = "wildcard-fold-title";
+    title.textContent = `__${prefix}/*__`;
+    const count = document.createElement("span");
+    count.className = "lbl";
+    count.textContent = `${children.length}`;
+    summary.append(title, count);
+
+    const chips = document.createElement("div");
+    chips.className = "chiprow wildcard-subchips";
+    for (const name of children) {
+      chips.appendChild(createWildcardChip(name));
+    }
+
+    details.append(summary, chips);
+    return details;
+  }
 
   async function loadDynamicWildcards() {
     const data = await api("/api/dynamic-prompts/wildcards");
@@ -13,21 +51,37 @@ export function createDynamicPromptFeature({
     if (!root) return data;
     root.replaceChildren();
     const items = Array.isArray(data.items) ? data.items : [];
+    const grouped = new Map();
+    for (const item of items) {
+      const name = String(item.name || "").trim();
+      const prefix = foldablePrefix(name);
+      if (!prefix) continue;
+      const group = grouped.get(prefix) || [];
+      group.push(name);
+      grouped.set(prefix, group);
+    }
     if (!items.length) {
       const empty = document.createElement("span");
       empty.className = "lbl";
       empty.textContent = "ワイルドカードなし";
       root.appendChild(empty);
     } else {
+      const renderedGroups = new Set();
       for (const item of items) {
         const name = String(item.name || "").trim();
         if (!name) continue;
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "chip";
-        chip.dataset.wildcardName = name;
-        chip.textContent = `__${name}__`;
-        root.appendChild(chip);
+        const prefix = foldablePrefix(name);
+        if (prefix) continue;
+        root.appendChild(createWildcardChip(name));
+        if (grouped.has(name)) {
+          root.appendChild(createWildcardFold(name, grouped.get(name)));
+          renderedGroups.add(name);
+        }
+      }
+      for (const [prefix, children] of grouped.entries()) {
+        if (!renderedGroups.has(prefix)) {
+          root.appendChild(createWildcardFold(prefix, children));
+        }
       }
     }
     if (Array.isArray(data.warnings) && data.warnings.length) {

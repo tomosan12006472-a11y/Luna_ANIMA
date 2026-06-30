@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.63-history-generation-metrics-20260630";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.63-history-generation-metrics-20260630";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.63-history-generation-metrics-20260630";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.64-outfit-category-wildcards-20260630";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.64-outfit-category-wildcards-20260630";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.64-outfit-category-wildcards-20260630";
 
 export function createHistoryReuseFeature({
   state,

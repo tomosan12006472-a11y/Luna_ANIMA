@@ -439,6 +439,39 @@ button.ghost.action-primary:active {
   max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
 .chip.is-active { border-color: var(--safelight); color: var(--safelight); }
+.wildcard-fold {
+  flex: 1 1 220px;
+  max-width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: rgba(10, 8, 6, 0.25);
+}
+.wildcard-fold summary {
+  min-height: 34px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--ink-dim);
+  font-family: var(--mono);
+  font-size: 14.5px;
+}
+.wildcard-fold summary::-webkit-details-marker { display: none; }
+.wildcard-fold summary::before {
+  content: "+";
+  color: var(--safelight);
+}
+.wildcard-fold[open] summary::before { content: "-"; }
+.wildcard-fold summary .lbl {
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 12px;
+}
+.wildcard-subchips {
+  padding: 0 6px 6px;
+}
 .tuning-primary .ghost {
   flex: 1 1 118px;
 }
