@@ -9,7 +9,7 @@
       "inputs": {
         "filename_prefix": "20990101/anima/face_detailer_postprocess/AnimaFaceDetailer",
         "images": [
-          "9301",
+          "9309",
           0
         ]
       }
@@ -98,17 +98,128 @@
     },
     "9301": {
       "_meta": {
-        "title": "Face Detailer"
+        "title": "Face Detailer Candidates"
       },
-      "class_type": "FaceDetailer",
+      "class_type": "BboxDetectorSEGS",
       "inputs": {
-        "bbox_crop_factor": 3.0,
         "bbox_detector": [
           "9300",
           0
         ],
-        "bbox_dilation": 10,
-        "bbox_threshold": 0.45,
+        "crop_factor": 3.0,
+        "dilation": 10,
+        "drop_size": 64,
+        "image": [
+          "10",
+          0
+        ],
+        "labels": "all",
+        "threshold": 0.45
+      }
+    },
+    "9302": {
+      "_meta": {
+        "title": "Face Detailer Area Filter"
+      },
+      "class_type": "ImpactSEGSRangeFilter",
+      "inputs": {
+        "max_value": 471860,
+        "min_value": 1259,
+        "mode": true,
+        "segs": [
+          "9301",
+          0
+        ],
+        "target": "area(=w*h)"
+      }
+    },
+    "9303": {
+      "_meta": {
+        "title": "Face Detailer Max Detections"
+      },
+      "class_type": "ImpactSEGSOrderedFilter",
+      "inputs": {
+        "order": true,
+        "segs": [
+          "9302",
+          0
+        ],
+        "take_count": 8,
+        "take_start": 0,
+        "target": "confidence"
+      }
+    },
+    "9304": {
+      "_meta": {
+        "title": "Face Detailer Candidate Count"
+      },
+      "class_type": "ImpactCount_Elts_in_SEGS",
+      "inputs": {
+        "segs": [
+          "9302",
+          0
+        ]
+      }
+    },
+    "9305": {
+      "_meta": {
+        "title": "Face Detailer Runaway Threshold"
+      },
+      "class_type": "ImpactInt",
+      "inputs": {
+        "value": 20
+      }
+    },
+    "9306": {
+      "_meta": {
+        "title": "Face Detailer Runaway Compare"
+      },
+      "class_type": "ImpactCompare",
+      "inputs": {
+        "a": [
+          "9304",
+          0
+        ],
+        "b": [
+          "9305",
+          0
+        ],
+        "cmp": "a > b"
+      }
+    },
+    "9307": {
+      "_meta": {
+        "title": "Face Detailer Empty SEGS"
+      },
+      "class_type": "EmptySegs",
+      "inputs": {}
+    },
+    "9308": {
+      "_meta": {
+        "title": "Face Detailer Runaway Guard"
+      },
+      "class_type": "ImpactConditionalBranch",
+      "inputs": {
+        "cond": [
+          "9306",
+          0
+        ],
+        "ff_value": [
+          "9303",
+          0
+        ],
+        "tt_value": [
+          "9307",
+          0
+        ]
+      }
+    },
+    "9309": {
+      "_meta": {
+        "title": "Face Detailer"
+      },
+      "class_type": "DetailerForEach",
+      "inputs": {
         "cfg": 4.5,
         "clip": [
           "45",
@@ -116,7 +227,6 @@
         ],
         "cycle": 1,
         "denoise": 0.28,
-        "drop_size": 64,
         "feather": 5,
         "force_inpaint": true,
         "guide_size": 512,
@@ -139,15 +249,13 @@
           "11",
           0
         ],
-        "sam_bbox_expansion": 0,
-        "sam_detection_hint": "center-1",
-        "sam_dilation": 0,
-        "sam_mask_hint_threshold": 0.7,
-        "sam_mask_hint_use_negative": "False",
-        "sam_threshold": 0.93,
         "sampler_name": "euler",
         "scheduler": "normal",
         "seed": 987754321,
+        "segs": [
+          "9308",
+          0
+        ],
         "steps": 10,
         "vae": [
           "15",

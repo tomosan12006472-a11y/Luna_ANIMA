@@ -3,7 +3,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+} from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
 
 const QUALITY_PROMPTS = Object.freeze({
   standard: "masterpiece, best quality, score_7",

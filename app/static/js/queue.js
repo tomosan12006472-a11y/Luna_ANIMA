@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { $, text } from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);

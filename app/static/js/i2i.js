@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+} from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 

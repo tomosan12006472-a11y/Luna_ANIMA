@@ -238,14 +238,14 @@ class WorkflowModuleTests(unittest.TestCase):
             ),
             "face_detailer": (
                 {**base_request(), "face_detailer": {"enabled": True, "steps": 10, "cfg": 4.5, "denoise": 0.28, "guide_size": 512, "max_size": 1024, "bbox_threshold": 0.45}},
-                ["1", "11", "12", "15", "19", "28", "44", "45", "46", "8", "9300", "9301"],
-                ["9301", 0],
+                ["1", "11", "12", "15", "19", "28", "44", "45", "46", "8", "9300", "9301", "9302", "9303", "9304", "9305", "9306", "9307", "9308", "9309"],
+                ["9309", 0],
                 {"model": ["46", 0], "positive": ["11", 0], "negative": ["12", 0], "latent_image": ["28", 0]},
             ),
             "hand_detailer": (
                 {**base_request(), "hand_detailer": {"enabled": True, "steps": 8, "cfg": 4.0, "denoise": 0.42, "bbox_threshold": 0.36, "lllite_strength": 0.9}},
-                ["1", "11", "12", "15", "19", "28", "44", "45", "46", "8", "9300", "9301", "9400", "9401", "9402", "9403"],
-                ["9301", 0],
+                ["1", "11", "12", "15", "19", "28", "44", "45", "46", "8", "9300", "9301", "9302", "9303", "9304", "9305", "9306", "9307", "9308", "9309", "9400", "9401", "9402", "9403", "9404", "9405", "9406", "9407", "9408", "9410", "9411"],
+                ["9309", 0],
                 {"model": ["46", 0], "positive": ["11", 0], "negative": ["12", 0], "latent_image": ["28", 0]},
             ),
         }
@@ -302,8 +302,42 @@ class WorkflowModuleTests(unittest.TestCase):
 
         self.assertEqual(summarize_payload(face_facade), summarize_payload(face_module))
         self.assertEqual(summarize_payload(hand_facade), summarize_payload(hand_module))
-        self.assertEqual(face_facade["prompt"]["1"]["inputs"]["images"], ["9301", 0])
-        self.assertEqual(hand_facade["prompt"]["1"]["inputs"]["images"], ["9301", 0])
+        self.assertEqual(face_facade["prompt"]["1"]["inputs"]["images"], ["9309", 0])
+        self.assertEqual(hand_facade["prompt"]["1"]["inputs"]["images"], ["9309", 0])
+
+    def test_detailer_detection_controls_add_segs_filters(self) -> None:
+        request = {
+            **base_request(),
+            "width": 1024,
+            "height": 1536,
+            "face_detailer": {
+                "enabled": True,
+                "bbox_threshold": 0.61,
+                "min_area_ratio": 0.001,
+                "max_area_ratio": 0.25,
+                "max_detections": 5,
+                "runaway_guard_enabled": True,
+                "runaway_max_candidates": 9,
+                "runaway_action": "skip",
+            },
+        }
+        request_data = deepcopy(request)
+        payload = payload_builder.build_prompt_payload(request_data, "module-client")
+        workflow = payload["prompt"]
+        class_types = {node["class_type"] for node in workflow.values()}
+
+        self.assertIn("BboxDetectorSEGS", class_types)
+        self.assertIn("ImpactSEGSRangeFilter", class_types)
+        self.assertIn("ImpactSEGSOrderedFilter", class_types)
+        self.assertIn("ImpactConditionalBranch", class_types)
+        self.assertIn("DetailerForEach", class_types)
+        self.assertEqual(workflow["9301"]["inputs"]["threshold"], 0.61)
+        self.assertEqual(workflow["9302"]["inputs"]["min_value"], 1573)
+        self.assertEqual(workflow["9302"]["inputs"]["max_value"], 393216)
+        self.assertEqual(workflow["9303"]["inputs"]["take_count"], 5)
+        self.assertEqual(workflow["9305"]["inputs"]["value"], 9)
+        self.assertEqual(workflow["1"]["inputs"]["images"], ["9309", 0])
+        self.assertEqual(request_data["face_detailer"]["max_filter_node_id"], "9303")
 
     def test_workflow_modules_do_not_import_payload_builder(self) -> None:
         workflow_dir = Path(__file__).resolve().parents[1] / "app" / "workflow"

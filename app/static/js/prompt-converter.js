@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { $, text, value } from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v1.62-detailer-detection-controls-20260630";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 

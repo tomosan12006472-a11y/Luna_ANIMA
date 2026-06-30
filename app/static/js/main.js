@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { onDomReady } from "./bootstrap.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.62-detailer-detection-controls-20260630";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.62-detailer-detection-controls-20260630";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.62-detailer-detection-controls-20260630";
+import { onDomReady } from "./bootstrap.js?v=v1.62-detailer-detection-controls-20260630";
 import {
   $,
   $$,
@@ -11,25 +11,25 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createAssistHubFeature } from "./assist-hub.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createCharacterFeature } from "./characters.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createHistoryFeature } from "./history.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createI2iFeature } from "./i2i.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createLoraFeature } from "./loras.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createQueueFeature } from "./queue.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createReferenceFeature } from "./reference.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createSettingsFeature } from "./settings.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createInitialState } from "./state.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createDetailerFeature } from "./detailers.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+} from "./dom.js?v=v1.62-detailer-detection-controls-20260630";
+import { createAssistHubFeature } from "./assist-hub.js?v=v1.62-detailer-detection-controls-20260630";
+import { createCharacterFeature } from "./characters.js?v=v1.62-detailer-detection-controls-20260630";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.62-detailer-detection-controls-20260630";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.62-detailer-detection-controls-20260630";
+import { createHistoryFeature } from "./history.js?v=v1.62-detailer-detection-controls-20260630";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.62-detailer-detection-controls-20260630";
+import { createI2iFeature } from "./i2i.js?v=v1.62-detailer-detection-controls-20260630";
+import { createLoraFeature } from "./loras.js?v=v1.62-detailer-detection-controls-20260630";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.62-detailer-detection-controls-20260630";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.62-detailer-detection-controls-20260630";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.62-detailer-detection-controls-20260630";
+import { createQueueFeature } from "./queue.js?v=v1.62-detailer-detection-controls-20260630";
+import { createReferenceFeature } from "./reference.js?v=v1.62-detailer-detection-controls-20260630";
+import { createSettingsFeature } from "./settings.js?v=v1.62-detailer-detection-controls-20260630";
+import { createInitialState } from "./state.js?v=v1.62-detailer-detection-controls-20260630";
+import { createDetailerFeature } from "./detailers.js?v=v1.62-detailer-detection-controls-20260630";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.62-detailer-detection-controls-20260630";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.62-detailer-detection-controls-20260630";
 
 (() => {
   "use strict";
@@ -225,6 +225,7 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.61-histor
     });
     promptRandom.applyToForm(settings.prompt_random_collect || {});
     promptRandom.renderInstructionFavorites(settings);
+    detailers.applyToForm(settings);
     settingsFeature.applyWatermark(settings.watermark || {});
     settingsFeature.applyPublicSaveSettings(settings.public_save || {});
     updateSizeChips();
@@ -343,8 +344,18 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.61-histor
       (checked("#fdEnabled") || checked("#hdEnabled")) ? "Detailer ON" : "",
     ].filter(Boolean);
     text("#heroAssistSummary", assistParts.join(" · "));
-    text("#fdSummary", checked("#fdEnabled") ? `ON · ${Number(req.face_detailer.denoise).toFixed(2)}` : "OFF");
-    text("#hdSummary", checked("#hdEnabled") ? `ON · ${Number(req.hand_detailer.denoise).toFixed(2)} · L${Number(req.hand_detailer.lllite_strength).toFixed(2)}` : "OFF");
+    text(
+      "#fdSummary",
+      checked("#fdEnabled")
+        ? `ON · ${req.face_detailer.preset || "custom"} · max ${req.face_detailer.max_detections} · bbox ${Number(req.face_detailer.bbox_threshold).toFixed(2)}`
+        : "OFF",
+    );
+    text(
+      "#hdSummary",
+      checked("#hdEnabled")
+        ? `ON · ${req.hand_detailer.preset || "custom"} · max ${req.hand_detailer.max_detections} · L${Number(req.hand_detailer.lllite_strength).toFixed(2)}`
+        : "OFF",
+    );
     tuningControls?.renderStatus(req);
     updateSizeChips();
   }
@@ -441,6 +452,7 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.61-histor
     settingsFeature.bindEvents();
     promptLibrary.bindEvents();
     assistHub.bindEvents();
+    detailers.bindEvents();
 
     $("#sizeChips")?.addEventListener("click", (event) => {
       const chip = event.target.closest(".chip[data-size]");

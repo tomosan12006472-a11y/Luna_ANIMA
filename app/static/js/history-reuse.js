@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.61-history-pagination-diagnostics-hardfix-20260629";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.62-detailer-detection-controls-20260630";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.62-detailer-detection-controls-20260630";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.62-detailer-detection-controls-20260630";
 
 export function createHistoryReuseFeature({
   state,
