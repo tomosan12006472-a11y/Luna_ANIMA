@@ -7,13 +7,13 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.69-detailer-sampling-20260702";
+} from "./dom.js?v=v2.1-polish-20260702";
 
 const REFERENCE_MODULES = ["outfit", "pose", "background"];
 const REFMOD_EMPTY_TEXT = {
   outfit: "Outfit参照は未選択です。",
   pose: "Pose参照は未選択です。",
-  background: "Background Referenceは未選択です。",
+  background: "背景参照は未選択です。",
 };
 const REFMOD_PREVIEW_IDS = {
   outfit: "#outfitPreview",
@@ -242,7 +242,7 @@ export function createReferenceFeature({
     setValue("#backgroundStrength", defaults.strength);
     setValue("#backgroundStart", defaults.start_at);
     setValue("#backgroundEnd", defaults.end_at);
-    text("#refModStatus", "Background Referenceの推奨値を適用しました");
+    text("#refModStatus", "背景参照の推奨値を適用しました");
     updateSummaries();
   }
 

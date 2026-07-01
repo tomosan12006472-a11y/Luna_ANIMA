@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.69-detailer-sampling-20260702";
+} from "./dom.js?v=v2.1-polish-20260702";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
@@ -65,7 +65,7 @@ const OFFICIAL_LORA_PRESETS = Object.freeze([
   },
   {
     id: "color_stable",
-    title: "Color Stable",
+    title: "色安定",
     official_loras: {
       highres: { enabled: false, strength: 0.6 },
       turbo: { enabled: false, version: "auto", strength: 0.6, preset_applied: false },
@@ -74,7 +74,7 @@ const OFFICIAL_LORA_PRESETS = Object.freeze([
   },
   {
     id: "quality",
-    title: "Quality",
+    title: "品質",
     official_loras: {
       highres: { enabled: true, strength: 0.6 },
       turbo: { enabled: false, version: "auto", strength: 0.6, preset_applied: false },
@@ -83,7 +83,7 @@ const OFFICIAL_LORA_PRESETS = Object.freeze([
   },
   {
     id: "fast_preview",
-    title: "Fast Preview",
+    title: "高速プレビュー",
     official_loras: {
       highres: { enabled: false, strength: 0.6 },
       turbo: { enabled: true, version: "auto", strength: 1.0, preset_applied: true },
@@ -92,7 +92,7 @@ const OFFICIAL_LORA_PRESETS = Object.freeze([
   },
   {
     id: "fast_color",
-    title: "Fast Color",
+    title: "高速色補正",
     official_loras: {
       highres: { enabled: false, strength: 0.6 },
       turbo: { enabled: true, version: "auto", strength: 1.0, preset_applied: true },
@@ -101,7 +101,7 @@ const OFFICIAL_LORA_PRESETS = Object.freeze([
   },
   {
     id: "final_quality",
-    title: "Final Quality",
+    title: "最終品質",
     official_loras: {
       highres: { enabled: true, strength: 0.6 },
       turbo: { enabled: false, version: "auto", strength: 0.6, preset_applied: false },

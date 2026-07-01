@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.69-detailer-sampling-20260702";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.69-detailer-sampling-20260702";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.69-detailer-sampling-20260702";
-import { onDomReady } from "./bootstrap.js?v=v1.69-detailer-sampling-20260702";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v2.1-polish-20260702";
+import { dispatchAction, registerActions } from "./actions.js?v=v2.1-polish-20260702";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v2.1-polish-20260702";
+import { onDomReady } from "./bootstrap.js?v=v2.1-polish-20260702";
 import {
   $,
   $$,
@@ -11,25 +11,25 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.69-detailer-sampling-20260702";
-import { createAssistHubFeature } from "./assist-hub.js?v=v1.69-detailer-sampling-20260702";
-import { createCharacterFeature } from "./characters.js?v=v1.69-detailer-sampling-20260702";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.69-detailer-sampling-20260702";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.69-detailer-sampling-20260702";
-import { createHistoryFeature } from "./history.js?v=v1.69-detailer-sampling-20260702";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.69-detailer-sampling-20260702";
-import { createI2iFeature } from "./i2i.js?v=v1.69-detailer-sampling-20260702";
-import { createLoraFeature } from "./loras.js?v=v1.69-detailer-sampling-20260702";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.69-detailer-sampling-20260702";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.69-detailer-sampling-20260702";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.69-detailer-sampling-20260702";
-import { createQueueFeature } from "./queue.js?v=v1.69-detailer-sampling-20260702";
-import { createReferenceFeature } from "./reference.js?v=v1.69-detailer-sampling-20260702";
-import { createSettingsFeature } from "./settings.js?v=v1.69-detailer-sampling-20260702";
-import { createInitialState } from "./state.js?v=v1.69-detailer-sampling-20260702";
-import { createDetailerFeature } from "./detailers.js?v=v1.69-detailer-sampling-20260702";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.69-detailer-sampling-20260702";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.69-detailer-sampling-20260702";
+} from "./dom.js?v=v2.1-polish-20260702";
+import { createAssistHubFeature } from "./assist-hub.js?v=v2.1-polish-20260702";
+import { createCharacterFeature } from "./characters.js?v=v2.1-polish-20260702";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v2.1-polish-20260702";
+import { createGenerationFormFeature } from "./generation-form.js?v=v2.1-polish-20260702";
+import { createHistoryFeature } from "./history.js?v=v2.1-polish-20260702";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v2.1-polish-20260702";
+import { createI2iFeature } from "./i2i.js?v=v2.1-polish-20260702";
+import { createLoraFeature } from "./loras.js?v=v2.1-polish-20260702";
+import { createPromptRandomUi } from "./prompt-random.js?v=v2.1-polish-20260702";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v2.1-polish-20260702";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v2.1-polish-20260702";
+import { createQueueFeature } from "./queue.js?v=v2.1-polish-20260702";
+import { createReferenceFeature } from "./reference.js?v=v2.1-polish-20260702";
+import { createSettingsFeature } from "./settings.js?v=v2.1-polish-20260702";
+import { createInitialState } from "./state.js?v=v2.1-polish-20260702";
+import { createDetailerFeature } from "./detailers.js?v=v2.1-polish-20260702";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v2.1-polish-20260702";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v2.1-polish-20260702";
 
 (() => {
   "use strict";
@@ -257,12 +257,26 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.69-detail
     return parts;
   }
 
+  function markDrawerValue(selector, on) {
+    $(selector)?.classList.toggle("is-on", Boolean(on));
+  }
+
   function updateSummaries() {
     const req = collectRequest();
     const officialParts = officialLoraSummaryParts(req.official_loras);
-    text("#techSummary", `${req.width}×${req.height} · ${req.steps} · ${req.cfg} · shift${req.shift}`);
+    const techLabel = `${req.width}×${req.height} · ${req.steps} · ${req.cfg} · shift${req.shift}`;
+    text("#techSummary", techLabel);
+    text("#secDevelopValue", techLabel);
     text("#officialLoraSummary", officialParts.length ? officialParts.join(" · ") : "OFF");
-    text("#heroTechSummary", `${req.width}×${req.height} · ${req.steps} steps · CFG ${req.cfg}`);
+    const subjectCount = [
+      req.character1,
+      req.character2,
+      req.character3,
+      req.original_character,
+    ].filter((item) => item && item !== "None").length;
+    text("#secSubjectValue", subjectCount ? `${subjectCount}件選択` : "未選択");
+    markDrawerValue("#secSubjectValue", subjectCount > 0);
+    UI.railMark?.("sec-subject", subjectCount > 0);
     const sceneParts = [
       req.outfit_prompt,
       req.expression_prompt,
@@ -293,12 +307,26 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.69-detail
     ];
     text("#refModSummary", refParts.join(" / "));
     const promptLength = String(req.positive_prompt || "").trim().length;
-    text("#promptWorkbenchSummary", [
-      `Prompt ${promptLength}`,
-      `Neg ${negMode}`,
-      req.prompt_random_collect.enabled ? "Random ON" : "Random OFF",
-      value("#promptConverterSummary", "LOCAL"),
-    ].join(" · "));
+    const promptLabel = [
+      `入力 ${promptLength}`,
+      `ネガ ${negMode}`,
+      req.prompt_random_collect.enabled ? "ランダムON" : "ランダムOFF",
+      `変換 ${value("#promptConverterSummary", "LOCAL")}`,
+    ].join(" · ");
+    text("#promptWorkbenchSummary", promptLabel);
+    text("#secPromptValue", promptLabel);
+    const promptOn = Boolean(promptLength || req.negative_prompt || req.prompt_ban || req.prompt_random_collect.enabled);
+    markDrawerValue("#secPromptValue", promptOn);
+    UI.railMark?.("sec-prompt", promptOn);
+    const toolsLabel = [
+      `変換 ${value("#promptConverterSummary", "LOCAL")}`,
+      req.prompt_random_collect.enabled ? "ランダムON" : "ランダムOFF",
+      checked("#resetComfyCache") ? "キャッシュ解放ON" : "",
+    ].filter(Boolean).join(" · ");
+    text("#secToolsValue", toolsLabel);
+    const toolsOn = Boolean(req.prompt_random_collect.enabled || checked("#resetComfyCache"));
+    markDrawerValue("#secToolsValue", toolsOn);
+    UI.railMark?.("sec-tools", toolsOn);
     const loraRows = Array.isArray(req.loras) ? req.loras : [];
     const loraOn = loraRows.filter((row) => row?.enabled !== false && row?.name).length + officialParts.length;
     const loraOff = loraRows.filter((row) => row?.enabled === false && row?.name).length;
@@ -307,44 +335,54 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.69-detail
     text("#loraSlotSummary", slotOn || slotOff ? `${slotOn} ON${slotOff ? ` / ${slotOff} OFF` : ""}` : "0 ON");
     const bulkAssist = [
       loraRows.length ? `LoRA ${slotOn}/${loraRows.length}` : "LoRA 0",
-      (modules.outfit?.enabled || modules.pose?.enabled || background.enabled) ? "Ref ON" : "Ref OFF",
-      (checked("#fdEnabled") || checked("#hdEnabled")) ? "Det ON" : "Det OFF",
+      (modules.outfit?.enabled || modules.pose?.enabled || background.enabled) ? "参照ON" : "参照OFF",
+      (checked("#fdEnabled") || checked("#hdEnabled")) ? "補正ON" : "補正OFF",
     ];
     text("#quickControlsSummary", bulkAssist.join(" · "));
     const presetId = req.official_lora_preset || value("#officialLoraPresetSelect", "");
     const presetNames = {
-      color_stable: "Color Stable",
-      quality: "Quality",
-      fast_preview: "Fast Preview",
-      fast_color: "Fast Color",
-      final_quality: "Final Quality",
-      custom: "Custom",
+      color_stable: "色安定",
+      quality: "品質",
+      fast_preview: "高速プレビュー",
+      fast_color: "高速色補正",
+      final_quality: "最終品質",
+      custom: "カスタム",
     };
     const presetLabel = presetId && presetId !== "off" ? (presetNames[presetId] || String(presetId).replaceAll("_", " ")) : "";
     const officialLabel = presetLabel
-      ? `Official ${presetLabel}`
-      : (officialParts.length ? `Official ${officialParts.length} ON` : "Official OFF");
-    const slotsLabel = loraRows.length ? `Slots ${slotOn}/${loraRows.length}${slotOff ? ` (${slotOff} OFF)` : ""}` : "Slots 0";
-    const hiresLabel = req.hires_fix.enabled ? `Hires ${req.hires_fix.mode || "latent"} ×${Number(req.hires_fix.upscale_factor || 1.5)}` : "Hires OFF";
-    text("#assistHubSummary", `${officialLabel} · ${slotsLabel} · ${hiresLabel}`);
+      ? `公式 ${presetLabel}`
+      : (officialParts.length ? `公式 ${officialParts.length} ON` : "公式OFF");
+    const slotsLabel = loraRows.length ? `スロット ${slotOn}/${loraRows.length}${slotOff ? ` (${slotOff} OFF)` : ""}` : "スロット 0";
+    const hiresLabel = req.hires_fix.enabled ? `高解像 ${req.hires_fix.mode || "latent"} ×${Number(req.hires_fix.upscale_factor || 1.5)}` : "高解像OFF";
+    const boostLabel = `${officialLabel} · ${slotsLabel} · ${hiresLabel}`;
+    text("#assistHubSummary", boostLabel);
+    text("#secBoostValue", boostLabel);
+    const boostOn = Boolean(officialParts.length || slotOn || req.hires_fix.enabled);
+    markDrawerValue("#secBoostValue", boostOn);
+    UI.railMark?.("sec-boost", boostOn);
     const advancedLabel = [
-      checked("#i2iEnabled") ? `i2i ${req.image_to_image.denoise}` : "i2i OFF",
-      background.enabled ? `BG ${background.mode || "depth"}` : ((modules.outfit?.enabled || modules.pose?.enabled) ? "Ref ON" : "Ref OFF"),
+      checked("#i2iEnabled") ? `下絵 ${req.image_to_image.denoise}` : "下絵OFF",
+      background.enabled ? `背景 ${background.mode || "depth"}` : ((modules.outfit?.enabled || modules.pose?.enabled) ? "参照ON" : "参照OFF"),
       (checked("#fdEnabled") || checked("#hdEnabled")) ? [
-        checked("#fdEnabled") ? "Face" : "",
-        checked("#hdEnabled") ? "Hand" : "",
-      ].filter(Boolean).join("+") : "Detailer OFF",
-      req.dynamic_prompt.enabled ? "Dyn ON" : "Dyn OFF",
+        checked("#fdEnabled") ? "顔" : "",
+        checked("#hdEnabled") ? "手" : "",
+      ].filter(Boolean).join("+") : "補正OFF",
+      req.dynamic_prompt.enabled ? "動的ON" : "動的OFF",
     ];
-    text("#advancedAssistSummary", advancedLabel.join(" · "));
-    const assistParts = [
-      loraOn ? `LoRA ${loraOn} ON${loraOff ? `/${loraOff} OFF` : ""}` : (loraOff ? `LoRA ${loraOff} OFF` : "LoRA OFF"),
-      background.enabled ? `BG ${background.mode || "depth"}` : ((modules.outfit?.enabled || modules.pose?.enabled) ? "Ref ON" : "Ref OFF"),
-      req.prompt_random_collect.enabled ? "Random ON" : "",
-      req.hires_fix.enabled ? "Hires ON" : "",
-      (checked("#fdEnabled") || checked("#hdEnabled")) ? "Detailer ON" : "",
-    ].filter(Boolean);
-    text("#heroAssistSummary", assistParts.join(" · "));
+    const retouchLabel = advancedLabel.join(" · ");
+    text("#advancedAssistSummary", retouchLabel);
+    text("#secRetouchValue", retouchLabel);
+    const retouchOn = Boolean(
+      checked("#i2iEnabled")
+      || modules.outfit?.enabled
+      || modules.pose?.enabled
+      || background.enabled
+      || checked("#fdEnabled")
+      || checked("#hdEnabled")
+      || req.dynamic_prompt.enabled
+    );
+    markDrawerValue("#secRetouchValue", retouchOn);
+    UI.railMark?.("sec-retouch", retouchOn);
     const detailerSampling = (settings = {}) => settings.sampler_mode === "source" ? "source sampler" : `${settings.sampler || "euler"}/${settings.scheduler || "normal"}`;
     text(
       "#fdSummary",

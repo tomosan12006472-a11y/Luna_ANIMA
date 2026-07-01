@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.69-detailer-sampling-20260702";
+} from "./dom.js?v=v2.1-polish-20260702";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 
@@ -137,11 +137,11 @@ export function createI2iFeature({
     applyItem(data.item);
     UI.closeSheets();
     UI.switchTab("expose");
-    const advanced = $("details[data-fold='advanced-assist']");
-    if (advanced) advanced.open = true;
-    $("[data-workbench-tabs='advanced'] [data-workbench-tab='image']")?.click();
-    const fold = $("details[data-fold='i2i']");
-    if (fold) fold.open = true;
+    const retouch = $("#sec-retouch");
+    if (retouch) {
+      retouch.open = true;
+      retouch.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     text("#i2iStatus", "下絵を設定しました");
     UI.toast("下絵に設定しました");
   }

@@ -1,4 +1,4 @@
-import { $, setValue, text, value } from "./dom.js?v=v1.69-detailer-sampling-20260702";
+import { $, setValue, text, value } from "./dom.js?v=v2.1-polish-20260702";
 
 export function createPromptDictionaryFeature({
   api,
@@ -118,11 +118,16 @@ export function createPromptDictionaryFeature({
   }
 
   function bindEvents() {
-    $("details[data-fold='dictionary']")?.addEventListener("toggle", (event) => {
+    const dictionaryFold = $("details[data-fold='dictionary']");
+    const loadStatus = () => loadPromptDictionaryStatus().catch((error) => UI.toast(errorMessage(error), "error"));
+    dictionaryFold?.addEventListener("toggle", (event) => {
       if (event.target.open) {
-        loadPromptDictionaryStatus().catch((error) => UI.toast(errorMessage(error), "error"));
+        loadStatus();
       }
     });
+    if (!dictionaryFold) {
+      $("#promptToolsDictionary")?.addEventListener("focusin", loadStatus, { once: true });
+    }
 
     $("#dictQuery")?.addEventListener("input", schedulePromptDictionarySearch);
 

@@ -1,9 +1,9 @@
-import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.69-detailer-sampling-20260702";
-import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.69-detailer-sampling-20260702";
-import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.69-detailer-sampling-20260702";
-import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.69-detailer-sampling-20260702";
-import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.69-detailer-sampling-20260702";
-import { createRecipesFeature } from "./recipes.js?v=v1.69-detailer-sampling-20260702";
+import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v2.1-polish-20260702";
+import { createPositivePromptsFeature } from "./positive-prompts.js?v=v2.1-polish-20260702";
+import { createPromptConverterFeature } from "./prompt-converter.js?v=v2.1-polish-20260702";
+import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v2.1-polish-20260702";
+import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v2.1-polish-20260702";
+import { createRecipesFeature } from "./recipes.js?v=v2.1-polish-20260702";
 
 export function createPromptLibraryFeature({
   api,

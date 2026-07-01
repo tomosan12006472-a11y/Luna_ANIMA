@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.69-detailer-sampling-20260702";
+import { clone, setChecked, text } from "./dom.js?v=v2.1-polish-20260702";
 
 const SNAPSHOT_KEYS = [
   "official_loras",
@@ -38,7 +38,7 @@ export function createTuningControlsFeature({
 } = {}) {
   let tuningSnapshot = null;
   let assistSnapshot = null;
-  let lastMessage = "snapshot未保存";
+  let lastMessage = "記録なし";
 
   function status(message) {
     if (message) {
@@ -83,16 +83,16 @@ export function createTuningControlsFeature({
 
   function snapshot() {
     tuningSnapshot = collectAssistSnapshot();
-    status("snapshot saved");
+    status("記録しました");
   }
 
   function restore() {
     if (!tuningSnapshot) {
-      status("snapshotがありません");
+      status("記録がありません");
       return;
     }
     restoreAssistSnapshot(tuningSnapshot);
-    status("restored");
+    status("復元しました");
   }
 
   function setPromptRandomEnabled(enabled) {
@@ -121,16 +121,16 @@ export function createTuningControlsFeature({
     i2i?.setEnabled?.(false);
     setDynamicEnabled(false);
     updateSummaries();
-    status("assist off");
+    status("補助をOFFにしました");
   }
 
   function restoreAssist() {
     if (!assistSnapshot) {
-      status("assist snapshotがありません");
+      status("補助の記録がありません");
       return;
     }
     restoreAssistSnapshot(assistSnapshot);
-    status("assist restored");
+    status("補助を復元しました");
   }
 
   function loraSummary() {
@@ -145,14 +145,14 @@ export function createTuningControlsFeature({
     if (modules.outfit?.enabled) parts.push("Outfit");
     if (modules.pose?.enabled) parts.push("Pose");
     if (modules.background?.enabled) parts.push("BG");
-    return `Ref ${parts.length ? parts.join("+") : "OFF"}`;
+    return `参照 ${parts.length ? parts.join("+") : "OFF"}`;
   }
 
   function detailerSummary(request) {
     const parts = [];
-    if (request.face_detailer?.enabled) parts.push("Face");
-    if (request.hand_detailer?.enabled) parts.push("Hand");
-    return `Det ${parts.length ? parts.join("+") : "OFF"}`;
+    if (request.face_detailer?.enabled) parts.push("顔");
+    if (request.hand_detailer?.enabled) parts.push("手");
+    return `補正 ${parts.length ? parts.join("+") : "OFF"}`;
   }
 
   function assistSummary(request = collectRequest()) {
@@ -161,10 +161,10 @@ export function createTuningControlsFeature({
       loraSummary(),
       referenceSummary(req),
       detailerSummary(req),
-      `PR ${compactOnOff(req.prompt_random_collect?.enabled)}`,
-      `Hires ${compactOnOff(req.hires_fix?.enabled)}`,
-      `i2i ${compactOnOff(req.image_to_image?.enabled)}`,
-      `Dyn ${compactOnOff(req.dynamic_prompt?.enabled)}`,
+      `ランダム ${compactOnOff(req.prompt_random_collect?.enabled)}`,
+      `高解像 ${compactOnOff(req.hires_fix?.enabled)}`,
+      `下絵 ${compactOnOff(req.image_to_image?.enabled)}`,
+      `動的 ${compactOnOff(req.dynamic_prompt?.enabled)}`,
     ];
     return bits.join(" · ");
   }
@@ -187,27 +187,27 @@ export function createTuningControlsFeature({
       "tuning-restore": () => restore(),
       "lora-enable-all": () => {
         loras?.setAllEnabled?.(true);
-        status("LoRA all on");
+        status("LoRAをONにしました");
       },
       "lora-disable-all": () => {
         loras?.setAllEnabled?.(false);
-        status("LoRA all off");
+        status("LoRAをOFFにしました");
       },
       "reference-enable-all": () => {
         reference?.setAllEnabled?.(true);
-        status("Reference all on");
+        status("参照をONにしました");
       },
       "reference-disable-all": () => {
         reference?.setAllEnabled?.(false);
-        status("Reference all off");
+        status("参照をOFFにしました");
       },
       "detailers-enable-all": () => {
         detailers?.setAllEnabled?.(true);
-        status("Detailer all on");
+        status("補正をONにしました");
       },
       "detailers-disable-all": () => {
         detailers?.setAllEnabled?.(false);
-        status("Detailer all off");
+        status("補正をOFFにしました");
       },
       "assist-disable-all": () => disableAllAssist(),
       "assist-restore": () => restoreAssist(),

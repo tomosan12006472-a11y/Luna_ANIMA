@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.69-detailer-sampling-20260702";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.69-detailer-sampling-20260702";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.69-detailer-sampling-20260702";
+import { createHistoryRequestFeature } from "./history-request.js?v=v2.1-polish-20260702";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v2.1-polish-20260702";
+import { createHistoryTextFeature } from "./history-text.js?v=v2.1-polish-20260702";
 
 export function createHistoryReuseFeature({
   state,

@@ -1,5 +1,5 @@
-import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.69-detailer-sampling-20260702";
-import { $, $$, text, value } from "./dom.js?v=v1.69-detailer-sampling-20260702";
+import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v2.1-polish-20260702";
+import { $, $$, text, value } from "./dom.js?v=v2.1-polish-20260702";
 
 export function exitToLogin(message = "", { UI = window.UI } = {}) {
   UI.closeSheets();
@@ -26,6 +26,16 @@ export function createAppShell({
   loras,
   updateSummaries,
 } = {}) {
+  let railInitialized = false;
+
+  function enterDarkroom() {
+    UI.enterDarkroom();
+    if (!railInitialized) {
+      UI.initRail?.();
+      railInitialized = true;
+    }
+  }
+
   async function login() {
     text("#loginStatus", "");
     try {
@@ -33,7 +43,7 @@ export function createAppShell({
         method: "POST",
         body: JSON.stringify({ pin: value("#pinInput", "") }),
       });
-      UI.enterDarkroom();
+      enterDarkroom();
       await bootstrap();
     } catch (error) {
       text("#loginStatus", errorMessage(error));
@@ -98,7 +108,7 @@ export function createAppShell({
   async function tryBootstrapSession() {
     try {
       const data = await api("/api/bootstrap");
-      UI.enterDarkroom();
+      enterDarkroom();
       await bootstrap(data);
     } catch (error) {
       const message = errorMessage(error) || authExpiredMessage();

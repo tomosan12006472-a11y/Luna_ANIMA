@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.69-detailer-sampling-20260702";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.69-detailer-sampling-20260702";
+import { $, text, value } from "./dom.js?v=v2.1-polish-20260702";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v2.1-polish-20260702";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 
@@ -66,7 +66,7 @@ export function createPromptConverterFeature({
       return;
     }
     text("#promptConverterSummary", "OFFLINE");
-    text("#promptConverterStatus", data.message || "ローカル変換APIに接続できません。LM StudioなどのLocal Serverを起動してください。");
+    text("#promptConverterStatus", data.message || "ローカル変換APIに接続できません。ローカルサーバアプリなどを起動してください。");
   }
 
   async function loadPromptConverterStatus(force = false) {
@@ -171,11 +171,16 @@ export function createPromptConverterFeature({
   }
 
   function bindEvents() {
-    $("details[data-fold='prompt-converter']")?.addEventListener("toggle", (event) => {
+    const converterFold = $("details[data-fold='prompt-converter']");
+    const loadStatus = () => loadPromptConverterStatus().catch((error) => UI.toast(errorMessage(error), "error"));
+    converterFold?.addEventListener("toggle", (event) => {
       if (event.target.open) {
-        loadPromptConverterStatus().catch((error) => UI.toast(errorMessage(error), "error"));
+        loadStatus();
       }
     });
+    if (!converterFold) {
+      $("#promptWorkbenchConvert")?.addEventListener("focusin", loadStatus, { once: true });
+    }
 
     $("#promptConvertSource")?.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || (!event.ctrlKey && !event.metaKey)) return;

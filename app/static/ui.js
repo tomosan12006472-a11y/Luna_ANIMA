@@ -129,6 +129,44 @@
     switchTab("expose");
   }
 
+  /* ---------- drawer rail: sticky jump nav + scrollspy + state dots ---------- */
+  function initRail() {
+    const rail = $("#drawerRail");
+    if (!rail) return;
+    const links = $$("button[data-rail]", rail);
+    const sections = links
+      .map((b) => document.getElementById(b.dataset.rail))
+      .filter(Boolean);
+    rail.addEventListener("click", (event) => {
+      const btn = event.target.closest("button[data-rail]");
+      if (!btn) return;
+      const target = document.getElementById(btn.dataset.rail);
+      if (!target) return;
+      if (target.tagName === "DETAILS") target.open = true;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    let ticking = false;
+    const spy = () => {
+      ticking = false;
+      let current = sections[0];
+      for (const s of sections) {
+        if (s.getBoundingClientRect().top <= 132) current = s;
+      }
+      for (const b of links) {
+        b.classList.toggle("is-active", Boolean(current) && b.dataset.rail === current.id);
+      }
+    };
+    document.addEventListener("scroll", () => {
+      if (!ticking) { ticking = true; window.requestAnimationFrame(spy); }
+    }, { passive: true });
+    spy();
+  }
+  /* railMark("sec-boost", true) → その引き出しのレールチップに琥珀ドットを点灯 */
+  function railMark(id, on) {
+    const btn = document.querySelector(`#drawerRail button[data-rail="${id}"]`);
+    if (btn) btn.classList.toggle("has-on", Boolean(on));
+  }
+
   /* ---------- ask: darkroom choice/confirm dialog ---------- */
   function ask({ title = "確認", message = "", choices = [] } = {}) {
     return new Promise((resolve) => {
@@ -174,5 +212,6 @@
   window.UI = {
     $, $$, switchTab, onTab, openSheet, closeSheets, toast, safelight, ask,
     bindSeg, segValue, setSegValue, restoreFolds, markDeveloping, enterDarkroom,
+    initRail, railMark,
   };
 })();
