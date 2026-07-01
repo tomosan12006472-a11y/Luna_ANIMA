@@ -29,7 +29,7 @@ DEFAULT_FACE_DETAILER_SETTINGS: dict[str, Any] = {
     "bbox_crop_factor": 3.0,
     "drop_size": 64,
     "min_area_ratio": 0.0008,
-    "max_area_ratio": 0.30,
+    "max_area_ratio": 1.0,
     "max_detections": 8,
     "runaway_guard_enabled": True,
     "runaway_max_candidates": 20,
@@ -76,7 +76,7 @@ DETAILER_DETECTION_PRESETS: dict[str, dict[str, dict[str, Any]]] = {
         "safe": {
             "bbox_threshold": 0.75,
             "min_area_ratio": 0.0010,
-            "max_area_ratio": 0.30,
+            "max_area_ratio": 1.0,
             "max_detections": 4,
             "runaway_guard_enabled": True,
             "runaway_max_candidates": 12,
@@ -85,7 +85,7 @@ DETAILER_DETECTION_PRESETS: dict[str, dict[str, dict[str, Any]]] = {
         "normal": {
             "bbox_threshold": 0.65,
             "min_area_ratio": 0.0008,
-            "max_area_ratio": 0.30,
+            "max_area_ratio": 1.0,
             "max_detections": 8,
             "runaway_guard_enabled": True,
             "runaway_max_candidates": 20,
@@ -94,7 +94,7 @@ DETAILER_DETECTION_PRESETS: dict[str, dict[str, dict[str, Any]]] = {
         "aggressive": {
             "bbox_threshold": 0.50,
             "min_area_ratio": 0.0004,
-            "max_area_ratio": 0.40,
+            "max_area_ratio": 1.0,
             "max_detections": 16,
             "runaway_guard_enabled": True,
             "runaway_max_candidates": 40,
@@ -351,6 +351,7 @@ def _detailer_metadata(settings: dict[str, Any], *, seed: int, target: str) -> d
         "runaway_guard_enabled": bool(settings.get("runaway_guard_enabled")),
         "runaway_max_candidates": settings.get("runaway_max_candidates"),
         "runaway_action": settings.get("runaway_action"),
+        "runaway_guard_note": "",
         "candidates_detected": None,
         "candidates_processed": None,
         "max_candidates_processed": settings.get("max_detections"),
@@ -473,13 +474,13 @@ def add_detection_segs_to_workflow(
                 {
                     "empty_segs_node_id": empty_id,
                     "runaway_guard_node_id": branch_id,
-                    "skip_reason": f"runtime guard: candidate count > {settings['runaway_max_candidates']} routes an empty SEGS set",
+                    "runaway_guard_note": f"candidate count > {settings['runaway_max_candidates']} routes an empty SEGS set at runtime",
                 }
             )
         elif action == "limit":
-            metadata["skip_reason"] = f"runtime guard: candidate count > {settings['runaway_max_candidates']} is limited to {settings['max_detections']} detections"
+            metadata["runaway_guard_note"] = f"candidate count > {settings['runaway_max_candidates']} is limited to {settings['max_detections']} detections at runtime"
         elif action == "warn":
-            metadata["skip_reason"] = f"runtime guard: candidate count > {settings['runaway_max_candidates']} records a warning; max detections still limits processing"
+            metadata["runaway_guard_note"] = f"candidate count > {settings['runaway_max_candidates']} records a warning at runtime; max detections still limits processing"
     return final_segs, metadata
 
 
@@ -561,8 +562,6 @@ def add_face_detailer_to_workflow(
         }
         workflow[str(output_node_id)]["inputs"][output_input_name] = [detailer_id, 0]
         metadata.update(segs_metadata)
-        if segs_metadata.get("skip_reason") and settings.get("runaway_action") in {"limit", "warn"}:
-            metadata["warnings"].append(segs_metadata["skip_reason"])
         metadata["node_id"] = detailer_id
         metadata["detector_node_id"] = detector_id
         metadata["node_type"] = "DetailerForEach"

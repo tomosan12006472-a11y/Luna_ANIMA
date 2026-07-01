@@ -3,7 +3,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
+} from "./dom.js?v=v1.68-detailer-max-area-20260702";
 
 const QUALITY_PROMPTS = Object.freeze({
   standard: "masterpiece, best quality, score_7",

@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
+import { $, text } from "./dom.js?v=v1.68-detailer-max-area-20260702";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);

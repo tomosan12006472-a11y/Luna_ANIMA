@@ -3,7 +3,7 @@ import {
   checked,
   setChecked,
   text,
-} from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
+} from "./dom.js?v=v1.68-detailer-max-area-20260702";
 
 export function createGenerationActionsFeature({
   api,

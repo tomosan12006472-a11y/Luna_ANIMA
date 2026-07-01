@@ -223,7 +223,7 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     bbox_crop_factor: float = 3.0
     drop_size: int = 64
     min_area_ratio: float = 0.0008
-    max_area_ratio: float = 0.30
+    max_area_ratio: float = 1.0
     max_detections: int = 8
     runaway_guard_enabled: bool = True
     runaway_max_candidates: int = 20
@@ -306,7 +306,7 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     @field_validator("max_area_ratio", mode="before")
     @classmethod
     def _normalize_max_area_ratio(cls, value: Any) -> float:
-        return _clamp_float(value, 0.30, 0.01, 1.0)
+        return _clamp_float(value, 1.0, 0.01, 1.0)
 
     @field_validator("max_detections", mode="before")
     @classmethod

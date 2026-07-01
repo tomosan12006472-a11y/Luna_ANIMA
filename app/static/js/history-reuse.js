@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.67-lora-strength-max-3-20260702";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.67-lora-strength-max-3-20260702";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.67-lora-strength-max-3-20260702";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.68-detailer-max-area-20260702";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.68-detailer-max-area-20260702";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.68-detailer-max-area-20260702";
 
 export function createHistoryReuseFeature({
   state,

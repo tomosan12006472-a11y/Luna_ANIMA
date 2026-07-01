@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.67-lora-strength-max-3-20260702">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.68-detailer-max-area-20260702">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -528,7 +528,7 @@
           <summary><span class="lbl">Detection guard</span><span class="hint">area / runaway</span></summary>
           <div class="grid2">
             <label class="field"><span class="lbl">MIN AREA</span><input id="fdMinAreaRatio" type="number" min="0" max="0.1" step="0.0001" value="0.0008"></label>
-            <label class="field"><span class="lbl">MAX AREA</span><input id="fdMaxAreaRatio" type="number" min="0.01" max="1" step="0.01" value="0.30"></label>
+            <label class="field"><span class="lbl">MAX AREA</span><input id="fdMaxAreaRatio" type="number" min="0.01" max="1" step="0.01" value="1.00"></label>
             <label class="field"><span class="lbl">RUNAWAY MAX</span><input id="fdRunawayMaxCandidates" type="number" min="1" max="128" step="1" value="20"></label>
             <label class="field"><span class="lbl">RUNAWAY ACTION</span><select id="fdRunawayAction"><option value="skip" selected>Skip</option><option value="limit">Limit</option><option value="warn">Warn</option></select></label>
           </div>
@@ -821,7 +821,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.67-lora-strength-max-3-20260702"></script>
-  <script src="/static/app.js?v=v1.67-lora-strength-max-3-20260702"></script>
+  <script src="/static/ui.js?v=v1.68-detailer-max-area-20260702"></script>
+  <script src="/static/app.js?v=v1.68-detailer-max-area-20260702"></script>
 </body>
 </html>

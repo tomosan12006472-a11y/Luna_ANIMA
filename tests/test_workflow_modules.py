@@ -468,6 +468,8 @@ class WorkflowModuleTests(unittest.TestCase):
         self.assertEqual(workflow["9305"]["inputs"]["value"], 9)
         self.assertEqual(workflow["1"]["inputs"]["images"], ["9309", 0])
         self.assertEqual(request_data["face_detailer"]["max_filter_node_id"], "9303")
+        self.assertEqual(request_data["face_detailer"]["skip_reason"], "")
+        self.assertIn("routes an empty SEGS set at runtime", request_data["face_detailer"]["runaway_guard_note"])
 
     def test_workflow_modules_do_not_import_payload_builder(self) -> None:
         workflow_dir = Path(__file__).resolve().parents[1] / "app" / "workflow"

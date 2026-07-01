@@ -5,8 +5,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.67-lora-strength-max-3-20260702";
+} from "./dom.js?v=v1.68-detailer-max-area-20260702";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.68-detailer-max-area-20260702";
 
 const EMPTY_SLOT_LABELS = {
   character1: "未選択",

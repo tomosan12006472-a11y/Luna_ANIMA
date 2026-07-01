@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
+} from "./dom.js?v=v1.68-detailer-max-area-20260702";
 
 export function createDetailerFeature({
   api,
@@ -18,9 +18,9 @@ export function createDetailerFeature({
 } = {}) {
   const detectionPresets = {
     face: {
-      safe: { bbox_threshold: 0.75, min_area_ratio: 0.001, max_area_ratio: 0.3, max_detections: 4, runaway_guard_enabled: true, runaway_max_candidates: 12, runaway_action: "skip" },
-      normal: { bbox_threshold: 0.65, min_area_ratio: 0.0008, max_area_ratio: 0.3, max_detections: 8, runaway_guard_enabled: true, runaway_max_candidates: 20, runaway_action: "skip" },
-      aggressive: { bbox_threshold: 0.5, min_area_ratio: 0.0004, max_area_ratio: 0.4, max_detections: 16, runaway_guard_enabled: true, runaway_max_candidates: 40, runaway_action: "limit" },
+      safe: { bbox_threshold: 0.75, min_area_ratio: 0.001, max_area_ratio: 1.0, max_detections: 4, runaway_guard_enabled: true, runaway_max_candidates: 12, runaway_action: "skip" },
+      normal: { bbox_threshold: 0.65, min_area_ratio: 0.0008, max_area_ratio: 1.0, max_detections: 8, runaway_guard_enabled: true, runaway_max_candidates: 20, runaway_action: "skip" },
+      aggressive: { bbox_threshold: 0.5, min_area_ratio: 0.0004, max_area_ratio: 1.0, max_detections: 16, runaway_guard_enabled: true, runaway_max_candidates: 40, runaway_action: "limit" },
     },
     hand: {
       safe: { bbox_threshold: 0.55, min_area_ratio: 0.0008, max_area_ratio: 0.35, max_detections: 6, runaway_guard_enabled: true, runaway_max_candidates: 16, runaway_action: "skip" },
@@ -30,7 +30,7 @@ export function createDetailerFeature({
   };
 
   const defaults = {
-    face: { preset: "normal", bbox_threshold: 0.65, min_area_ratio: 0.0008, max_area_ratio: 0.3, max_detections: 8, runaway_guard_enabled: true, runaway_max_candidates: 20, runaway_action: "skip" },
+    face: { preset: "normal", bbox_threshold: 0.65, min_area_ratio: 0.0008, max_area_ratio: 1.0, max_detections: 8, runaway_guard_enabled: true, runaway_max_candidates: 20, runaway_action: "skip" },
     hand: { preset: "normal", bbox_threshold: 0.45, min_area_ratio: 0.0005, max_area_ratio: 0.35, max_detections: 12, runaway_guard_enabled: true, runaway_max_candidates: 30, runaway_action: "skip" },
   };
 
@@ -77,7 +77,7 @@ export function createDetailerFeature({
       bbox_crop_factor: 3.0,
       drop_size: 64,
       min_area_ratio: numberValue("#fdMinAreaRatio", 0.0008),
-      max_area_ratio: numberValue("#fdMaxAreaRatio", 0.3),
+      max_area_ratio: numberValue("#fdMaxAreaRatio", 1.0),
       max_detections: Math.trunc(numberValue("#fdMaxDetections", 8)),
       runaway_guard_enabled: checked("#fdRunawayGuard"),
       runaway_max_candidates: Math.trunc(numberValue("#fdRunawayMaxCandidates", 20)),
@@ -137,7 +137,7 @@ export function createDetailerFeature({
       bbox_crop_factor: numberFrom(face.bbox_crop_factor, 3.0),
       drop_size: intFrom(face.drop_size, 64),
       min_area_ratio: numberFrom(face.min_area_ratio, 0.0008),
-      max_area_ratio: numberFrom(face.max_area_ratio, 0.3),
+      max_area_ratio: numberFrom(face.max_area_ratio, 1.0),
       max_detections: intFrom(face.max_detections, 8),
       runaway_guard_enabled: face.runaway_guard_enabled !== false,
       runaway_max_candidates: intFrom(face.runaway_max_candidates, 20),
