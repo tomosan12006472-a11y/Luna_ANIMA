@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from ._shared_utils import clamp_strength
+from ._shared_utils import clamp_lora_strength
 
 
 BUILTIN_OFFICIAL_LORA_PRESETS: dict[str, dict[str, Any]] = {
@@ -105,17 +105,17 @@ def sanitize_official_loras(value: Any) -> dict[str, Any]:
     return {
         "highres": {
             "enabled": _bool_value(highres.get("enabled")),
-            "strength": clamp_strength(highres.get("strength"), 0.6),
+            "strength": clamp_lora_strength(highres.get("strength"), 0.6),
         },
         "turbo": {
             "enabled": _bool_value(turbo.get("enabled")),
             "version": str(turbo.get("version") or "auto"),
-            "strength": clamp_strength(turbo.get("strength"), 0.6),
+            "strength": clamp_lora_strength(turbo.get("strength"), 0.6),
             "preset_applied": _bool_value(turbo.get("preset_applied", True)),
         },
         "colorfix": {
             "enabled": _bool_value(colorfix.get("enabled")),
-            "strength": clamp_strength(colorfix.get("strength"), 0.6),
+            "strength": clamp_lora_strength(colorfix.get("strength"), 0.6),
         },
     }
 

@@ -1,9 +1,9 @@
-import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.66-upperbody-outfit-wildcards-20260701";
-import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.66-upperbody-outfit-wildcards-20260701";
-import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.66-upperbody-outfit-wildcards-20260701";
-import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.66-upperbody-outfit-wildcards-20260701";
-import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.66-upperbody-outfit-wildcards-20260701";
-import { createRecipesFeature } from "./recipes.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+import { createDynamicPromptFeature } from "./dynamic-prompt.js?v=v1.67-lora-strength-max-3-20260702";
+import { createPositivePromptsFeature } from "./positive-prompts.js?v=v1.67-lora-strength-max-3-20260702";
+import { createPromptConverterFeature } from "./prompt-converter.js?v=v1.67-lora-strength-max-3-20260702";
+import { createPromptDictionaryFeature } from "./prompt-dictionary.js?v=v1.67-lora-strength-max-3-20260702";
+import { createPositivePromptHelpers } from "./prompt-library-utils.js?v=v1.67-lora-strength-max-3-20260702";
+import { createRecipesFeature } from "./recipes.js?v=v1.67-lora-strength-max-3-20260702";
 
 export function createPromptLibraryFeature({
   api,

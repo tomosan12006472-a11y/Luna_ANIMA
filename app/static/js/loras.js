@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+} from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
@@ -50,6 +50,8 @@ const DEFAULT_TURBO_RESTORE_SETTINGS = Object.freeze({
   cfg: 4.5,
   strength: 0.6,
 });
+
+const LORA_STRENGTH_MAX = 3.0;
 
 const OFFICIAL_LORA_PRESETS = Object.freeze([
   {
@@ -128,7 +130,7 @@ function normalizeTurboRestoreSettings(raw = {}, fallback = DEFAULT_TURBO_RESTOR
   return {
     steps: Math.trunc(boundedNumber(source.steps, boundedNumber(base.steps, 32, 1, 100), 1, 100)),
     cfg: boundedNumber(source.cfg, boundedNumber(base.cfg, 4.5, 1, 20), 1, 20),
-    strength: boundedNumber(source.strength, boundedNumber(base.strength, 0.6, 0, 1), 0, 1),
+    strength: boundedNumber(source.strength, boundedNumber(base.strength, 0.6, 0, LORA_STRENGTH_MAX), 0, LORA_STRENGTH_MAX),
   };
 }
 
@@ -464,7 +466,7 @@ export function createLoraFeature({
     const model = document.createElement("input");
     model.type = "number";
     model.min = "0";
-    model.max = "1";
+    model.max = String(LORA_STRENGTH_MAX);
     model.step = "0.05";
     model.value = initial.strength_model ?? initial.model_strength ?? initial.weight ?? "1";
     model.dataset.loraField = "strength_model";
@@ -476,7 +478,7 @@ export function createLoraFeature({
     const clip = document.createElement("input");
     clip.type = "number";
     clip.min = "0";
-    clip.max = "1";
+    clip.max = String(LORA_STRENGTH_MAX);
     clip.step = "0.05";
     clip.value = initial.strength_clip ?? initial.clip_strength ?? initial.weight ?? "1";
     clip.dataset.loraField = "strength_clip";

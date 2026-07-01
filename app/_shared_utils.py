@@ -13,12 +13,23 @@ class JsonStoreReadError(RuntimeError):
     pass
 
 
+LORA_STRENGTH_MAX = 3.0
+
+
 def clamp_strength(value: Any, default: float = 0.0) -> float:
     try:
         number = float(value)
     except (TypeError, ValueError):
         number = default
     return max(0.0, min(1.0, number))
+
+
+def clamp_lora_strength(value: Any, default: float = 0.0) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(0.0, min(LORA_STRENGTH_MAX, number))
 
 
 def clamp_float(value: Any, default: float, minimum: float, maximum: float) -> float:
@@ -30,12 +41,12 @@ def clamp_float(value: Any, default: float, minimum: float, maximum: float) -> f
 
 
 def normalize_lora_strengths(item: dict[str, Any], default: float = 1.0) -> dict[str, Any]:
-    legacy = clamp_strength(item.get("weight", item.get("strength", item.get("model_strength", item.get("model", default)))), default)
-    strength_model = clamp_strength(
+    legacy = clamp_lora_strength(item.get("weight", item.get("strength", item.get("model_strength", item.get("model", default)))), default)
+    strength_model = clamp_lora_strength(
         item.get("strength_model", item.get("model_strength", item.get("model_weight", item.get("weight_model", item.get("model", legacy))))),
         legacy,
     )
-    strength_clip = clamp_strength(
+    strength_clip = clamp_lora_strength(
         item.get("strength_clip", item.get("clip_strength", item.get("clip_weight", item.get("weight_clip", item.get("clip", legacy))))),
         legacy,
     )

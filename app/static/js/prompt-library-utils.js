@@ -1,4 +1,4 @@
-import { $, setValue, value } from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+import { $, setValue, value } from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
 
 export function createPositivePromptHelpers({ updateSummaries = () => {} } = {}) {
   function insertPositivePromptText(insertText) {

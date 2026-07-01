@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .._shared_utils import normalize_lora_strengths
+from .._shared_utils import LORA_STRENGTH_MAX, normalize_lora_strengths
 from ..config import (
     ANIMA_COLORFIX_LORA_NAME,
     ANIMA_HIGHRES_LORA_NAME,
@@ -30,7 +30,7 @@ def _official_strength(value: Any, default: float = 0.6) -> float:
         number = float(default if value in (None, "") else value)
     except (TypeError, ValueError):
         number = default
-    return max(0.0, min(1.0, number))
+    return max(0.0, min(LORA_STRENGTH_MAX, number))
 
 
 def resolve_official_loras(request: dict[str, Any]) -> dict[str, Any]:

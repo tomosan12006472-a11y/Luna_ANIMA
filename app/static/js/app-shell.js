@@ -1,5 +1,5 @@
-import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.66-upperbody-outfit-wildcards-20260701";
-import { $, $$, text, value } from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+import { authExpiredMessage as defaultAuthExpiredMessage } from "./api.js?v=v1.67-lora-strength-max-3-20260702";
+import { $, $$, text, value } from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
 
 export function exitToLogin(message = "", { UI = window.UI } = {}) {
   UI.closeSheets();

@@ -41,11 +41,13 @@ class OfficialLoraPresetTests(unittest.TestCase):
 
     def test_settings_default_old_custom_loras_to_custom_preset(self) -> None:
         settings = sanitize_app_settings({"official_loras": {"colorfix": {"enabled": True, "strength": 2}}})
+        clamped = sanitize_app_settings({"official_loras": {"colorfix": {"enabled": True, "strength": 4}}})
 
         self.assertEqual(settings["official_lora_preset"], "custom")
         self.assertTrue(settings["official_loras"]["colorfix"]["enabled"])
-        self.assertEqual(settings["official_loras"]["colorfix"]["strength"], 1.0)
+        self.assertEqual(settings["official_loras"]["colorfix"]["strength"], 2.0)
         self.assertTrue(settings["official_loras"]["turbo"]["preset_applied"])
+        self.assertEqual(clamped["official_loras"]["colorfix"]["strength"], 3.0)
 
     def test_generate_request_preserves_optional_preset_meta(self) -> None:
         data = GenerateRequest(official_lora_preset="fast_preview")

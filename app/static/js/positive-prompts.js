@@ -4,14 +4,14 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+} from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
 import {
   parsePromptTags,
   promptExcerpt,
   promptItemPrompt,
   promptItemTagsText,
   promptItemTitle,
-} from "./prompt-library-utils.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+} from "./prompt-library-utils.js?v=v1.67-lora-strength-max-3-20260702";
 
 export function createPositivePromptsFeature({
   api,

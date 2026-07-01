@@ -142,7 +142,7 @@ class LoraCatalogModuleTests(unittest.TestCase):
         self.assertEqual(payload["schema_version"], 1)
         self.assertEqual(payload["app_scope"], "anima")
         self.assertEqual(len(payload["items"]), 2)
-        self.assertEqual(payload["items"][0]["max_strength"], 1.0)
+        self.assertEqual(payload["items"][0]["max_strength"], 3.0)
         self.assertEqual(payload["items"][0]["custom_meta"], {"kept": True})
         self.assertEqual([item["lora_id"] for item in selectable], ["anima_local_style_example_safetensors"])
         self.assertTrue(selectable[0]["favorite"] is False)

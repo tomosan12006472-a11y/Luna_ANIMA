@@ -144,26 +144,28 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(background["resize_mode"], "crop")
 
     def test_official_loras_turbo_version_fallback(self) -> None:
-        data = OfficialLorasSettings.model_validate({"turbo": {"enabled": True, "version": "bad", "strength": 2}})
+        data = OfficialLorasSettings.model_validate({"turbo": {"enabled": True, "version": "bad", "strength": 4}})
 
         self.assertEqual(data.turbo.version, "auto")
-        self.assertEqual(data.turbo.strength, 1.0)
+        self.assertEqual(data.turbo.strength, 3.0)
 
     def test_official_loras_colorfix_defaults_and_clamps(self) -> None:
         default_data = OfficialLorasSettings.model_validate({"highres": {"enabled": True}})
         colorfix_data = OfficialLorasSettings.model_validate({"colorfix": {"enabled": "true", "strength": 2}})
+        clamped_data = OfficialLorasSettings.model_validate({"colorfix": {"enabled": "true", "strength": 4}})
 
         self.assertFalse(default_data.colorfix.enabled)
         self.assertEqual(default_data.colorfix.strength, 0.6)
         self.assertTrue(colorfix_data.colorfix.enabled)
-        self.assertEqual(colorfix_data.colorfix.strength, 1.0)
+        self.assertEqual(colorfix_data.colorfix.strength, 2.0)
+        self.assertEqual(clamped_data.colorfix.strength, 3.0)
 
     def test_generation_request_dict_keeps_plain_dict_structure(self) -> None:
         data = GenerateRequest(
             character1="None",
             loras=[
                 {"enabled": False, "name": "style/off.safetensors", "application": "model_clip", "strength_model": "0.4", "strength_clip": "0.2"},
-                {"name": "style/on.safetensors", "application": "model_only", "strength_model": "0.5"},
+                {"name": "style/on.safetensors", "application": "model_only", "strength_model": "1.5"},
                 {"enabled": True, "name": "style/legacy-off.safetensors", "application": "", "mode": "OFF"},
             ],
             reference_modules={"enabled": True, "outfit": {"enabled": False}, "pose": {"enabled": False}},
@@ -196,6 +198,7 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(request_data["loras"][0]["application"], "model_clip")
         self.assertTrue(request_data["loras"][1]["enabled"])
         self.assertEqual(request_data["loras"][1]["application"], "model_only")
+        self.assertEqual(request_data["loras"][1]["strength_model"], 1.5)
         self.assertFalse(request_data["loras"][2]["enabled"])
         self.assertEqual(request_data["loras"][2]["application"], "off")
         self.assertFalse(request_data["official_loras"]["colorfix"]["enabled"])

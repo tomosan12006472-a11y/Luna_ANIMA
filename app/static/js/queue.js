@@ -1,4 +1,4 @@
-import { $, text } from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+import { $, text } from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
 
 function fallbackErrorMessage(error) {
   return error?.data?.message || error?.data?.detail || error?.message || String(error);

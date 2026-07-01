@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+import { clone, setChecked, text } from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
 
 const SNAPSHOT_KEYS = [
   "official_loras",

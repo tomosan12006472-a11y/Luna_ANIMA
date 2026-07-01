@@ -127,7 +127,7 @@ class WorkflowModuleTests(unittest.TestCase):
             "official_loras": {
                 "highres": {"enabled": False},
                 "turbo": {"enabled": False},
-                "colorfix": {"enabled": True, "strength": 0.55},
+                "colorfix": {"enabled": True, "strength": 1.75},
             },
         }
         paths = {payload_builder.ANIMA_COLORFIX_LORA_NAME: "D:/golden/lora/colorfix.safetensors"}
@@ -145,7 +145,7 @@ class WorkflowModuleTests(unittest.TestCase):
         workflow = payload["prompt"]
         self.assertEqual(workflow["9001"]["class_type"], "LoraLoaderModelOnly")
         self.assertEqual(workflow["9001"]["inputs"]["lora_name"], payload_builder.ANIMA_COLORFIX_LORA_NAME)
-        self.assertEqual(workflow["9001"]["inputs"]["strength_model"], 0.55)
+        self.assertEqual(workflow["9001"]["inputs"]["strength_model"], 1.75)
         self.assertEqual(workflow["46"]["inputs"]["model"], ["9001", 0])
 
     def test_lora_sample_mode_disables_official_colorfix(self) -> None:
@@ -231,6 +231,49 @@ class WorkflowModuleTests(unittest.TestCase):
         self.assertEqual(workflow["9051"]["inputs"]["strength_clip"], 0.2)
         self.assertEqual(workflow["11"]["inputs"]["clip"], ["9051", 1])
         self.assertEqual(workflow["12"]["inputs"]["clip"], ["9051", 1])
+
+    def test_catalog_lora_strength_above_one_reaches_workflow(self) -> None:
+        request = {
+            **base_request(),
+            "loras": [
+                {
+                    "enabled": True,
+                    "name": "style/boosted.safetensors",
+                    "application": "model_clip",
+                    "strength_model": 1.75,
+                    "strength_clip": 1.25,
+                }
+            ],
+        }
+
+        with self.output_prefix_patches()[0], self.output_prefix_patches()[1], self.output_prefix_patches()[2]:
+            payload = payload_builder.build_prompt_payload(deepcopy(request), "module-client")
+
+        workflow = payload["prompt"]
+        self.assertEqual(workflow["9051"]["class_type"], "LoraLoader")
+        self.assertEqual(workflow["9051"]["inputs"]["strength_model"], 1.75)
+        self.assertEqual(workflow["9051"]["inputs"]["strength_clip"], 1.25)
+
+    def test_catalog_lora_strength_clamps_at_three(self) -> None:
+        request = {
+            **base_request(),
+            "loras": [
+                {
+                    "enabled": True,
+                    "name": "style/too-strong.safetensors",
+                    "application": "model_only",
+                    "strength_model": 5,
+                    "strength_clip": 4,
+                }
+            ],
+        }
+
+        with self.output_prefix_patches()[0], self.output_prefix_patches()[1], self.output_prefix_patches()[2]:
+            payload = payload_builder.build_prompt_payload(deepcopy(request), "module-client")
+
+        workflow = payload["prompt"]
+        self.assertEqual(workflow["9051"]["class_type"], "LoraLoaderModelOnly")
+        self.assertEqual(workflow["9051"]["inputs"]["strength_model"], 3.0)
 
     def test_build_prompt_payload_with_prompts_matches_existing_payload_for_fixed_seed(self) -> None:
         request = base_request()
