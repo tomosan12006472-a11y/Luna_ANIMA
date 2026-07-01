@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unittest
 
 from app.config import ROOT_DIR
@@ -32,14 +33,47 @@ NSFW_OUTFIT_CATEGORIES = (
     "outfit_nsfw/wet_sheer",
 )
 
+GENERAL_UPPERBODY_OUTFIT_CATEGORIES = (
+    "outfit_upperbody/casual",
+    "outfit_upperbody/formal",
+    "outfit_upperbody/traditional",
+    "outfit_upperbody/work",
+    "outfit_upperbody/sports",
+    "outfit_upperbody/fantasy",
+    "outfit_upperbody/stage",
+    "outfit_upperbody/seasonal",
+    "outfit_upperbody/home",
+    "outfit_upperbody/swim",
+)
+
+NSFW_UPPERBODY_OUTFIT_CATEGORIES = (
+    "outfit_nsfw_upperbody/lingerie",
+    "outfit_nsfw_upperbody/revealing_casual",
+    "outfit_nsfw_upperbody/street",
+    "outfit_nsfw_upperbody/formal",
+    "outfit_nsfw_upperbody/fantasy_cosplay",
+    "outfit_nsfw_upperbody/swim_beach",
+    "outfit_nsfw_upperbody/home_lounge",
+    "outfit_nsfw_upperbody/wet_sheer",
+)
+
 APPEARANCE_WILDCARDS = (
     "hair_color",
     "hair_style",
     "eye_color",
     "outfit",
     "outfit_nsfw",
+    "outfit_upperbody",
+    "outfit_nsfw_upperbody",
     *GENERAL_OUTFIT_CATEGORIES,
     *NSFW_OUTFIT_CATEGORIES,
+    *GENERAL_UPPERBODY_OUTFIT_CATEGORIES,
+    *NSFW_UPPERBODY_OUTFIT_CATEGORIES,
+)
+
+UPPERBODY_FORBIDDEN_PATTERN = re.compile(
+    r"\b(?:shoe|shoes|boots|sandals|sneakers|loafers|heels|flats|mary janes|pants|trousers|jeans|shorts|skirt|full body)\b",
+    re.IGNORECASE,
 )
 
 
@@ -62,14 +96,28 @@ class DynamicPromptWildcardConfigTests(unittest.TestCase):
         self.assertIn("eye_color", by_name)
         self.assertIn("outfit", by_name)
         self.assertIn("outfit_nsfw", by_name)
-        for name in (*GENERAL_OUTFIT_CATEGORIES, *NSFW_OUTFIT_CATEGORIES):
+        self.assertIn("outfit_upperbody", by_name)
+        self.assertIn("outfit_nsfw_upperbody", by_name)
+        for name in (
+            *GENERAL_OUTFIT_CATEGORIES,
+            *NSFW_OUTFIT_CATEGORIES,
+            *GENERAL_UPPERBODY_OUTFIT_CATEGORIES,
+            *NSFW_UPPERBODY_OUTFIT_CATEGORIES,
+        ):
             self.assertIn(name, by_name)
         self.assertGreaterEqual(by_name["hair_color"]["count"], 20)
         self.assertGreaterEqual(by_name["hair_style"]["count"], 30)
         self.assertGreaterEqual(by_name["eye_color"]["count"], 15)
         self.assertGreaterEqual(by_name["outfit"]["count"], 10)
         self.assertGreaterEqual(by_name["outfit_nsfw"]["count"], 8)
-        for name in (*GENERAL_OUTFIT_CATEGORIES, *NSFW_OUTFIT_CATEGORIES):
+        self.assertGreaterEqual(by_name["outfit_upperbody"]["count"], 10)
+        self.assertGreaterEqual(by_name["outfit_nsfw_upperbody"]["count"], 8)
+        for name in (
+            *GENERAL_OUTFIT_CATEGORIES,
+            *NSFW_OUTFIT_CATEGORIES,
+            *GENERAL_UPPERBODY_OUTFIT_CATEGORIES,
+            *NSFW_UPPERBODY_OUTFIT_CATEGORIES,
+        ):
             self.assertGreaterEqual(by_name[name]["count"], 15, name)
         self.assertFalse(data["warnings"])
 
@@ -145,6 +193,60 @@ class DynamicPromptWildcardConfigTests(unittest.TestCase):
             [item["name"] for item in result["selections"]],
             ["outfit/casual", "outfit_nsfw/lingerie"],
         )
+
+    def test_upperbody_outfit_router_wildcards_expand_recursively(self) -> None:
+        outfit_result = expand_dynamic_prompt(
+            positive_prompt="__outfit_upperbody__",
+            negative_prompt="",
+            seed=456,
+            enabled=True,
+            config_dir=CONFIG_DIR,
+            user_dir=EMPTY_USER_DIR,
+        )
+        nsfw_result = expand_dynamic_prompt(
+            positive_prompt="__outfit_nsfw_upperbody__",
+            negative_prompt="",
+            seed=456,
+            enabled=True,
+            config_dir=CONFIG_DIR,
+            user_dir=EMPTY_USER_DIR,
+        )
+
+        self.assertFalse(outfit_result["warnings"])
+        self.assertNotIn("__", outfit_result["expanded_positive_prompt"])
+        outfit_names = [item["name"] for item in outfit_result["selections"]]
+        self.assertEqual(outfit_names[0], "outfit_upperbody")
+        self.assertGreaterEqual(len(outfit_names), 2)
+        self.assertTrue(outfit_names[1].startswith("outfit_upperbody/"), outfit_names)
+
+        self.assertFalse(nsfw_result["warnings"])
+        self.assertNotIn("__", nsfw_result["expanded_positive_prompt"])
+        nsfw_names = [item["name"] for item in nsfw_result["selections"]]
+        self.assertEqual(nsfw_names[0], "outfit_nsfw_upperbody")
+        self.assertGreaterEqual(len(nsfw_names), 2)
+        self.assertTrue(nsfw_names[1].startswith("outfit_nsfw_upperbody/"), nsfw_names)
+
+    def test_upperbody_outfit_category_wildcards_expand_directly(self) -> None:
+        result = expand_dynamic_prompt(
+            positive_prompt="__outfit_upperbody/casual__, __outfit_nsfw_upperbody/lingerie__",
+            negative_prompt="",
+            seed=789,
+            enabled=True,
+            config_dir=CONFIG_DIR,
+            user_dir=EMPTY_USER_DIR,
+        )
+
+        self.assertFalse(result["warnings"])
+        self.assertNotIn("__", result["expanded_positive_prompt"])
+        self.assertEqual(
+            [item["name"] for item in result["selections"]],
+            ["outfit_upperbody/casual", "outfit_nsfw_upperbody/lingerie"],
+        )
+
+    def test_general_upperbody_outfit_wildcards_avoid_lower_body_terms(self) -> None:
+        for name in GENERAL_UPPERBODY_OUTFIT_CATEGORIES:
+            for line in wildcard_lines(name):
+                self.assertIsNone(UPPERBODY_FORBIDDEN_PATTERN.search(line), f"{name}: {line}")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
+} from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
 
 const QUALITY_PROMPTS = Object.freeze({
   standard: "masterpiece, best quality, score_7",

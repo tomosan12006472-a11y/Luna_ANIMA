@@ -1,4 +1,4 @@
-import { $, escapePathSegment, text } from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { $, escapePathSegment, text } from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
 
 export function createRecipesFeature({
   api,

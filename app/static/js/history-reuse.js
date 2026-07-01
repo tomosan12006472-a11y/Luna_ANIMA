@@ -1,6 +1,6 @@
-import { createHistoryRequestFeature } from "./history-request.js?v=v1.65-comfy-cache-stabilization-20260630";
-import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.65-comfy-cache-stabilization-20260630";
-import { createHistoryTextFeature } from "./history-text.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { createHistoryRequestFeature } from "./history-request.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+import { createHistoryReuseDataFeature } from "./history-reuse-data.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+import { createHistoryTextFeature } from "./history-text.js?v=v1.66-upperbody-outfit-wildcards-20260701";
 
 export function createHistoryReuseFeature({
   state,

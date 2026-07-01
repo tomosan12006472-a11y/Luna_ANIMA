@@ -5,8 +5,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
-import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.65-comfy-cache-stabilization-20260630";
+} from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+import { CHARACTER_FAVORITES_COLLAPSED_KEY, storeBoolean } from "./state.js?v=v1.66-upperbody-outfit-wildcards-20260701";
 
 const EMPTY_SLOT_LABELS = {
   character1: "未選択",

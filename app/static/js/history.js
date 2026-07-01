@@ -7,13 +7,13 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
+} from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
 const PUBLIC_SAVE_POLL_INTERVAL_MS = 1200;
 const PUBLIC_SAVE_MAX_POLLS = 90;
-const HISTORY_RUNTIME_TOKEN = "v1.65-comfy-cache-stabilization-20260630";
+const HISTORY_RUNTIME_TOKEN = "v1.66-upperbody-outfit-wildcards-20260701";
 const HISTORY_DEBUG_EVENT_LIMIT = 20;
 
 function fallbackErrorMessage(error) {

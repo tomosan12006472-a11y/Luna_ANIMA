@@ -1,0 +1,8 @@
+__outfit_nsfw_upperbody/lingerie__
+__outfit_nsfw_upperbody/revealing_casual__
+__outfit_nsfw_upperbody/street__
+__outfit_nsfw_upperbody/formal__
+__outfit_nsfw_upperbody/fantasy_cosplay__
+__outfit_nsfw_upperbody/swim_beach__
+__outfit_nsfw_upperbody/home_lounge__
+__outfit_nsfw_upperbody/wet_sheer__
