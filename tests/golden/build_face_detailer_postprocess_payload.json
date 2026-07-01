@@ -123,7 +123,7 @@
       },
       "class_type": "ImpactSEGSRangeFilter",
       "inputs": {
-        "max_value": 471860,
+        "max_value": 1572864,
         "min_value": 1259,
         "mode": true,
         "segs": [

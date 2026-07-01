@@ -468,6 +468,106 @@ class WorkflowModuleTests(unittest.TestCase):
         self.assertEqual(workflow["9305"]["inputs"]["value"], 9)
         self.assertEqual(workflow["1"]["inputs"]["images"], ["9309", 0])
         self.assertEqual(request_data["face_detailer"]["max_filter_node_id"], "9303")
+        self.assertEqual(request_data["face_detailer"]["skip_reason"], "")
+        self.assertIn("routes an empty SEGS set at runtime", request_data["face_detailer"]["runaway_guard_note"])
+
+    def test_detailer_custom_sampling_preserves_legacy_default(self) -> None:
+        request = {
+            **base_request(),
+            "face_detailer": {"enabled": True},
+        }
+        request_data = deepcopy(request)
+        payload = payload_builder.build_prompt_payload(request_data, "module-client")
+        workflow = payload["prompt"]
+        detailer = workflow[request_data["face_detailer"]["node_id"]]["inputs"]
+
+        self.assertEqual(detailer["sampler_name"], "euler")
+        self.assertEqual(detailer["scheduler"], "normal")
+        self.assertEqual(request_data["face_detailer"]["sampler_mode"], "custom")
+        self.assertEqual(request_data["face_detailer"]["sampler"], "euler")
+        self.assertEqual(request_data["face_detailer"]["scheduler"], "normal")
+
+    def test_detailer_source_sampling_uses_generation_sampler(self) -> None:
+        request = {
+            **base_request(),
+            "sampler": "er_sde",
+            "scheduler": "simple",
+            "face_detailer": {"enabled": True, "sampler_mode": "source"},
+        }
+        request_data = deepcopy(request)
+        payload = payload_builder.build_prompt_payload(request_data, "module-client")
+        workflow = payload["prompt"]
+        detailer = workflow[request_data["face_detailer"]["node_id"]]["inputs"]
+
+        self.assertEqual(detailer["sampler_name"], "er_sde")
+        self.assertEqual(detailer["scheduler"], "simple")
+        self.assertEqual(request_data["face_detailer"]["sampler_mode"], "source")
+        self.assertEqual(request_data["face_detailer"]["sampler"], "er_sde")
+        self.assertEqual(request_data["face_detailer"]["scheduler"], "simple")
+
+    def test_hand_detailer_source_sampling_uses_generation_sampler(self) -> None:
+        request = {
+            **base_request(),
+            "sampler": "er_sde",
+            "scheduler": "simple",
+            "hand_detailer": {"enabled": True, "sampler_mode": "source"},
+        }
+        request_data = deepcopy(request)
+        payload = payload_builder.build_prompt_payload(request_data, "module-client")
+        workflow = payload["prompt"]
+        detailer = workflow[request_data["hand_detailer"]["node_id"]]["inputs"]
+
+        self.assertEqual(detailer["sampler_name"], "er_sde")
+        self.assertEqual(detailer["scheduler"], "simple")
+        self.assertEqual(request_data["hand_detailer"]["sampler_mode"], "source")
+        self.assertEqual(request_data["hand_detailer"]["sampler"], "er_sde")
+        self.assertEqual(request_data["hand_detailer"]["scheduler"], "simple")
+
+    def test_postprocess_detailer_source_sampling_uses_history_sampler(self) -> None:
+        request = {
+            "model": "Anima\\anima-preview3-base.safetensors",
+            "text_encoder": "qwen_3_06b_base.safetensors",
+            "vae": "qwen_image_vae.safetensors",
+            "sampler": "dpmpp_2m",
+            "scheduler": "karras",
+            "shift": 4.0,
+            "seed": 987654321,
+            "positive_prompt": "anime illustration, detailed face",
+            "negative_prompt": "bad anatomy, watermark",
+            "official_loras": {"highres": {"enabled": False}, "turbo": {"enabled": False}},
+            "loras": [],
+            "face_detailer": {"enabled": True, "sampler_mode": "source"},
+        }
+        payload = payload_builder.build_face_detailer_postprocess_payload(request, "module-client", "module/source.png")
+        detailer = payload["prompt"][request["face_detailer"]["node_id"]]["inputs"]
+
+        self.assertEqual(detailer["sampler_name"], "dpmpp_2m")
+        self.assertEqual(detailer["scheduler"], "karras")
+        self.assertEqual(request["face_detailer"]["sampler"], "dpmpp_2m")
+        self.assertEqual(request["face_detailer"]["scheduler"], "karras")
+
+    def test_postprocess_hand_detailer_source_sampling_uses_history_sampler(self) -> None:
+        request = {
+            "model": "Anima\\anima-preview3-base.safetensors",
+            "text_encoder": "qwen_3_06b_base.safetensors",
+            "vae": "qwen_image_vae.safetensors",
+            "sampler": "dpmpp_2m",
+            "scheduler": "karras",
+            "shift": 4.0,
+            "seed": 987654321,
+            "positive_prompt": "anime illustration, detailed hands",
+            "negative_prompt": "bad anatomy, watermark",
+            "official_loras": {"highres": {"enabled": False}, "turbo": {"enabled": False}},
+            "loras": [],
+            "hand_detailer": {"enabled": True, "sampler_mode": "source"},
+        }
+        payload = payload_builder.build_hand_detailer_postprocess_payload(request, "module-client", "module/source.png")
+        detailer = payload["prompt"][request["hand_detailer"]["node_id"]]["inputs"]
+
+        self.assertEqual(detailer["sampler_name"], "dpmpp_2m")
+        self.assertEqual(detailer["scheduler"], "karras")
+        self.assertEqual(request["hand_detailer"]["sampler"], "dpmpp_2m")
+        self.assertEqual(request["hand_detailer"]["scheduler"], "karras")
 
     def test_workflow_modules_do_not_import_payload_builder(self) -> None:
         workflow_dir = Path(__file__).resolve().parents[1] / "app" / "workflow"

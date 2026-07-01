@@ -7,13 +7,13 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
+} from "./dom.js?v=v1.69-detailer-sampling-20260702";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
 const PUBLIC_SAVE_POLL_INTERVAL_MS = 1200;
 const PUBLIC_SAVE_MAX_POLLS = 90;
-const HISTORY_RUNTIME_TOKEN = "v1.67-lora-strength-max-3-20260702";
+const HISTORY_RUNTIME_TOKEN = "v1.69-detailer-sampling-20260702";
 const HISTORY_DEBUG_EVENT_LIMIT = 20;
 
 function fallbackErrorMessage(error) {
@@ -850,6 +850,7 @@ export function createHistoryFeature({
     const parts = [`${label} ${onOff(source.enabled)}`];
     if (source.mode) parts.push(source.mode);
     if (source.preset) parts.push(`preset ${source.preset}`);
+    if (source.sampler || source.scheduler) parts.push(`${source.sampler || "-"} ${source.scheduler || "-"}`);
     if (source.bbox_threshold !== undefined) parts.push(`bbox ${Number(source.bbox_threshold).toFixed(2)}`);
     if (source.max_detections !== undefined) parts.push(`max ${source.max_detections}`);
     if (source.runaway_guard_enabled !== undefined) {

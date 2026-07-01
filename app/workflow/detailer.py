@@ -70,6 +70,8 @@ def build_face_detailer_postprocess_workflow(request: dict[str, Any], image_name
         target="face",
         image_width=request.get("width"),
         image_height=request.get("height"),
+        source_sampler=request.get("sampler"),
+        source_scheduler=request.get("scheduler"),
     )
     request["face_detailer"] = metadata
     return workflow
@@ -137,6 +139,8 @@ def build_hand_detailer_postprocess_workflow(request: dict[str, Any], image_name
         target="hand",
         image_width=request.get("width"),
         image_height=request.get("height"),
+        source_sampler=request.get("sampler"),
+        source_scheduler=request.get("scheduler"),
     )
     metadata["target"] = "hand"
     metadata["lllite"] = lllite_metadata
@@ -164,6 +168,8 @@ def apply_face_detailer(workflow: dict[str, Any], request: dict[str, Any], seed:
         target="face",
         image_width=request.get("width"),
         image_height=request.get("height"),
+        source_sampler=sampler_inputs.get("sampler_name"),
+        source_scheduler=sampler_inputs.get("scheduler"),
     )
     request["face_detailer"] = metadata
 
@@ -278,6 +284,8 @@ def apply_hand_detailer(workflow: dict[str, Any], request: dict[str, Any], seed:
         target="hand",
         image_width=request.get("width"),
         image_height=request.get("height"),
+        source_sampler=sampler_inputs.get("sampler_name"),
+        source_scheduler=sampler_inputs.get("scheduler"),
     )
     metadata["target"] = "hand"
     metadata["lllite"] = lllite_metadata

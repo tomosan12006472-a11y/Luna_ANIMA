@@ -12,6 +12,8 @@ DEFAULT_DETECTOR = "bbox/face_yolov8m.pt"
 DEFAULT_HAND_DETECTOR = "bbox/hand_yolov8s.pt"
 DEFAULT_SAM_MODEL = "sam_vit_b_01ec64.pth"
 DEFAULT_ANIMA_LLLITE_INPAINTING = "anima-lllite-inpainting-v2.safetensors"
+DEFAULT_DETAILER_SAMPLER = "euler"
+DEFAULT_DETAILER_SCHEDULER = "normal"
 
 
 DEFAULT_FACE_DETAILER_SETTINGS: dict[str, Any] = {
@@ -22,6 +24,9 @@ DEFAULT_FACE_DETAILER_SETTINGS: dict[str, Any] = {
     "steps": 12,
     "cfg": 5.0,
     "denoise": 0.3,
+    "sampler_mode": "custom",
+    "sampler": DEFAULT_DETAILER_SAMPLER,
+    "scheduler": DEFAULT_DETAILER_SCHEDULER,
     "guide_size": 512,
     "max_size": 1024,
     "bbox_threshold": 0.65,
@@ -29,7 +34,7 @@ DEFAULT_FACE_DETAILER_SETTINGS: dict[str, Any] = {
     "bbox_crop_factor": 3.0,
     "drop_size": 64,
     "min_area_ratio": 0.0008,
-    "max_area_ratio": 0.30,
+    "max_area_ratio": 1.0,
     "max_detections": 8,
     "runaway_guard_enabled": True,
     "runaway_max_candidates": 20,
@@ -48,6 +53,9 @@ DEFAULT_HAND_DETAILER_SETTINGS: dict[str, Any] = {
     "steps": 14,
     "cfg": 4.0,
     "denoise": 0.45,
+    "sampler_mode": "custom",
+    "sampler": DEFAULT_DETAILER_SAMPLER,
+    "scheduler": DEFAULT_DETAILER_SCHEDULER,
     "guide_size": 512,
     "max_size": 1024,
     "bbox_threshold": 0.45,
@@ -76,7 +84,7 @@ DETAILER_DETECTION_PRESETS: dict[str, dict[str, dict[str, Any]]] = {
         "safe": {
             "bbox_threshold": 0.75,
             "min_area_ratio": 0.0010,
-            "max_area_ratio": 0.30,
+            "max_area_ratio": 1.0,
             "max_detections": 4,
             "runaway_guard_enabled": True,
             "runaway_max_candidates": 12,
@@ -85,7 +93,7 @@ DETAILER_DETECTION_PRESETS: dict[str, dict[str, dict[str, Any]]] = {
         "normal": {
             "bbox_threshold": 0.65,
             "min_area_ratio": 0.0008,
-            "max_area_ratio": 0.30,
+            "max_area_ratio": 1.0,
             "max_detections": 8,
             "runaway_guard_enabled": True,
             "runaway_max_candidates": 20,
@@ -94,7 +102,7 @@ DETAILER_DETECTION_PRESETS: dict[str, dict[str, dict[str, Any]]] = {
         "aggressive": {
             "bbox_threshold": 0.50,
             "min_area_ratio": 0.0004,
-            "max_area_ratio": 0.40,
+            "max_area_ratio": 1.0,
             "max_detections": 16,
             "runaway_guard_enabled": True,
             "runaway_max_candidates": 40,
@@ -149,6 +157,27 @@ def _int(value: Any, default: int, minimum: int, maximum: int) -> int:
     except (TypeError, ValueError):
         number = default
     return max(minimum, min(maximum, number))
+
+
+def _detailer_sampling_value(value: Any, default: str) -> str:
+    text = str(value or "").strip()
+    return text or default
+
+
+def resolve_detailer_sampling(
+    settings: dict[str, Any],
+    *,
+    source_sampler: Any = None,
+    source_scheduler: Any = None,
+) -> tuple[str, str]:
+    if str(settings.get("sampler_mode") or "custom") == "source":
+        sampler = _detailer_sampling_value(source_sampler, settings.get("sampler") or DEFAULT_DETAILER_SAMPLER)
+        scheduler = _detailer_sampling_value(source_scheduler, settings.get("scheduler") or DEFAULT_DETAILER_SCHEDULER)
+        return sampler, scheduler
+    return (
+        _detailer_sampling_value(settings.get("sampler"), DEFAULT_DETAILER_SAMPLER),
+        _detailer_sampling_value(settings.get("scheduler"), DEFAULT_DETAILER_SCHEDULER),
+    )
 
 
 def detailer_preset_settings(kind: str, preset: str) -> dict[str, Any]:
@@ -339,6 +368,9 @@ def _detailer_metadata(settings: dict[str, Any], *, seed: int, target: str) -> d
         "steps": settings.get("steps"),
         "cfg": settings.get("cfg"),
         "denoise": settings.get("denoise"),
+        "sampler_mode": settings.get("sampler_mode"),
+        "sampler": settings.get("sampler"),
+        "scheduler": settings.get("scheduler"),
         "guide_size": settings.get("guide_size"),
         "max_size": settings.get("max_size"),
         "bbox_threshold": settings.get("bbox_threshold"),
@@ -351,6 +383,7 @@ def _detailer_metadata(settings: dict[str, Any], *, seed: int, target: str) -> d
         "runaway_guard_enabled": bool(settings.get("runaway_guard_enabled")),
         "runaway_max_candidates": settings.get("runaway_max_candidates"),
         "runaway_action": settings.get("runaway_action"),
+        "runaway_guard_note": "",
         "candidates_detected": None,
         "candidates_processed": None,
         "max_candidates_processed": settings.get("max_detections"),
@@ -473,13 +506,13 @@ def add_detection_segs_to_workflow(
                 {
                     "empty_segs_node_id": empty_id,
                     "runaway_guard_node_id": branch_id,
-                    "skip_reason": f"runtime guard: candidate count > {settings['runaway_max_candidates']} routes an empty SEGS set",
+                    "runaway_guard_note": f"candidate count > {settings['runaway_max_candidates']} routes an empty SEGS set at runtime",
                 }
             )
         elif action == "limit":
-            metadata["skip_reason"] = f"runtime guard: candidate count > {settings['runaway_max_candidates']} is limited to {settings['max_detections']} detections"
+            metadata["runaway_guard_note"] = f"candidate count > {settings['runaway_max_candidates']} is limited to {settings['max_detections']} detections at runtime"
         elif action == "warn":
-            metadata["skip_reason"] = f"runtime guard: candidate count > {settings['runaway_max_candidates']} records a warning; max detections still limits processing"
+            metadata["runaway_guard_note"] = f"candidate count > {settings['runaway_max_candidates']} records a warning at runtime; max detections still limits processing"
     return final_segs, metadata
 
 
@@ -500,12 +533,17 @@ def add_face_detailer_to_workflow(
     target: str = "face",
     image_width: Any = None,
     image_height: Any = None,
+    source_sampler: Any = None,
+    source_scheduler: Any = None,
 ) -> dict[str, Any]:
     mode = str(settings.get("mode") or "generation")
     if target == "hand":
         settings = sanitize_hand_detailer_settings(settings, mode=mode)
     else:
         settings = sanitize_face_detailer_settings(settings, mode=mode)
+    sampler_name, scheduler = resolve_detailer_sampling(settings, source_sampler=source_sampler, source_scheduler=source_scheduler)
+    settings["sampler"] = sampler_name
+    settings["scheduler"] = scheduler
     metadata = _detailer_metadata(settings, seed=seed, target=target)
     if not settings.get("enabled"):
         return metadata
@@ -546,8 +584,8 @@ def add_face_detailer_to_workflow(
                 "seed": seed,
                 "steps": settings["steps"],
                 "cfg": settings["cfg"],
-                "sampler_name": "euler",
-                "scheduler": "normal",
+                "sampler_name": sampler_name,
+                "scheduler": scheduler,
                 "positive": positive,
                 "negative": negative,
                 "denoise": settings["denoise"],
@@ -561,8 +599,6 @@ def add_face_detailer_to_workflow(
         }
         workflow[str(output_node_id)]["inputs"][output_input_name] = [detailer_id, 0]
         metadata.update(segs_metadata)
-        if segs_metadata.get("skip_reason") and settings.get("runaway_action") in {"limit", "warn"}:
-            metadata["warnings"].append(segs_metadata["skip_reason"])
         metadata["node_id"] = detailer_id
         metadata["detector_node_id"] = detector_id
         metadata["node_type"] = "DetailerForEach"
@@ -582,8 +618,8 @@ def add_face_detailer_to_workflow(
         "seed": seed,
         "steps": settings["steps"],
         "cfg": settings["cfg"],
-        "sampler_name": "euler",
-        "scheduler": "normal",
+        "sampler_name": sampler_name,
+        "scheduler": scheduler,
         "positive": positive,
         "negative": negative,
         "denoise": settings["denoise"],

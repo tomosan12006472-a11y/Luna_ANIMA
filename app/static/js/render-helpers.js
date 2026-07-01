@@ -1,4 +1,4 @@
-import { $, displayValue, unique } from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
+import { $, displayValue, unique } from "./dom.js?v=v1.69-detailer-sampling-20260702";
 
 export function fillSelect(selector, options, selected) {
   const select = typeof selector === "string" ? $(selector) : selector;

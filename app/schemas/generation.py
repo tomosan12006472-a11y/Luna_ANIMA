@@ -216,6 +216,9 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     steps: int = 12
     cfg: float = 5.0
     denoise: float = 0.3
+    sampler_mode: str = "custom"
+    sampler: str = "euler"
+    scheduler: str = "normal"
     guide_size: int = 512
     max_size: int = 1024
     bbox_threshold: float = 0.65
@@ -223,7 +226,7 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     bbox_crop_factor: float = 3.0
     drop_size: int = 64
     min_area_ratio: float = 0.0008
-    max_area_ratio: float = 0.30
+    max_area_ratio: float = 1.0
     max_detections: int = 8
     runaway_guard_enabled: bool = True
     runaway_max_candidates: int = 20
@@ -252,6 +255,26 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     def _normalize_preset(cls, value: Any) -> str:
         preset = str(value or "normal").strip().lower()
         return preset if preset in {"safe", "normal", "aggressive", "custom"} else "normal"
+
+    @field_validator("sampler_mode", mode="before")
+    @classmethod
+    def _normalize_sampler_mode(cls, value: Any) -> str:
+        mode = str(value or "custom").strip().lower()
+        if mode in {"source", "inherit", "same"}:
+            return "source"
+        return "custom"
+
+    @field_validator("sampler", mode="before")
+    @classmethod
+    def _normalize_detailer_sampler(cls, value: Any) -> str:
+        sampler = _string_value(value).strip()
+        return sampler or "euler"
+
+    @field_validator("scheduler", mode="before")
+    @classmethod
+    def _normalize_detailer_scheduler(cls, value: Any) -> str:
+        scheduler = _string_value(value).strip()
+        return scheduler or "normal"
 
     @field_validator("steps", mode="before")
     @classmethod
@@ -306,7 +329,7 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     @field_validator("max_area_ratio", mode="before")
     @classmethod
     def _normalize_max_area_ratio(cls, value: Any) -> float:
-        return _clamp_float(value, 0.30, 0.01, 1.0)
+        return _clamp_float(value, 1.0, 0.01, 1.0)
 
     @field_validator("max_detections", mode="before")
     @classmethod

@@ -15,8 +15,8 @@ from app.api import reference as reference_api
 from app.config import APP_PIN
 from app.generation_prepare import generation_request_dict
 from app.main import app
-from app.face_detailer import sanitize_hand_detailer_settings
-from app.schemas.generation import GenerateRequest, HandDetailerRequestSettings, HiresFixSettings, OfficialLorasSettings
+from app.face_detailer import detailer_preset_settings, sanitize_face_detailer_settings, sanitize_hand_detailer_settings
+from app.schemas.generation import FaceDetailerRequestSettings, GenerateRequest, HandDetailerRequestSettings, HiresFixSettings, OfficialLorasSettings
 from app.schemas.reference import ImageToImageSettings, ReferenceAssistSettings
 from app.workflow import loras as workflow_loras
 
@@ -94,6 +94,26 @@ class GenerationSchemaTests(unittest.TestCase):
     def test_hand_detailer_default_bbox_matches_normal_preset(self) -> None:
         self.assertEqual(HandDetailerRequestSettings().bbox_threshold, 0.45)
         self.assertEqual(sanitize_hand_detailer_settings({})["bbox_threshold"], 0.45)
+
+    def test_face_detailer_default_max_area_allows_large_crops(self) -> None:
+        self.assertEqual(FaceDetailerRequestSettings().max_area_ratio, 1.0)
+        self.assertEqual(sanitize_face_detailer_settings({})["max_area_ratio"], 1.0)
+        for preset in ("safe", "normal", "aggressive"):
+            self.assertEqual(detailer_preset_settings("face", preset)["max_area_ratio"], 1.0)
+
+    def test_detailer_sampler_settings_default_and_source_mode(self) -> None:
+        face = FaceDetailerRequestSettings.model_validate({"sampler_mode": "same", "sampler": "", "scheduler": ""}).model_dump()
+        hand = HandDetailerRequestSettings.model_validate({"sampler_mode": "bad", "sampler": "er_sde", "scheduler": "simple"}).model_dump()
+
+        self.assertEqual(FaceDetailerRequestSettings().sampler_mode, "custom")
+        self.assertEqual(FaceDetailerRequestSettings().sampler, "euler")
+        self.assertEqual(FaceDetailerRequestSettings().scheduler, "normal")
+        self.assertEqual(face["sampler_mode"], "source")
+        self.assertEqual(face["sampler"], "euler")
+        self.assertEqual(face["scheduler"], "normal")
+        self.assertEqual(hand["sampler_mode"], "custom")
+        self.assertEqual(hand["sampler"], "er_sde")
+        self.assertEqual(hand["scheduler"], "simple")
 
     def test_hires_fix_defaults_clamp_and_mode_fallback(self) -> None:
         data = HiresFixSettings.model_validate({"enabled": True, "mode": "bad", "upscale_factor": 99, "denoise": -1, "steps": 999})

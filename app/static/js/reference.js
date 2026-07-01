@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
+} from "./dom.js?v=v1.69-detailer-sampling-20260702";
 
 const REFERENCE_MODULES = ["outfit", "pose", "background"];
 const REFMOD_EMPTY_TEXT = {

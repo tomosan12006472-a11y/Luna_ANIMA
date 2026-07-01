@@ -6,7 +6,7 @@ import {
   numberValue,
   setChecked,
   setValue,
-} from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
+} from "./dom.js?v=v1.69-detailer-sampling-20260702";
 
 function normalizeLoraApplication(value) {
   const raw = String(value || "model_clip").toLowerCase();
