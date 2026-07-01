@@ -5,7 +5,7 @@ from datetime import datetime
 from threading import RLock
 from typing import Any
 
-from .._shared_utils import clamp_strength
+from .._shared_utils import LORA_STRENGTH_MAX, clamp_lora_strength
 from ..storage.json_store import JsonStore
 from .favorites import _favorite_match_keys, favorite_key_set, load_lora_favorites
 from .paths import APP_SCOPE, CATALOG_PATH, slug
@@ -15,10 +15,10 @@ from .scan import scan_local_loras
 _CATALOG_LOCK = RLock()
 
 SLOT_DEFAULTS: dict[str, dict[str, Any]] = {
-    "character": {"enabled": False, "lora_id": "none", "model_strength": 0.70, "clip_strength": 0.70, "max_strength": 1.0},
-    "style": {"enabled": False, "lora_id": "none", "model_strength": 0.25, "clip_strength": 0.25, "max_strength": 1.0},
-    "official_hires": {"enabled": False, "lora_id": "none", "model_strength": 0.60, "clip_strength": 0.60, "max_strength": 1.00},
-    "turbo": {"enabled": False, "lora_id": "none", "model_strength": 0.60, "clip_strength": 0.60, "max_strength": 1.00},
+    "character": {"enabled": False, "lora_id": "none", "model_strength": 0.70, "clip_strength": 0.70, "max_strength": LORA_STRENGTH_MAX},
+    "style": {"enabled": False, "lora_id": "none", "model_strength": 0.25, "clip_strength": 0.25, "max_strength": LORA_STRENGTH_MAX},
+    "official_hires": {"enabled": False, "lora_id": "none", "model_strength": 0.60, "clip_strength": 0.60, "max_strength": LORA_STRENGTH_MAX},
+    "turbo": {"enabled": False, "lora_id": "none", "model_strength": 0.60, "clip_strength": 0.60, "max_strength": LORA_STRENGTH_MAX},
 }
 
 
@@ -40,7 +40,7 @@ def _normalize_catalog_payload(data: Any) -> dict[str, Any]:
     else:
         for item in items:
             if isinstance(item, dict):
-                item["max_strength"] = 1.0
+                item["max_strength"] = LORA_STRENGTH_MAX
     data.setdefault("schema_version", 1)
     data.setdefault("app_scope", APP_SCOPE)
     return data
@@ -163,9 +163,9 @@ def normalize_lora_slots(loras: list[dict[str, Any]] | None) -> list[dict[str, A
             category = str(item.get("category") or category)
         elif not name:
             continue
-        legacy_strength = clamp_strength(raw.get("weight", raw.get("strength", raw.get("model_strength", raw.get("model", 1.0)))), 1.0)
-        model_strength = clamp_strength(raw.get("strength_model", raw.get("model_strength", raw.get("model_weight", raw.get("weight_model", raw.get("model", legacy_strength))))), legacy_strength)
-        clip_strength = clamp_strength(raw.get("strength_clip", raw.get("clip_strength", raw.get("clip_weight", raw.get("weight_clip", raw.get("clip", legacy_strength))))), legacy_strength)
+        legacy_strength = clamp_lora_strength(raw.get("weight", raw.get("strength", raw.get("model_strength", raw.get("model", 1.0)))), 1.0)
+        model_strength = clamp_lora_strength(raw.get("strength_model", raw.get("model_strength", raw.get("model_weight", raw.get("weight_model", raw.get("model", legacy_strength))))), legacy_strength)
+        clip_strength = clamp_lora_strength(raw.get("strength_clip", raw.get("clip_strength", raw.get("clip_weight", raw.get("weight_clip", raw.get("clip", legacy_strength))))), legacy_strength)
         normalized.append(
             {
                 "slot": str(raw.get("slot") or "custom"),

@@ -3,7 +3,7 @@ import {
   checked,
   setChecked,
   text,
-} from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+} from "./dom.js?v=v1.67-lora-strength-max-3-20260702";
 
 export function createGenerationActionsFeature({
   api,

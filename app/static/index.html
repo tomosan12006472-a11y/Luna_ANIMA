@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.66-upperbody-outfit-wildcards-20260701">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.67-lora-strength-max-3-20260702">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -323,18 +323,18 @@
           <div class="switchline official-lora-row">
             <input id="officialHighresEnabled" type="checkbox">
             <span class="grow">Highres <span class="hint">Aesthetic Boost</span></span>
-            <input id="officialHighresStrength" class="mini-number" type="number" min="0" max="1" step="0.05" value="0.6">
+            <input id="officialHighresStrength" class="mini-number" type="number" min="0" max="3" step="0.05" value="0.6">
           </div>
           <div class="switchline official-lora-row">
             <input id="officialTurboEnabled" type="checkbox">
             <span class="grow">Turbo <span class="hint">steps/cfg一時override</span></span>
             <button type="button" class="ghost compact-action" data-action="official-turbo-apply-recommended">推奨値</button>
-            <input id="officialTurboStrength" class="mini-number" type="number" min="0" max="1" step="0.05" value="0.6">
+            <input id="officialTurboStrength" class="mini-number" type="number" min="0" max="3" step="0.05" value="0.6">
           </div>
           <div class="switchline official-lora-row">
             <input id="officialColorfixEnabled" type="checkbox">
             <span class="grow">ColorFix <span class="hint">色味安定</span></span>
-            <input id="officialColorfixStrength" class="mini-number" type="number" min="0" max="1" step="0.05" value="0.6">
+            <input id="officialColorfixStrength" class="mini-number" type="number" min="0" max="3" step="0.05" value="0.6">
           </div>
           </div>
         </section>
@@ -821,7 +821,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.66-upperbody-outfit-wildcards-20260701"></script>
-  <script src="/static/app.js?v=v1.66-upperbody-outfit-wildcards-20260701"></script>
+  <script src="/static/ui.js?v=v1.67-lora-strength-max-3-20260702"></script>
+  <script src="/static/app.js?v=v1.67-lora-strength-max-3-20260702"></script>
 </body>
 </html>

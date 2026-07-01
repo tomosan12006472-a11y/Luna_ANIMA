@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
+from .._shared_utils import LORA_STRENGTH_MAX
 from ..config import ANIMA_COLORFIX_LORA_NAME, ANIMA_HIGHRES_LORA_NAME, ANIMA_TURBO_LORA_V01_NAME, ANIMA_TURBO_LORA_V02_NAME
 from .paths import APP_SCOPE, lora_dirs, safe_relative, slug
 
@@ -61,7 +62,7 @@ def scan_local_loras() -> list[dict[str, Any]]:
                     "trained_words": [],
                     "default_model_strength": 0.6 if category in {"hires", "turbo", "colorfix"} else 0.7,
                     "default_clip_strength": 0.0,
-                    "max_strength": 1.0,
+                    "max_strength": LORA_STRENGTH_MAX,
                     "thumbnail": None,
                     "sha256": None,
                     "status": "available" if is_anima else "review_required",

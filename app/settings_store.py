@@ -4,7 +4,7 @@ from copy import deepcopy
 from threading import RLock
 from typing import Any
 
-from ._shared_utils import clamp_float, clamp_strength, normalize_lora_strengths
+from ._shared_utils import LORA_STRENGTH_MAX, clamp_float, clamp_strength, normalize_lora_strengths
 from .config import SETTINGS_PATH
 from .face_detailer import DEFAULT_FACE_DETAILER_SETTINGS, DEFAULT_HAND_DETAILER_SETTINGS, sanitize_face_detailer_settings, sanitize_hand_detailer_settings
 from .i2i_store import sanitize_image_to_image
@@ -278,7 +278,7 @@ def sanitize_turbo_restore_settings(value: Any, fallback: dict[str, Any] | None 
     base = fallback if isinstance(fallback, dict) else DEFAULT_APP_SETTINGS["turbo_restore_settings"]
     steps = int(clamp_float(_safe_float(raw.get("steps"), _safe_float(base.get("steps"), 32.0)), 32.0, 1.0, 100.0))
     cfg = clamp_float(_safe_float(raw.get("cfg"), _safe_float(base.get("cfg"), 4.5)), 4.5, 1.0, 20.0)
-    strength = clamp_float(_safe_float(raw.get("strength"), _safe_float(base.get("strength"), 0.6)), 0.6, 0.0, 1.0)
+    strength = clamp_float(_safe_float(raw.get("strength"), _safe_float(base.get("strength"), 0.6)), 0.6, 0.0, LORA_STRENGTH_MAX)
     return {"steps": steps, "cfg": cfg, "strength": strength}
 
 

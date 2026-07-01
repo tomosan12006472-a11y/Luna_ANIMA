@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .._shared_utils import LORA_STRENGTH_MAX
 from ..official_lora_presets import normalize_official_lora_preset_id
 from .reference import ImageToImageSettings, ReferenceAssistSettings, ReferenceModulesSettings
 
@@ -114,7 +115,7 @@ class OfficialHighresLoraSettings(CompatSettingsModel):
     @field_validator("strength", mode="before")
     @classmethod
     def _normalize_strength(cls, value: Any) -> float:
-        return _clamp_float(value, 0.6, 0.0, 1.0)
+        return _clamp_float(value, 0.6, 0.0, LORA_STRENGTH_MAX)
 
 
 class OfficialTurboLoraSettings(OfficialHighresLoraSettings):
