@@ -7,7 +7,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.68-detailer-max-area-20260702";
+} from "./dom.js?v=v1.69-detailer-sampling-20260702";
+import { fillSelect } from "./render-helpers.js?v=v1.69-detailer-sampling-20260702";
 
 export function createDetailerFeature({
   api,
@@ -30,8 +31,8 @@ export function createDetailerFeature({
   };
 
   const defaults = {
-    face: { preset: "normal", bbox_threshold: 0.65, min_area_ratio: 0.0008, max_area_ratio: 1.0, max_detections: 8, runaway_guard_enabled: true, runaway_max_candidates: 20, runaway_action: "skip" },
-    hand: { preset: "normal", bbox_threshold: 0.45, min_area_ratio: 0.0005, max_area_ratio: 0.35, max_detections: 12, runaway_guard_enabled: true, runaway_max_candidates: 30, runaway_action: "skip" },
+    face: { preset: "normal", bbox_threshold: 0.65, min_area_ratio: 0.0008, max_area_ratio: 1.0, max_detections: 8, runaway_guard_enabled: true, runaway_max_candidates: 20, runaway_action: "skip", sampler_mode: "custom", sampler: "euler", scheduler: "normal" },
+    hand: { preset: "normal", bbox_threshold: 0.45, min_area_ratio: 0.0005, max_area_ratio: 0.35, max_detections: 12, runaway_guard_enabled: true, runaway_max_candidates: 30, runaway_action: "skip", sampler_mode: "custom", sampler: "euler", scheduler: "normal" },
   };
 
   function prefixFor(kind) {
@@ -41,6 +42,18 @@ export function createDetailerFeature({
   function validPreset(value) {
     const preset = String(value || "normal").trim().toLowerCase();
     return ["safe", "normal", "aggressive", "custom"].includes(preset) ? preset : "normal";
+  }
+
+  function validSamplerMode(nextValue) {
+    const mode = String(nextValue || "custom").trim().toLowerCase();
+    return ["source", "inherit", "same"].includes(mode) ? "source" : "custom";
+  }
+
+  function fillSamplingSelects(kind, data = {}) {
+    const prefix = prefixFor(kind);
+    const fallback = defaults[kind] || defaults.face;
+    fillSelect(`#${prefix}SamplerSelect`, state?.models?.samplers || [], data.sampler ?? fallback.sampler);
+    fillSelect(`#${prefix}SchedulerSelect`, state?.models?.schedulers || [], data.scheduler ?? fallback.scheduler);
   }
 
   function applyDetectionPreset(kind, presetValue) {
@@ -70,6 +83,9 @@ export function createDetailerFeature({
       steps: Math.trunc(numberValue("#fdSteps", 12)),
       cfg: numberValue("#fdCfg", 4.0),
       denoise: numberValue("#fdDenoise", 0.3),
+      sampler_mode: validSamplerMode(value("#fdSamplerMode", "custom")),
+      sampler: value("#fdSamplerSelect", "euler"),
+      scheduler: value("#fdSchedulerSelect", "normal"),
       guide_size: 512,
       max_size: 1024,
       bbox_threshold: numberValue("#fdBbox", 0.65),
@@ -97,6 +113,9 @@ export function createDetailerFeature({
       steps: Math.trunc(numberValue("#hdSteps", 14)),
       cfg: numberValue("#hdCfg", 4.0),
       denoise: numberValue("#hdDenoise", 0.45),
+      sampler_mode: validSamplerMode(value("#hdSamplerMode", "custom")),
+      sampler: value("#hdSamplerSelect", "euler"),
+      scheduler: value("#hdSchedulerSelect", "normal"),
       guide_size: 512,
       max_size: 1024,
       bbox_threshold: numberValue("#hdBbox", 0.45),
@@ -130,6 +149,9 @@ export function createDetailerFeature({
       steps: intFrom(face.steps, 12),
       cfg: numberFrom(face.cfg, 4.0),
       denoise: numberFrom(face.denoise, 0.3),
+      sampler_mode: validSamplerMode(face.sampler_mode),
+      sampler: String(face.sampler || "euler"),
+      scheduler: String(face.scheduler || "normal"),
       guide_size: intFrom(face.guide_size, 512),
       max_size: intFrom(face.max_size, 1024),
       bbox_threshold: numberFrom(face.bbox_threshold, 0.65),
@@ -159,6 +181,9 @@ export function createDetailerFeature({
       steps: intFrom(hand.steps, 14),
       cfg: numberFrom(hand.cfg, 4.0),
       denoise: numberFrom(hand.denoise, 0.45),
+      sampler_mode: validSamplerMode(hand.sampler_mode),
+      sampler: String(hand.sampler || "euler"),
+      scheduler: String(hand.scheduler || "normal"),
       guide_size: intFrom(hand.guide_size, 512),
       max_size: intFrom(hand.max_size, 1024),
       bbox_threshold: numberFrom(hand.bbox_threshold, 0.45),
@@ -188,6 +213,8 @@ export function createDetailerFeature({
     setValue("#fdSteps", face.steps ?? 12);
     setValue("#fdCfg", face.cfg ?? 4.0);
     setValue("#fdDenoise", face.denoise ?? 0.3);
+    setValue("#fdSamplerMode", validSamplerMode(face.sampler_mode ?? defaults.face.sampler_mode));
+    fillSamplingSelects("face", face);
     setValue("#fdBbox", face.bbox_threshold ?? defaults.face.bbox_threshold);
     setValue("#fdMinAreaRatio", face.min_area_ratio ?? defaults.face.min_area_ratio);
     setValue("#fdMaxAreaRatio", face.max_area_ratio ?? defaults.face.max_area_ratio);
@@ -203,6 +230,8 @@ export function createDetailerFeature({
     setValue("#hdSteps", hand.steps ?? 14);
     setValue("#hdCfg", hand.cfg ?? 4.0);
     setValue("#hdDenoise", hand.denoise ?? 0.45);
+    setValue("#hdSamplerMode", validSamplerMode(hand.sampler_mode ?? defaults.hand.sampler_mode));
+    fillSamplingSelects("hand", hand);
     setValue("#hdBbox", hand.bbox_threshold ?? defaults.hand.bbox_threshold);
     setValue("#hdMinAreaRatio", hand.min_area_ratio ?? defaults.hand.min_area_ratio);
     setValue("#hdMaxAreaRatio", hand.max_area_ratio ?? defaults.hand.max_area_ratio);
@@ -216,6 +245,11 @@ export function createDetailerFeature({
   function applyToForm(data = {}) {
     applyFaceToForm(data.face_detailer || {});
     applyHandToForm(data.hand_detailer || {});
+  }
+
+  function refreshSamplingOptions() {
+    fillSamplingSelects("face", collectFaceSettings(checked("#fdEnabled"), "generation"));
+    fillSamplingSelects("hand", collectHandSettings(checked("#hdEnabled"), "generation"));
   }
 
   function snapshot() {
@@ -255,6 +289,15 @@ export function createDetailerFeature({
       ].forEach((selector) => {
         document.querySelector(selector)?.addEventListener("change", () => {
           markDetectionCustom(kind);
+          updateSummaries();
+        });
+      });
+      [
+        `#${prefix}SamplerMode`,
+        `#${prefix}SamplerSelect`,
+        `#${prefix}SchedulerSelect`,
+      ].forEach((selector) => {
+        document.querySelector(selector)?.addEventListener("change", () => {
           updateSummaries();
         });
       });
@@ -316,6 +359,7 @@ export function createDetailerFeature({
     applyHandToForm,
     applyToForm,
     bindEvents,
+    refreshSamplingOptions,
     restore,
     queueFrameFaceDetailer,
     queueFrameHandDetailer,

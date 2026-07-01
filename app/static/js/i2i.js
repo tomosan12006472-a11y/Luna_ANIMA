@@ -7,7 +7,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.68-detailer-max-area-20260702";
+} from "./dom.js?v=v1.69-detailer-sampling-20260702";
 
 const I2I_EMPTY_TEXT = "下絵は未選択です。履歴の「下絵にする」からも選べます。";
 

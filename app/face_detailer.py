@@ -12,6 +12,8 @@ DEFAULT_DETECTOR = "bbox/face_yolov8m.pt"
 DEFAULT_HAND_DETECTOR = "bbox/hand_yolov8s.pt"
 DEFAULT_SAM_MODEL = "sam_vit_b_01ec64.pth"
 DEFAULT_ANIMA_LLLITE_INPAINTING = "anima-lllite-inpainting-v2.safetensors"
+DEFAULT_DETAILER_SAMPLER = "euler"
+DEFAULT_DETAILER_SCHEDULER = "normal"
 
 
 DEFAULT_FACE_DETAILER_SETTINGS: dict[str, Any] = {
@@ -22,6 +24,9 @@ DEFAULT_FACE_DETAILER_SETTINGS: dict[str, Any] = {
     "steps": 12,
     "cfg": 5.0,
     "denoise": 0.3,
+    "sampler_mode": "custom",
+    "sampler": DEFAULT_DETAILER_SAMPLER,
+    "scheduler": DEFAULT_DETAILER_SCHEDULER,
     "guide_size": 512,
     "max_size": 1024,
     "bbox_threshold": 0.65,
@@ -48,6 +53,9 @@ DEFAULT_HAND_DETAILER_SETTINGS: dict[str, Any] = {
     "steps": 14,
     "cfg": 4.0,
     "denoise": 0.45,
+    "sampler_mode": "custom",
+    "sampler": DEFAULT_DETAILER_SAMPLER,
+    "scheduler": DEFAULT_DETAILER_SCHEDULER,
     "guide_size": 512,
     "max_size": 1024,
     "bbox_threshold": 0.45,
@@ -149,6 +157,27 @@ def _int(value: Any, default: int, minimum: int, maximum: int) -> int:
     except (TypeError, ValueError):
         number = default
     return max(minimum, min(maximum, number))
+
+
+def _detailer_sampling_value(value: Any, default: str) -> str:
+    text = str(value or "").strip()
+    return text or default
+
+
+def resolve_detailer_sampling(
+    settings: dict[str, Any],
+    *,
+    source_sampler: Any = None,
+    source_scheduler: Any = None,
+) -> tuple[str, str]:
+    if str(settings.get("sampler_mode") or "custom") == "source":
+        sampler = _detailer_sampling_value(source_sampler, settings.get("sampler") or DEFAULT_DETAILER_SAMPLER)
+        scheduler = _detailer_sampling_value(source_scheduler, settings.get("scheduler") or DEFAULT_DETAILER_SCHEDULER)
+        return sampler, scheduler
+    return (
+        _detailer_sampling_value(settings.get("sampler"), DEFAULT_DETAILER_SAMPLER),
+        _detailer_sampling_value(settings.get("scheduler"), DEFAULT_DETAILER_SCHEDULER),
+    )
 
 
 def detailer_preset_settings(kind: str, preset: str) -> dict[str, Any]:
@@ -339,6 +368,9 @@ def _detailer_metadata(settings: dict[str, Any], *, seed: int, target: str) -> d
         "steps": settings.get("steps"),
         "cfg": settings.get("cfg"),
         "denoise": settings.get("denoise"),
+        "sampler_mode": settings.get("sampler_mode"),
+        "sampler": settings.get("sampler"),
+        "scheduler": settings.get("scheduler"),
         "guide_size": settings.get("guide_size"),
         "max_size": settings.get("max_size"),
         "bbox_threshold": settings.get("bbox_threshold"),
@@ -501,12 +533,17 @@ def add_face_detailer_to_workflow(
     target: str = "face",
     image_width: Any = None,
     image_height: Any = None,
+    source_sampler: Any = None,
+    source_scheduler: Any = None,
 ) -> dict[str, Any]:
     mode = str(settings.get("mode") or "generation")
     if target == "hand":
         settings = sanitize_hand_detailer_settings(settings, mode=mode)
     else:
         settings = sanitize_face_detailer_settings(settings, mode=mode)
+    sampler_name, scheduler = resolve_detailer_sampling(settings, source_sampler=source_sampler, source_scheduler=source_scheduler)
+    settings["sampler"] = sampler_name
+    settings["scheduler"] = scheduler
     metadata = _detailer_metadata(settings, seed=seed, target=target)
     if not settings.get("enabled"):
         return metadata
@@ -547,8 +584,8 @@ def add_face_detailer_to_workflow(
                 "seed": seed,
                 "steps": settings["steps"],
                 "cfg": settings["cfg"],
-                "sampler_name": "euler",
-                "scheduler": "normal",
+                "sampler_name": sampler_name,
+                "scheduler": scheduler,
                 "positive": positive,
                 "negative": negative,
                 "denoise": settings["denoise"],
@@ -581,8 +618,8 @@ def add_face_detailer_to_workflow(
         "seed": seed,
         "steps": settings["steps"],
         "cfg": settings["cfg"],
-        "sampler_name": "euler",
-        "scheduler": "normal",
+        "sampler_name": sampler_name,
+        "scheduler": scheduler,
         "positive": positive,
         "negative": negative,
         "denoise": settings["denoise"],

@@ -216,6 +216,9 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     steps: int = 12
     cfg: float = 5.0
     denoise: float = 0.3
+    sampler_mode: str = "custom"
+    sampler: str = "euler"
+    scheduler: str = "normal"
     guide_size: int = 512
     max_size: int = 1024
     bbox_threshold: float = 0.65
@@ -252,6 +255,26 @@ class FaceDetailerRequestSettings(CompatSettingsModel):
     def _normalize_preset(cls, value: Any) -> str:
         preset = str(value or "normal").strip().lower()
         return preset if preset in {"safe", "normal", "aggressive", "custom"} else "normal"
+
+    @field_validator("sampler_mode", mode="before")
+    @classmethod
+    def _normalize_sampler_mode(cls, value: Any) -> str:
+        mode = str(value or "custom").strip().lower()
+        if mode in {"source", "inherit", "same"}:
+            return "source"
+        return "custom"
+
+    @field_validator("sampler", mode="before")
+    @classmethod
+    def _normalize_detailer_sampler(cls, value: Any) -> str:
+        sampler = _string_value(value).strip()
+        return sampler or "euler"
+
+    @field_validator("scheduler", mode="before")
+    @classmethod
+    def _normalize_detailer_scheduler(cls, value: Any) -> str:
+        scheduler = _string_value(value).strip()
+        return scheduler or "normal"
 
     @field_validator("steps", mode="before")
     @classmethod

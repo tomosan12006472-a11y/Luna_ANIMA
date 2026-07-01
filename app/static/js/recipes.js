@@ -1,4 +1,4 @@
-import { $, escapePathSegment, text } from "./dom.js?v=v1.68-detailer-max-area-20260702";
+import { $, escapePathSegment, text } from "./dom.js?v=v1.69-detailer-sampling-20260702";
 
 export function createRecipesFeature({
   api,

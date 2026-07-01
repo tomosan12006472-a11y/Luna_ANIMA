@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.68-detailer-max-area-20260702";
+} from "./dom.js?v=v1.69-detailer-sampling-20260702";
 
 export function createSettingsFeature({
   api,

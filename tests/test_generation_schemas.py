@@ -101,6 +101,20 @@ class GenerationSchemaTests(unittest.TestCase):
         for preset in ("safe", "normal", "aggressive"):
             self.assertEqual(detailer_preset_settings("face", preset)["max_area_ratio"], 1.0)
 
+    def test_detailer_sampler_settings_default_and_source_mode(self) -> None:
+        face = FaceDetailerRequestSettings.model_validate({"sampler_mode": "same", "sampler": "", "scheduler": ""}).model_dump()
+        hand = HandDetailerRequestSettings.model_validate({"sampler_mode": "bad", "sampler": "er_sde", "scheduler": "simple"}).model_dump()
+
+        self.assertEqual(FaceDetailerRequestSettings().sampler_mode, "custom")
+        self.assertEqual(FaceDetailerRequestSettings().sampler, "euler")
+        self.assertEqual(FaceDetailerRequestSettings().scheduler, "normal")
+        self.assertEqual(face["sampler_mode"], "source")
+        self.assertEqual(face["sampler"], "euler")
+        self.assertEqual(face["scheduler"], "normal")
+        self.assertEqual(hand["sampler_mode"], "custom")
+        self.assertEqual(hand["sampler"], "er_sde")
+        self.assertEqual(hand["scheduler"], "simple")
+
     def test_hires_fix_defaults_clamp_and_mode_fallback(self) -> None:
         data = HiresFixSettings.model_validate({"enabled": True, "mode": "bad", "upscale_factor": 99, "denoise": -1, "steps": 999})
 

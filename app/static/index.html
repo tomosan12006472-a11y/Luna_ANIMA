@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.68-detailer-max-area-20260702">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.69-detailer-sampling-20260702">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -522,6 +522,9 @@
           <label class="field"><span class="lbl">DENOISE</span><input id="fdDenoise" type="number" min="0" max="1" step="0.01" value="0.30"></label>
           <label class="field"><span class="lbl">STEPS</span><input id="fdSteps" type="number" min="1" max="60" value="12"></label>
           <label class="field"><span class="lbl">CFG</span><input id="fdCfg" type="number" min="0" max="30" step="0.1" value="4.0"></label>
+          <label class="field"><span class="lbl">SAMPLER MODE</span><select id="fdSamplerMode"><option value="custom" selected>Detailer custom</option><option value="source">Use source</option></select></label>
+          <label class="field"><span class="lbl">SAMPLER</span><select id="fdSamplerSelect"><option value="euler" selected>euler</option></select></label>
+          <label class="field"><span class="lbl">SCHEDULER</span><select id="fdSchedulerSelect"><option value="normal" selected>normal</option></select></label>
           <label class="field"><span class="lbl">BBOX THRESHOLD</span><input id="fdBbox" type="number" min="0.05" max="0.95" step="0.01" value="0.65"></label>
         </div>
         <details class="compact-more">
@@ -553,6 +556,9 @@
           <label class="field"><span class="lbl">DENOISE</span><input id="hdDenoise" type="number" min="0" max="1" step="0.01" value="0.45"></label>
           <label class="field"><span class="lbl">STEPS</span><input id="hdSteps" type="number" min="1" max="60" value="14"></label>
           <label class="field"><span class="lbl">CFG</span><input id="hdCfg" type="number" min="0" max="30" step="0.1" value="4.0"></label>
+          <label class="field"><span class="lbl">SAMPLER MODE</span><select id="hdSamplerMode"><option value="custom" selected>Detailer custom</option><option value="source">Use source</option></select></label>
+          <label class="field"><span class="lbl">SAMPLER</span><select id="hdSamplerSelect"><option value="euler" selected>euler</option></select></label>
+          <label class="field"><span class="lbl">SCHEDULER</span><select id="hdSchedulerSelect"><option value="normal" selected>normal</option></select></label>
           <label class="field"><span class="lbl">BBOX THRESHOLD</span><input id="hdBbox" type="number" min="0.05" max="0.95" step="0.01" value="0.45"></label>
           <label class="field"><span class="lbl">LLLITE</span><input id="hdLlliteStrength" type="number" min="0" max="2" step="0.05" value="0.85"></label>
         </div>
@@ -821,7 +827,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.68-detailer-max-area-20260702"></script>
-  <script src="/static/app.js?v=v1.68-detailer-max-area-20260702"></script>
+  <script src="/static/ui.js?v=v1.69-detailer-sampling-20260702"></script>
+  <script src="/static/app.js?v=v1.69-detailer-sampling-20260702"></script>
 </body>
 </html>

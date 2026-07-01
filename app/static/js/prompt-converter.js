@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.68-detailer-max-area-20260702";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.68-detailer-max-area-20260702";
+import { $, text, value } from "./dom.js?v=v1.69-detailer-sampling-20260702";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v1.69-detailer-sampling-20260702";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 

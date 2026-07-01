@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.68-detailer-max-area-20260702";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.68-detailer-max-area-20260702";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.68-detailer-max-area-20260702";
-import { onDomReady } from "./bootstrap.js?v=v1.68-detailer-max-area-20260702";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.69-detailer-sampling-20260702";
+import { dispatchAction, registerActions } from "./actions.js?v=v1.69-detailer-sampling-20260702";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.69-detailer-sampling-20260702";
+import { onDomReady } from "./bootstrap.js?v=v1.69-detailer-sampling-20260702";
 import {
   $,
   $$,
@@ -11,25 +11,25 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.68-detailer-max-area-20260702";
-import { createAssistHubFeature } from "./assist-hub.js?v=v1.68-detailer-max-area-20260702";
-import { createCharacterFeature } from "./characters.js?v=v1.68-detailer-max-area-20260702";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.68-detailer-max-area-20260702";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.68-detailer-max-area-20260702";
-import { createHistoryFeature } from "./history.js?v=v1.68-detailer-max-area-20260702";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.68-detailer-max-area-20260702";
-import { createI2iFeature } from "./i2i.js?v=v1.68-detailer-max-area-20260702";
-import { createLoraFeature } from "./loras.js?v=v1.68-detailer-max-area-20260702";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.68-detailer-max-area-20260702";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.68-detailer-max-area-20260702";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.68-detailer-max-area-20260702";
-import { createQueueFeature } from "./queue.js?v=v1.68-detailer-max-area-20260702";
-import { createReferenceFeature } from "./reference.js?v=v1.68-detailer-max-area-20260702";
-import { createSettingsFeature } from "./settings.js?v=v1.68-detailer-max-area-20260702";
-import { createInitialState } from "./state.js?v=v1.68-detailer-max-area-20260702";
-import { createDetailerFeature } from "./detailers.js?v=v1.68-detailer-max-area-20260702";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.68-detailer-max-area-20260702";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.68-detailer-max-area-20260702";
+} from "./dom.js?v=v1.69-detailer-sampling-20260702";
+import { createAssistHubFeature } from "./assist-hub.js?v=v1.69-detailer-sampling-20260702";
+import { createCharacterFeature } from "./characters.js?v=v1.69-detailer-sampling-20260702";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.69-detailer-sampling-20260702";
+import { createGenerationFormFeature } from "./generation-form.js?v=v1.69-detailer-sampling-20260702";
+import { createHistoryFeature } from "./history.js?v=v1.69-detailer-sampling-20260702";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.69-detailer-sampling-20260702";
+import { createI2iFeature } from "./i2i.js?v=v1.69-detailer-sampling-20260702";
+import { createLoraFeature } from "./loras.js?v=v1.69-detailer-sampling-20260702";
+import { createPromptRandomUi } from "./prompt-random.js?v=v1.69-detailer-sampling-20260702";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.69-detailer-sampling-20260702";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.69-detailer-sampling-20260702";
+import { createQueueFeature } from "./queue.js?v=v1.69-detailer-sampling-20260702";
+import { createReferenceFeature } from "./reference.js?v=v1.69-detailer-sampling-20260702";
+import { createSettingsFeature } from "./settings.js?v=v1.69-detailer-sampling-20260702";
+import { createInitialState } from "./state.js?v=v1.69-detailer-sampling-20260702";
+import { createDetailerFeature } from "./detailers.js?v=v1.69-detailer-sampling-20260702";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.69-detailer-sampling-20260702";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.69-detailer-sampling-20260702";
 
 (() => {
   "use strict";
@@ -245,6 +245,7 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.68-detail
     fillSelect("#schedulerSelect", data.schedulers || [], value("#schedulerSelect", state.defaults.scheduler || state.appSettings.scheduler || ""));
     fillSelect("#hiresMethod", data.upscale_methods || [], value("#hiresMethod", state.appSettings.hires_fix?.latent_upscale_method || state.appSettings.hires_fix?.upscale_method || "nearest-exact"));
     fillSelect("#hiresModel", data.upscale_models || [], value("#hiresModel", state.appSettings.hires_fix?.upscale_model || ""));
+    detailers.refreshSamplingOptions?.();
     return data;
   }
 
@@ -344,16 +345,17 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.68-detail
       (checked("#fdEnabled") || checked("#hdEnabled")) ? "Detailer ON" : "",
     ].filter(Boolean);
     text("#heroAssistSummary", assistParts.join(" · "));
+    const detailerSampling = (settings = {}) => settings.sampler_mode === "source" ? "source sampler" : `${settings.sampler || "euler"}/${settings.scheduler || "normal"}`;
     text(
       "#fdSummary",
       checked("#fdEnabled")
-        ? `ON · ${req.face_detailer.preset || "custom"} · max ${req.face_detailer.max_detections} · bbox ${Number(req.face_detailer.bbox_threshold).toFixed(2)}`
+        ? `ON · ${req.face_detailer.preset || "custom"} · ${detailerSampling(req.face_detailer)} · max ${req.face_detailer.max_detections} · bbox ${Number(req.face_detailer.bbox_threshold).toFixed(2)}`
         : "OFF",
     );
     text(
       "#hdSummary",
       checked("#hdEnabled")
-        ? `ON · ${req.hand_detailer.preset || "custom"} · max ${req.hand_detailer.max_detections} · L${Number(req.hand_detailer.lllite_strength).toFixed(2)}`
+        ? `ON · ${req.hand_detailer.preset || "custom"} · ${detailerSampling(req.hand_detailer)} · max ${req.hand_detailer.max_detections} · L${Number(req.hand_detailer.lllite_strength).toFixed(2)}`
         : "OFF",
     );
     tuningControls?.renderStatus(req);
