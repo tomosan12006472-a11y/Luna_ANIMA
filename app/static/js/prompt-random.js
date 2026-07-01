@@ -6,7 +6,7 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
+} from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
 
 const PROMPT_RANDOM_MODES = new Set(["random", "positive_completion"]);
 const PROMPT_RANDOM_DEFAULT_INSTRUCTIONS = {

@@ -1,4 +1,4 @@
-import { $, $$ } from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { $, $$ } from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
 
 export function createAssistHubFeature() {
   const activeTabs = new Map();

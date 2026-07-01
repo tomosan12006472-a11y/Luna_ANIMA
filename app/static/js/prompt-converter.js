@@ -1,5 +1,5 @@
-import { $, text, value } from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
-import { promptExcerpt } from "./prompt-library-utils.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { $, text, value } from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
+import { promptExcerpt } from "./prompt-library-utils.js?v=v1.66-upperbody-outfit-wildcards-20260701";
 
 const SCORE_TAG_RE = /^[([{]*score_\d+(?:_up)?(?::[0-9.]+)?[\])}]*$/i;
 

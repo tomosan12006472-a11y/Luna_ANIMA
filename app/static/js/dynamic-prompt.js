@@ -1,4 +1,4 @@
-import { $, numberValue, value } from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
+import { $, numberValue, value } from "./dom.js?v=v1.66-upperbody-outfit-wildcards-20260701";
 
 export function createDynamicPromptFeature({
   api,
@@ -6,7 +6,7 @@ export function createDynamicPromptFeature({
   helpers,
 } = {}) {
   const { insertPositivePromptText } = helpers || {};
-  const foldableWildcardPrefixes = new Set(["outfit", "outfit_nsfw"]);
+  const foldableWildcardPrefixes = new Set(["outfit", "outfit_nsfw", "outfit_upperbody", "outfit_nsfw_upperbody"]);
 
   function createWildcardChip(name) {
     const chip = document.createElement("button");

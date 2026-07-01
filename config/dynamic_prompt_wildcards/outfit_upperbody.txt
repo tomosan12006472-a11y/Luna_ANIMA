@@ -1,0 +1,10 @@
+__outfit_upperbody/casual__
+__outfit_upperbody/formal__
+__outfit_upperbody/traditional__
+__outfit_upperbody/work__
+__outfit_upperbody/sports__
+__outfit_upperbody/fantasy__
+__outfit_upperbody/stage__
+__outfit_upperbody/seasonal__
+__outfit_upperbody/home__
+__outfit_upperbody/swim__
