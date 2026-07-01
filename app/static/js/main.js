@@ -1,7 +1,7 @@
-import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v1.69-detailer-sampling-20260702";
-import { dispatchAction, registerActions } from "./actions.js?v=v1.69-detailer-sampling-20260702";
-import { createAppShell, exitToLogin } from "./app-shell.js?v=v1.69-detailer-sampling-20260702";
-import { onDomReady } from "./bootstrap.js?v=v1.69-detailer-sampling-20260702";
+import { createApiClient, errorMessage, isUnauthorized } from "./api.js?v=v2.0-drawers-20260702";
+import { dispatchAction, registerActions } from "./actions.js?v=v2.0-drawers-20260702";
+import { createAppShell, exitToLogin } from "./app-shell.js?v=v2.0-drawers-20260702";
+import { onDomReady } from "./bootstrap.js?v=v2.0-drawers-20260702";
 import {
   $,
   $$,
@@ -11,25 +11,25 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.69-detailer-sampling-20260702";
-import { createAssistHubFeature } from "./assist-hub.js?v=v1.69-detailer-sampling-20260702";
-import { createCharacterFeature } from "./characters.js?v=v1.69-detailer-sampling-20260702";
-import { createGenerationActionsFeature } from "./generation-actions.js?v=v1.69-detailer-sampling-20260702";
-import { createGenerationFormFeature } from "./generation-form.js?v=v1.69-detailer-sampling-20260702";
-import { createHistoryFeature } from "./history.js?v=v1.69-detailer-sampling-20260702";
-import { createHistoryReuseFeature } from "./history-reuse.js?v=v1.69-detailer-sampling-20260702";
-import { createI2iFeature } from "./i2i.js?v=v1.69-detailer-sampling-20260702";
-import { createLoraFeature } from "./loras.js?v=v1.69-detailer-sampling-20260702";
-import { createPromptRandomUi } from "./prompt-random.js?v=v1.69-detailer-sampling-20260702";
-import { createPromptLibraryFeature } from "./prompt-library.js?v=v1.69-detailer-sampling-20260702";
-import { createPromptPresetsFeature } from "./prompt-presets.js?v=v1.69-detailer-sampling-20260702";
-import { createQueueFeature } from "./queue.js?v=v1.69-detailer-sampling-20260702";
-import { createReferenceFeature } from "./reference.js?v=v1.69-detailer-sampling-20260702";
-import { createSettingsFeature } from "./settings.js?v=v1.69-detailer-sampling-20260702";
-import { createInitialState } from "./state.js?v=v1.69-detailer-sampling-20260702";
-import { createDetailerFeature } from "./detailers.js?v=v1.69-detailer-sampling-20260702";
-import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v1.69-detailer-sampling-20260702";
-import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.69-detailer-sampling-20260702";
+} from "./dom.js?v=v2.0-drawers-20260702";
+import { createAssistHubFeature } from "./assist-hub.js?v=v2.0-drawers-20260702";
+import { createCharacterFeature } from "./characters.js?v=v2.0-drawers-20260702";
+import { createGenerationActionsFeature } from "./generation-actions.js?v=v2.0-drawers-20260702";
+import { createGenerationFormFeature } from "./generation-form.js?v=v2.0-drawers-20260702";
+import { createHistoryFeature } from "./history.js?v=v2.0-drawers-20260702";
+import { createHistoryReuseFeature } from "./history-reuse.js?v=v2.0-drawers-20260702";
+import { createI2iFeature } from "./i2i.js?v=v2.0-drawers-20260702";
+import { createLoraFeature } from "./loras.js?v=v2.0-drawers-20260702";
+import { createPromptRandomUi } from "./prompt-random.js?v=v2.0-drawers-20260702";
+import { createPromptLibraryFeature } from "./prompt-library.js?v=v2.0-drawers-20260702";
+import { createPromptPresetsFeature } from "./prompt-presets.js?v=v2.0-drawers-20260702";
+import { createQueueFeature } from "./queue.js?v=v2.0-drawers-20260702";
+import { createReferenceFeature } from "./reference.js?v=v2.0-drawers-20260702";
+import { createSettingsFeature } from "./settings.js?v=v2.0-drawers-20260702";
+import { createInitialState } from "./state.js?v=v2.0-drawers-20260702";
+import { createDetailerFeature } from "./detailers.js?v=v2.0-drawers-20260702";
+import { addMetaRow, characterSummary, fillSelect } from "./render-helpers.js?v=v2.0-drawers-20260702";
+import { createTuningControlsFeature } from "./tuning-controls.js?v=v2.0-drawers-20260702";
 
 (() => {
   "use strict";
@@ -260,9 +260,18 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.69-detail
   function updateSummaries() {
     const req = collectRequest();
     const officialParts = officialLoraSummaryParts(req.official_loras);
-    text("#techSummary", `${req.width}×${req.height} · ${req.steps} · ${req.cfg} · shift${req.shift}`);
+    const techLabel = `${req.width}×${req.height} · ${req.steps} · ${req.cfg} · shift${req.shift}`;
+    text("#techSummary", techLabel);
+    text("#secDevelopValue", techLabel);
     text("#officialLoraSummary", officialParts.length ? officialParts.join(" · ") : "OFF");
-    text("#heroTechSummary", `${req.width}×${req.height} · ${req.steps} steps · CFG ${req.cfg}`);
+    const subjectCount = [
+      req.character1,
+      req.character2,
+      req.character3,
+      req.original_character,
+    ].filter((item) => item && item !== "None").length;
+    text("#secSubjectValue", subjectCount ? `${subjectCount}件選択` : "未選択");
+    UI.railMark?.("sec-subject", subjectCount > 0);
     const sceneParts = [
       req.outfit_prompt,
       req.expression_prompt,
@@ -293,12 +302,22 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.69-detail
     ];
     text("#refModSummary", refParts.join(" / "));
     const promptLength = String(req.positive_prompt || "").trim().length;
-    text("#promptWorkbenchSummary", [
+    const promptLabel = [
       `Prompt ${promptLength}`,
       `Neg ${negMode}`,
       req.prompt_random_collect.enabled ? "Random ON" : "Random OFF",
       value("#promptConverterSummary", "LOCAL"),
-    ].join(" · "));
+    ].join(" · ");
+    text("#promptWorkbenchSummary", promptLabel);
+    text("#secPromptValue", promptLabel);
+    UI.railMark?.("sec-prompt", Boolean(promptLength || req.negative_prompt || req.prompt_ban));
+    const toolsLabel = [
+      `Convert ${value("#promptConverterSummary", "LOCAL")}`,
+      req.prompt_random_collect.enabled ? "Random ON" : "Random OFF",
+      checked("#resetComfyCache") ? "Cache reset ON" : "",
+    ].filter(Boolean).join(" · ");
+    text("#secToolsValue", toolsLabel);
+    UI.railMark?.("sec-tools", Boolean(req.prompt_random_collect.enabled || checked("#resetComfyCache")));
     const loraRows = Array.isArray(req.loras) ? req.loras : [];
     const loraOn = loraRows.filter((row) => row?.enabled !== false && row?.name).length + officialParts.length;
     const loraOff = loraRows.filter((row) => row?.enabled === false && row?.name).length;
@@ -326,7 +345,10 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.69-detail
       : (officialParts.length ? `Official ${officialParts.length} ON` : "Official OFF");
     const slotsLabel = loraRows.length ? `Slots ${slotOn}/${loraRows.length}${slotOff ? ` (${slotOff} OFF)` : ""}` : "Slots 0";
     const hiresLabel = req.hires_fix.enabled ? `Hires ${req.hires_fix.mode || "latent"} ×${Number(req.hires_fix.upscale_factor || 1.5)}` : "Hires OFF";
-    text("#assistHubSummary", `${officialLabel} · ${slotsLabel} · ${hiresLabel}`);
+    const boostLabel = `${officialLabel} · ${slotsLabel} · ${hiresLabel}`;
+    text("#assistHubSummary", boostLabel);
+    text("#secBoostValue", boostLabel);
+    UI.railMark?.("sec-boost", Boolean(officialParts.length || slotOn || req.hires_fix.enabled));
     const advancedLabel = [
       checked("#i2iEnabled") ? `i2i ${req.image_to_image.denoise}` : "i2i OFF",
       background.enabled ? `BG ${background.mode || "depth"}` : ((modules.outfit?.enabled || modules.pose?.enabled) ? "Ref ON" : "Ref OFF"),
@@ -336,15 +358,18 @@ import { createTuningControlsFeature } from "./tuning-controls.js?v=v1.69-detail
       ].filter(Boolean).join("+") : "Detailer OFF",
       req.dynamic_prompt.enabled ? "Dyn ON" : "Dyn OFF",
     ];
-    text("#advancedAssistSummary", advancedLabel.join(" · "));
-    const assistParts = [
-      loraOn ? `LoRA ${loraOn} ON${loraOff ? `/${loraOff} OFF` : ""}` : (loraOff ? `LoRA ${loraOff} OFF` : "LoRA OFF"),
-      background.enabled ? `BG ${background.mode || "depth"}` : ((modules.outfit?.enabled || modules.pose?.enabled) ? "Ref ON" : "Ref OFF"),
-      req.prompt_random_collect.enabled ? "Random ON" : "",
-      req.hires_fix.enabled ? "Hires ON" : "",
-      (checked("#fdEnabled") || checked("#hdEnabled")) ? "Detailer ON" : "",
-    ].filter(Boolean);
-    text("#heroAssistSummary", assistParts.join(" · "));
+    const retouchLabel = advancedLabel.join(" · ");
+    text("#advancedAssistSummary", retouchLabel);
+    text("#secRetouchValue", retouchLabel);
+    UI.railMark?.("sec-retouch", Boolean(
+      checked("#i2iEnabled")
+      || modules.outfit?.enabled
+      || modules.pose?.enabled
+      || background.enabled
+      || checked("#fdEnabled")
+      || checked("#hdEnabled")
+      || req.dynamic_prompt.enabled,
+    ));
     const detailerSampling = (settings = {}) => settings.sampler_mode === "source" ? "source sampler" : `${settings.sampler || "euler"}/${settings.scheduler || "normal"}`;
     text(
       "#fdSummary",

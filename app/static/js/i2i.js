@@ -137,11 +137,11 @@ export function createI2iFeature({
     applyItem(data.item);
     UI.closeSheets();
     UI.switchTab("expose");
-    const advanced = $("details[data-fold='advanced-assist']");
-    if (advanced) advanced.open = true;
-    $("[data-workbench-tabs='advanced'] [data-workbench-tab='image']")?.click();
-    const fold = $("details[data-fold='i2i']");
-    if (fold) fold.open = true;
+    const retouch = $("#sec-retouch");
+    if (retouch) {
+      retouch.open = true;
+      retouch.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     text("#i2iStatus", "下絵を設定しました");
     UI.toast("下絵に設定しました");
   }

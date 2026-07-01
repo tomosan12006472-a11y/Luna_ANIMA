@@ -330,11 +330,16 @@ export function createPromptRandomUi({
   }
 
   function bindEvents() {
-    $("details[data-fold='prompt-random']")?.addEventListener("toggle", (event) => {
+    const randomFold = $("details[data-fold='prompt-random']");
+    const loadStatus = () => loadPromptRandomStatus().catch((error) => UI.toast(errorMessage(error), "error"));
+    randomFold?.addEventListener("toggle", (event) => {
       if (event.target.open) {
-        loadPromptRandomStatus().catch((error) => UI.toast(errorMessage(error), "error"));
+        loadStatus();
       }
     });
+    if (!randomFold) {
+      $("#promptWorkbenchRandom")?.addEventListener("focusin", loadStatus, { once: true });
+    }
 
     $("#promptRandomEnabled")?.addEventListener("change", updateSummaries);
     $("#promptRandomIncludeCharacters")?.addEventListener("change", updateSummaries);
