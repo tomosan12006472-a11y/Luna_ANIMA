@@ -80,11 +80,11 @@ export function createPromptRandomUi({
 
   function promptRandomOnSummary() {
     const mode = normalizePromptRandomMode(value("#promptRandomMode", "random"));
-    const modeLabel = mode === "positive_completion" ? "補完" : "RANDOM";
+    const modeLabel = mode === "positive_completion" ? "補完" : "ランダム";
     const strength = normalizePromptRandomStrength(value("#promptRandomStrength", "standard"));
     const strengthLabel = PROMPT_RANDOM_STRENGTH_LABELS[strength] || "標準";
-    const charLabel = checked("#promptRandomIncludeCharacters") ? "CHAR" : "NO CHAR";
-    const motifLabel = checked("#promptRandomIncludeCharacters") && checked("#promptRandomUseCharacterMotifs") ? "MOTIF" : "NO MOTIF";
+    const charLabel = checked("#promptRandomIncludeCharacters") ? "キャラ" : "キャラなし";
+    const motifLabel = checked("#promptRandomIncludeCharacters") && checked("#promptRandomUseCharacterMotifs") ? "モチーフ" : "モチーフなし";
     return `ON / ${modeLabel} / ${strengthLabel} / ${charLabel} / ${motifLabel}`;
   }
 
@@ -284,7 +284,7 @@ export function createPromptRandomUi({
   function setPromptRandomStatus(data = {}) {
     if (data.enabled === false) {
       text("#promptRandomSummary", "DISABLED");
-      text("#promptRandomStatus", "Random Collect APIは設定で無効です。");
+      text("#promptRandomStatus", "ランダム補完APIは設定で無効です。");
       return;
     }
     if (data.reachable) {
@@ -294,7 +294,7 @@ export function createPromptRandomUi({
       return;
     }
     text("#promptRandomSummary", checked("#promptRandomEnabled") ? "OFFLINE" : "OFF");
-    text("#promptRandomStatus", data.message || "ローカルRandom Collect APIに接続できません。LM StudioなどのLocal Serverを起動してください。");
+      text("#promptRandomStatus", data.message || "ローカルランダム補完APIに接続できません。ローカルサーバアプリなどを起動してください。");
   }
 
   async function loadPromptRandomStatus(force = false) {

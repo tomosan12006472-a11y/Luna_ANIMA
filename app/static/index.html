@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v2.0-drawers-20260702">
+  <link rel="stylesheet" href="/static/styles.css?v=v2.1-polish-20260702">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -46,7 +46,7 @@
       </div>
       <div id="payloadPreviewPanel" class="payload-preview-panel hidden" aria-live="polite">
         <div class="payload-preview-head">
-          <span class="lbl">PAYLOAD PREVIEW</span>
+          <span class="lbl">PAYLOAD</span>
           <button type="button" class="ghost" data-action="payload-preview-close">閉じる</button>
         </div>
         <pre id="payloadPreview" class="printout"></pre>
@@ -84,15 +84,15 @@
         <div id="favRow" class="chiprow character-favorites" aria-label="お気に入り"></div>
         <div id="charResults" class="resultlist" aria-live="polite"></div>
         <div class="row">
-          <button type="button" class="ghost" data-action="random-slot">Randomにする</button>
+          <button type="button" class="ghost" data-action="random-slot">ランダムにする</button>
           <button type="button" class="ghost" data-action="clear-slot">選択中スロットを空にする</button>
           <button type="button" class="ghost" data-action="toggle-favorite-slot">★ お気に入り登録/解除</button>
         </div>
       </div>
 
       <details class="tray drawer compact-section" id="sec-prompt" data-fold="sec-prompt" open>
-        <summary><h2>構図</h2><span class="lbl">PROMPT</span><span class="lbl drawer-value" id="secPromptValue">Prompt 0 · Random OFF</span></summary>
-        <span class="hidden" id="promptWorkbenchSummary">Prompt 0 · Random OFF</span>
+        <summary><h2>構図</h2><span class="lbl">PROMPT</span><span class="lbl drawer-value" id="secPromptValue">入力 0 · ランダムOFF</span></summary>
+        <span class="hidden" id="promptWorkbenchSummary">入力 0 · ランダムOFF</span>
         <section class="drawer-panel" id="promptWorkbenchWrite">
         <label class="field"><span class="lbl">RATING</span></label>
         <div class="seg" id="ratingSeg" role="group" aria-label="rating">
@@ -146,10 +146,10 @@
       </details>
 
       <details class="tray drawer compact-section workbench" id="sec-tools" data-fold="sec-tools" open>
-        <summary><h2>道具</h2><span class="lbl">TOOLS</span><span class="lbl drawer-value" id="secToolsValue">Convert · Random OFF</span></summary>
-        <div class="tool-switch workbench-tabs" id="assistHubTabs" data-workbench-tabs="tools" role="tablist" aria-label="道具">
+        <summary><h2>道具</h2><span class="lbl">TOOLS</span><span class="lbl drawer-value" id="secToolsValue">変換 · ランダムOFF</span></summary>
+        <div class="tool-switch" id="assistHubTabs" data-workbench-tabs="tools" role="tablist" aria-label="道具">
           <button type="button" class="ghost is-active" data-workbench-tab="convert" aria-controls="promptWorkbenchConvert" aria-selected="true" role="tab">変換</button>
-          <button type="button" class="ghost" data-workbench-tab="random" aria-controls="promptWorkbenchRandom" aria-selected="false" role="tab" tabindex="-1">Random</button>
+          <button type="button" class="ghost" data-workbench-tab="random" aria-controls="promptWorkbenchRandom" aria-selected="false" role="tab" tabindex="-1">ランダム</button>
           <button type="button" class="ghost" data-workbench-tab="auto" aria-controls="promptWorkbenchMore" aria-selected="false" role="tab" tabindex="-1">Auto</button>
           <button type="button" class="ghost" data-workbench-tab="dictionary" aria-controls="promptToolsDictionary" aria-selected="false" role="tab" tabindex="-1">辞書</button>
         </div>
@@ -175,7 +175,7 @@
         </section>
 
         <section class="drawer-panel hidden" id="promptWorkbenchRandom" data-workbench-panel="random" role="tabpanel" hidden>
-          <div class="assist-panel-head"><span class="lbl">Prompt Random Collect</span><span class="lbl" id="promptRandomSummary">OFF</span></div>
+          <div class="assist-panel-head"><span class="lbl">ランダム補完</span><span class="lbl" id="promptRandomSummary">OFF</span></div>
           <div class="switchline">
             <input id="promptRandomEnabled" type="checkbox">
             <span class="grow">露光直前にAIでタグを追加・補完する</span>
@@ -223,11 +223,11 @@
         </section>
 
         <section class="drawer-panel hidden" id="promptWorkbenchMore" data-workbench-panel="auto" role="tabpanel" hidden>
-          <div class="assist-panel-head"><span class="lbl">Auto Insert</span><span class="lbl" id="autoInsertSummary">—</span></div>
-          <label class="field"><span class="lbl">QUALITY AUTO INSERT</span>
+          <div class="assist-panel-head"><span class="lbl">自動挿入</span><span class="lbl" id="autoInsertSummary">—</span></div>
+          <label class="field"><span class="lbl">品質の自動挿入</span>
             <textarea id="qualityPrompt" rows="2" placeholder="masterpiece, best quality ..."></textarea>
           </label>
-          <label class="field"><span class="lbl">RATING AUTO INSERT</span>
+          <label class="field"><span class="lbl">レーティングの自動挿入</span>
             <textarea id="ratingPrompt" rows="1" placeholder="safe"></textarea>
           </label>
           <div class="row">
@@ -254,7 +254,7 @@
         </section>
 
         <section class="drawer-panel hidden" id="promptToolsDictionary" data-workbench-panel="dictionary" role="tabpanel" hidden>
-          <div class="assist-panel-head"><span class="lbl">Prompt辞書</span><span class="lbl">SEARCH</span></div>
+          <div class="assist-panel-head"><span class="lbl">辞書</span><span class="lbl">SEARCH</span></div>
           <label class="field"><span class="lbl">挿入先</span>
             <select id="dictTarget">
               <option value="positive">Positive</option>
@@ -269,23 +269,23 @@
         </section>
 
         <section class="drawer-panel tool-bulk" id="assistHubQuick">
-          <div class="assist-panel-head"><span class="lbl">一括操作</span><span class="lbl" id="quickControlsSummary">SESSION</span></div>
-          <p id="tuningQuickStatus" class="hint" aria-live="polite">snapshot未保存</p>
+          <div class="assist-panel-head"><span class="lbl">一括操作</span><span class="lbl" id="quickControlsSummary">TOOLS</span></div>
+          <p id="tuningQuickStatus" class="hint" aria-live="polite">記録なし</p>
           <div class="row tuning-primary">
-            <button type="button" class="ghost" data-action="tuning-snapshot">Snapshot</button>
-            <button type="button" class="ghost" data-action="tuning-restore">Restore</button>
-            <button type="button" class="ghost" data-action="assist-disable-all">Assist OFF</button>
-            <button type="button" class="ghost" data-action="assist-restore">Assist Restore</button>
+            <button type="button" class="ghost" data-action="tuning-snapshot">記録</button>
+            <button type="button" class="ghost" data-action="tuning-restore">復元</button>
+            <button type="button" class="ghost" data-action="assist-disable-all">補助OFF</button>
+            <button type="button" class="ghost" data-action="assist-restore">補助復元</button>
           </div>
           <details class="compact-more" data-fold="quick-controls-bulk">
             <summary>個別一括ON/OFF</summary>
             <div class="row tuning-bulk">
               <button type="button" class="ghost" data-action="lora-disable-all">LoRA OFF</button>
               <button type="button" class="ghost" data-action="lora-enable-all">LoRA ON</button>
-              <button type="button" class="ghost" data-action="reference-disable-all">Ref OFF</button>
-              <button type="button" class="ghost" data-action="reference-enable-all">Ref ON</button>
-              <button type="button" class="ghost" data-action="detailers-disable-all">Detailer OFF</button>
-              <button type="button" class="ghost" data-action="detailers-enable-all">Detailer ON</button>
+              <button type="button" class="ghost" data-action="reference-disable-all">参照OFF</button>
+              <button type="button" class="ghost" data-action="reference-enable-all">参照ON</button>
+              <button type="button" class="ghost" data-action="detailers-disable-all">補正OFF</button>
+              <button type="button" class="ghost" data-action="detailers-enable-all">補正ON</button>
             </div>
           </details>
         </section>
@@ -301,7 +301,7 @@
             <button type="button" class="chip" data-size="1024x1024">正方 1024</button>
             <button type="button" class="chip" data-size="1536x1024">横 1536×1024</button>
           </div>
-          <div class="grid2" style="margin-top:8px">
+          <div class="grid2 size-grid">
             <label class="field"><span class="lbl">WIDTH</span><input id="widthInput" type="number" min="512" max="2048" step="8" value="1024"></label>
             <label class="field"><span class="lbl">HEIGHT</span><input id="heightInput" type="number" min="512" max="2048" step="8" value="1536"></label>
             <label class="field"><span class="lbl">STEPS</span><input id="stepsInput" type="number" min="1" max="100" value="32"></label>
@@ -318,7 +318,7 @@
         </section>
 
         <div class="drawer-panel">
-          <div class="assist-panel-head"><span class="lbl">Quick Controls</span><span class="lbl">CACHE</span></div>
+          <div class="assist-panel-head"><span class="lbl">キャッシュ</span><span class="lbl">CACHE</span></div>
           <div class="switchline">
             <input id="resetComfyCache" type="checkbox">
             <span class="grow">キャラ崩れ対策: 次回生成前にComfyUI cacheを解放</span>
@@ -327,9 +327,9 @@
         </div>
       </details>
 
-      <details class="tray drawer compact-section assist-hub" id="sec-boost" data-fold="sec-boost" open>
-        <summary><h2>増感</h2><span class="lbl">BOOST</span><span class="lbl drawer-value" id="secBoostValue">Official OFF · Slots 0 · Hires OFF</span></summary>
-        <span class="hidden" id="assistHubSummary">Official OFF · Slots 0 · Hires OFF</span>
+      <details class="tray drawer compact-section" id="sec-boost" data-fold="sec-boost" open>
+        <summary><h2>増感</h2><span class="lbl">BOOST</span><span class="lbl drawer-value" id="secBoostValue">公式OFF · スロット 0 · 高解像OFF</span></summary>
+        <span class="hidden" id="assistHubSummary">公式OFF · スロット 0 · 高解像OFF</span>
         <section class="drawer-panel" id="assistHubOfficial">
           <div class="assist-panel-head"><span class="lbl">ANIMA公式LoRA</span><span class="lbl" id="officialLoraSummary">OFFICIAL</span></div>
           <div class="grid2 official-preset-row">
@@ -364,7 +364,7 @@
 
         <section class="drawer-panel" id="assistHubLora">
           <div class="tray-head compact-head"><span><span class="lbl">LoRAスロット</span> <span class="lbl" id="loraSlotSummary">0 ON</span></span>
-            <div class="row" style="margin:0">
+            <div class="row inline-row">
               <button type="button" class="ghost compact-action" data-action="refresh-lora-catalog">一覧更新</button>
               <button type="button" class="ghost compact-action" data-action="add-lora">+ 追加</button>
             </div>
@@ -376,11 +376,11 @@
         <hr class="drawer-rule">
 
         <section class="drawer-panel" id="assistHubHires">
-          <div class="assist-panel-head"><span class="lbl">Hires.fix</span><span class="lbl" id="hiresSummary">OFF</span></div>
+          <div class="assist-panel-head"><span class="lbl">高解像補助</span><span class="lbl" id="hiresSummary">OFF</span></div>
           <p class="hint">仕上げ用の高解像度描き直し。生成時間は伸びます。</p>
           <div class="switchline">
             <input id="hiresEnabled" type="checkbox">
-            <span class="grow">Hires.fix を使う</span>
+            <span class="grow">高解像補助を使う</span>
           </div>
           <div class="grid2">
             <label class="field"><span class="lbl">MODE</span>
@@ -398,10 +398,10 @@
       </details>
 
       <details class="tray drawer compact-section" id="sec-retouch" data-fold="sec-retouch" open>
-        <summary><h2>修整</h2><span class="lbl">RETOUCH</span><span class="lbl drawer-value" id="secRetouchValue">i2i OFF · Ref OFF · Detailer OFF</span></summary>
-        <span class="hidden" id="advancedAssistSummary">i2i OFF · Ref OFF · Detailer OFF</span>
+        <summary><h2>修整</h2><span class="lbl">RETOUCH</span><span class="lbl drawer-value" id="secRetouchValue">下絵OFF · 参照OFF · 補正OFF</span></summary>
+        <span class="hidden" id="advancedAssistSummary">下絵OFF · 参照OFF · 補正OFF</span>
         <section class="drawer-panel" id="advancedAssistImage">
-        <div class="assist-panel-head"><span class="lbl">Image to Image</span><span class="lbl" id="i2iSummary">OFF</span></div>
+        <div class="assist-panel-head"><span class="lbl">下絵</span><span class="lbl" id="i2iSummary">OFF</span></div>
         <div class="switchline">
           <input id="i2iEnabled" type="checkbox">
           <span class="grow">選択した画像を下絵にする</span>
@@ -436,7 +436,7 @@
         <p class="hint">服装・ポーズ・背景を参照画像で固定。足りないノードは生成時に通知します。</p>
         <div class="switchline">
           <input id="outfitEnabled" type="checkbox">
-          <span class="grow">Outfit固定(服の色・形を参照)</span>
+          <span class="grow">服装固定(服の色・形を参照)</span>
         </div>
         <div class="grid2">
           <label class="field"><span class="lbl">STRENGTH</span><input id="outfitStrength" type="number" min="0" max="1" step="0.05" value="0.45"></label>
@@ -449,10 +449,10 @@
           <button type="button" class="ghost" data-action="outfit-clear">解除</button>
         </div>
         <div id="outfitPreview" class="i2i-preview is-empty">Outfit参照は未選択です。</div>
-        <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+        <hr class="drawer-rule">
         <div class="switchline">
           <input id="poseEnabled" type="checkbox">
-          <span class="grow">Pose固定(ポーズだけ参照)</span>
+          <span class="grow">ポーズ固定(ポーズだけ参照)</span>
         </div>
         <div class="grid2">
           <label class="field"><span class="lbl">MODE</span>
@@ -468,10 +468,10 @@
           <button type="button" class="ghost" data-action="pose-clear">解除</button>
         </div>
         <div id="posePreview" class="i2i-preview is-empty">Pose参照は未選択です。</div>
-        <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+        <hr class="drawer-rule">
         <div class="switchline">
           <input id="backgroundEnabled" type="checkbox">
-          <span class="grow">Background Reference(背景の構図・奥行き・輪郭を参照)</span>
+          <span class="grow">背景参照(背景の構図・奥行き・輪郭を参照)</span>
         </div>
         <div class="grid2">
           <label class="field"><span class="lbl">MODE</span>
@@ -495,18 +495,18 @@
         </div>
         <input id="backgroundFile" type="file" accept="image/png,image/jpeg,image/webp">
         <div class="row">
-          <button type="button" class="ghost" data-action="background-upload">Upload Background</button>
-          <button type="button" class="ghost" data-action="background-clear">Clear</button>
+          <button type="button" class="ghost" data-action="background-upload">背景参照を設定</button>
+          <button type="button" class="ghost" data-action="background-clear">解除</button>
         </div>
-        <div id="backgroundPreview" class="i2i-preview is-empty">Background Referenceは未選択です。</div>
+        <div id="backgroundPreview" class="i2i-preview is-empty">背景参照は未選択です。</div>
         <p id="refModStatus" class="hint" aria-live="polite"></p>
         </section>
 
         <hr class="drawer-rule">
 
         <section class="drawer-panel" id="advancedAssistFinish">
-        <div class="nested-workbench">
-        <div class="assist-panel-head"><span class="lbl">Face Detailer</span><span class="lbl" id="fdSummary">OFF</span></div>
+        <div class="detailer-block">
+        <div class="assist-panel-head"><span class="lbl">顔補正</span><span class="lbl" id="fdSummary">OFF</span></div>
         <p class="hint">生成後に顔を自動検出して描き直します。生成時間は少し伸びます。</p>
         <div class="switchline">
           <input id="fdEnabled" type="checkbox">
@@ -518,13 +518,13 @@
           <label class="field"><span class="lbl">DENOISE</span><input id="fdDenoise" type="number" min="0" max="1" step="0.01" value="0.30"></label>
           <label class="field"><span class="lbl">STEPS</span><input id="fdSteps" type="number" min="1" max="60" value="12"></label>
           <label class="field"><span class="lbl">CFG</span><input id="fdCfg" type="number" min="0" max="30" step="0.1" value="4.0"></label>
-          <label class="field"><span class="lbl">SAMPLER MODE</span><select id="fdSamplerMode"><option value="custom" selected>Detailer custom</option><option value="source">Use source</option></select></label>
+          <label class="field"><span class="lbl">SAMPLER MODE</span><select id="fdSamplerMode"><option value="custom" selected>補正個別</option><option value="source">元設定</option></select></label>
           <label class="field"><span class="lbl">SAMPLER</span><select id="fdSamplerSelect"><option value="euler" selected>euler</option></select></label>
           <label class="field"><span class="lbl">SCHEDULER</span><select id="fdSchedulerSelect"><option value="normal" selected>normal</option></select></label>
           <label class="field"><span class="lbl">BBOX THRESHOLD</span><input id="fdBbox" type="number" min="0.05" max="0.95" step="0.01" value="0.65"></label>
         </div>
         <details class="compact-more">
-          <summary><span class="lbl">Detection guard</span><span class="hint">area / runaway</span></summary>
+          <summary><span class="lbl">検出ガード</span><span class="hint">面積 / 暴走</span></summary>
           <div class="grid2">
             <label class="field"><span class="lbl">MIN AREA</span><input id="fdMinAreaRatio" type="number" min="0" max="0.1" step="0.0001" value="0.0008"></label>
             <label class="field"><span class="lbl">MAX AREA</span><input id="fdMaxAreaRatio" type="number" min="0.01" max="1" step="0.01" value="1.00"></label>
@@ -539,8 +539,8 @@
         <p id="fdStatus" class="hint" aria-live="polite"></p>
         </div>
 
-        <div class="nested-workbench">
-        <div class="assist-panel-head"><span class="lbl">Hand Detailer</span><span class="lbl" id="hdSummary">OFF</span></div>
+        <div class="detailer-block">
+        <div class="assist-panel-head"><span class="lbl">手補正</span><span class="lbl" id="hdSummary">OFF</span></div>
         <p class="hint">生成後に手を自動検出し、Anima LLLite inpaintingで描き直します。</p>
         <div class="switchline">
           <input id="hdEnabled" type="checkbox">
@@ -552,14 +552,14 @@
           <label class="field"><span class="lbl">DENOISE</span><input id="hdDenoise" type="number" min="0" max="1" step="0.01" value="0.45"></label>
           <label class="field"><span class="lbl">STEPS</span><input id="hdSteps" type="number" min="1" max="60" value="14"></label>
           <label class="field"><span class="lbl">CFG</span><input id="hdCfg" type="number" min="0" max="30" step="0.1" value="4.0"></label>
-          <label class="field"><span class="lbl">SAMPLER MODE</span><select id="hdSamplerMode"><option value="custom" selected>Detailer custom</option><option value="source">Use source</option></select></label>
+          <label class="field"><span class="lbl">SAMPLER MODE</span><select id="hdSamplerMode"><option value="custom" selected>補正個別</option><option value="source">元設定</option></select></label>
           <label class="field"><span class="lbl">SAMPLER</span><select id="hdSamplerSelect"><option value="euler" selected>euler</option></select></label>
           <label class="field"><span class="lbl">SCHEDULER</span><select id="hdSchedulerSelect"><option value="normal" selected>normal</option></select></label>
           <label class="field"><span class="lbl">BBOX THRESHOLD</span><input id="hdBbox" type="number" min="0.05" max="0.95" step="0.01" value="0.45"></label>
           <label class="field"><span class="lbl">LLLITE</span><input id="hdLlliteStrength" type="number" min="0" max="2" step="0.05" value="0.85"></label>
         </div>
         <details class="compact-more">
-          <summary><span class="lbl">Detection guard</span><span class="hint">area / runaway</span></summary>
+          <summary><span class="lbl">検出ガード</span><span class="hint">面積 / 暴走</span></summary>
           <div class="grid2">
             <label class="field"><span class="lbl">MIN AREA</span><input id="hdMinAreaRatio" type="number" min="0" max="0.1" step="0.0001" value="0.0005"></label>
             <label class="field"><span class="lbl">MAX AREA</span><input id="hdMaxAreaRatio" type="number" min="0.01" max="1" step="0.01" value="0.35"></label>
@@ -578,7 +578,7 @@
         <hr class="drawer-rule">
 
         <section class="drawer-panel" id="advancedAssistAdvanced">
-        <div class="assist-panel-head"><span class="lbl">Dynamic Prompt</span><span class="lbl" id="dynamicSummary">OFF</span></div>
+        <div class="assist-panel-head"><span class="lbl">動的プロンプト</span><span class="lbl" id="dynamicSummary">OFF</span></div>
         <div class="switchline">
           <input id="dynamicEnabled" type="checkbox">
           <span class="grow">__ワイルドカード__ を展開する</span>
@@ -603,12 +603,12 @@
 
     <!-- 密着(見る) -->
     <section id="contactView" class="view" data-view="contact">
-      <div class="tray-head" style="margin:2px 2px 8px">
+      <div class="tray-head contact-head">
         <h2>生成履歴</h2>
-        <button type="button" class="ghost" data-action="history-refresh" style="min-height:32px;padding:4px 10px">更新</button>
+        <button type="button" class="ghost compact-action" data-action="history-refresh">更新</button>
         <span class="lbl" id="contactCount">—</span>
       </div>
-      <div class="chiprow" style="margin-bottom:8px" id="contactFilters">
+      <div class="chiprow contact-filters" id="contactFilters">
         <button type="button" class="chip is-active" data-filter="all">すべて</button>
         <button type="button" class="chip" data-filter="favorite">★のみ</button>
         <button type="button" class="chip" data-filter="active">現像中</button>
@@ -628,8 +628,8 @@
               <label>LoRA<input id="contactSearchLora" type="search" autocomplete="off" data-native-control></label>
               <label>seed<input id="contactSearchSeed" type="search" inputmode="numeric" autocomplete="off" data-native-control></label>
               <label>rating<select id="contactSearchRating" data-native-control><option value="">any</option><option value="general">general</option><option value="sensitive">sensitive</option><option value="questionable">questionable</option><option value="explicit">explicit</option></select></label>
-              <label>Hires.fix<select id="contactSearchHires" data-native-control><option value="">any</option><option value="off">off</option><option value="latent">latent</option><option value="model">model</option></select></label>
-              <label>Reference<select id="contactSearchReference" data-native-control><option value="">any</option><option value="used">used</option><option value="not_used">not used</option></select></label>
+              <label>高解像<select id="contactSearchHires" data-native-control><option value="">指定なし</option><option value="off">off</option><option value="latent">latent</option><option value="model">model</option></select></label>
+              <label>参照<select id="contactSearchReference" data-native-control><option value="">指定なし</option><option value="used">使用あり</option><option value="not_used">使用なし</option></select></label>
               <label>sampler<input id="contactSearchSampler" type="search" autocomplete="off" data-native-control></label>
               <label>scheduler<input id="contactSearchScheduler" type="search" autocomplete="off" data-native-control></label>
               <label>character<input id="contactSearchCharacter" type="search" autocomplete="off" data-native-control></label>
@@ -643,11 +643,11 @@
         </div>
       </details>
       <details class="history-debug hidden" id="historyDebugPanel">
-        <summary>History Debug</summary>
+        <summary>履歴診断</summary>
         <pre id="historyDebugMeta"></pre>
       </details>
       <div id="contactGrid"></div>
-      <div class="row" style="justify-content:center">
+      <div class="row center-row">
         <button type="button" class="ghost hidden" id="loadMoreBtn" data-action="load-more">さらに読み込む</button>
       </div>
     </section>
@@ -675,7 +675,7 @@
     <article class="card" role="dialog" aria-modal="true" aria-label="現像キュー">
       <div class="grab"></div>
       <div class="tray-head"><h2>現像キュー</h2><span class="lbl" id="queueCountLbl">—</span></div>
-      <div id="queueList" class="resultlist" style="max-height:50dvh"></div>
+      <div id="queueList" class="resultlist sheet-list queue-list"></div>
       <div class="row">
         <button type="button" class="ghost" data-action="queue-refresh">更新</button>
         <button type="button" class="ghost" data-action="queue-interrupt">実行中を中断</button>
@@ -691,7 +691,7 @@
       <div class="grab"></div>
       <div class="tray-head"><h2>レシピ</h2><span class="lbl" id="recipeCountLbl">—</span></div>
       <p class="hint">キャラ・プロンプト・技術設定の丸ごと保存です。タップで適用します。</p>
-      <div id="recipeList" class="resultlist" style="max-height:55dvh"></div>
+      <div id="recipeList" class="resultlist sheet-list recipe-list"></div>
       <p id="recipeStatus" class="hint" aria-live="polite"></p>
     </article>
   </section>
@@ -706,7 +706,7 @@
         <input id="promptSheetQuery" type="search" autocomplete="off">
       </label>
       <div id="promptSheetEditor" class="hidden"></div>
-      <div id="promptSheetList" class="resultlist" style="max-height:50dvh"></div>
+      <div id="promptSheetList" class="resultlist sheet-list prompt-list"></div>
       <p id="promptSheetStatus" class="hint" aria-live="polite"></p>
     </article>
   </section>
@@ -725,8 +725,8 @@
         <button type="button" class="ghost" data-action="frame-to-i2i">下絵にする</button>
         <button type="button" class="ghost" data-action="frame-face-detail">顔を補正</button>
         <button type="button" class="ghost" data-action="frame-hand-detail">手を補正</button>
-        <span class="row" style="margin:0;gap:4px">
-          <select id="variationCount" style="width:56px"><option>2</option><option selected>4</option><option>8</option></select>
+        <span class="row variation-actions">
+          <select id="variationCount" class="variation-count"><option>2</option><option selected>4</option><option>8</option></select>
           <button type="button" class="ghost" data-action="frame-variations">🎲 同設定でガチャ</button>
         </span>
       </div>
@@ -787,13 +787,13 @@
       <div class="tray">
         <div class="tray-head"><h2>接続</h2><span class="lbl">BENCH</span></div>
         <table class="exif" id="connMeta"></table>
-        <div class="tray settings-subtray" style="margin-top:10px">
-          <div class="tray-head"><h2>Reference Setup</h2><span class="lbl" id="referenceSetupBadge">—</span></div>
+        <div class="tray settings-subtray">
+          <div class="tray-head"><h2>参照設定</h2><span class="lbl" id="referenceSetupBadge">—</span></div>
           <p id="referenceSetupSummary" class="hint">Diagnosticsを読み込みます。</p>
           <table class="exif" id="referenceSetupMeta"></table>
           <p class="hint">導入メモ: docs/reference_setup.md</p>
         </div>
-        <div class="tray settings-subtray" style="margin-top:10px">
+        <div class="tray settings-subtray">
           <div class="tray-head"><h2>ComfyUI Control</h2><span class="lbl" id="comfyRestartBadge">—</span></div>
           <p id="comfyRestartStatus" class="hint" aria-live="polite">Restart control statusを読み込みます。</p>
           <div class="row">
@@ -825,7 +825,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v2.0-drawers-20260702"></script>
-  <script src="/static/app.js?v=v2.0-drawers-20260702"></script>
+  <script src="/static/ui.js?v=v2.1-polish-20260702"></script>
+  <script src="/static/app.js?v=v2.1-polish-20260702"></script>
 </body>
 </html>

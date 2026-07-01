@@ -33,8 +33,8 @@ export function createGenerationActionsFeature({
       return false;
     }
     if (checked("#backgroundEnabled") && !state.refmod.background.imageId) {
-      text("#refModStatus", "Background Referenceが未選択です");
-      UI.toast("Background Referenceが未選択です", "error");
+      text("#refModStatus", "背景参照が未選択です");
+      UI.toast("背景参照が未選択です", "error");
       return false;
     }
     return true;
@@ -47,7 +47,7 @@ export function createGenerationActionsFeature({
       method: "POST",
       body: JSON.stringify(request),
     });
-    if (request.prompt_random_collect?.enabled) promptRandom.setStatus("AIタグをPreviewに反映しました");
+    if (request.prompt_random_collect?.enabled) promptRandom.setStatus("AIタグをプレビューに反映しました");
     const preview = $("#payloadPreview");
     if (preview) {
       preview.textContent = JSON.stringify(data, null, 2);

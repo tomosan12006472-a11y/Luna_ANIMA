@@ -66,7 +66,7 @@ export function createPromptConverterFeature({
       return;
     }
     text("#promptConverterSummary", "OFFLINE");
-    text("#promptConverterStatus", data.message || "ローカル変換APIに接続できません。LM StudioなどのLocal Serverを起動してください。");
+    text("#promptConverterStatus", data.message || "ローカル変換APIに接続できません。ローカルサーバアプリなどを起動してください。");
   }
 
   async function loadPromptConverterStatus(force = false) {

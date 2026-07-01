@@ -878,13 +878,13 @@ export function createHistoryFeature({
     if (preset !== "-" && preset !== "off") markers.push(`preset ${preset}`);
     const official = historyObject(item, "official_loras");
     if (["highres", "turbo", "colorfix"].some((key) => Boolean(official[key]?.enabled))) markers.push("official LoRA");
-    if (historyObject(item, "prompt_random_collect").enabled) markers.push("Prompt Random");
+    if (historyObject(item, "prompt_random_collect").enabled) markers.push("ランダム補完");
     const modules = historyObject(item, "reference_modules");
-    if (["outfit", "pose", "background"].some((key) => Boolean(modules[key]?.enabled))) markers.push("Reference Modules");
-    if (historyObject(item, "hires_fix").enabled) markers.push("Hires.fix");
-    if (historyObject(item, "image_to_image").enabled) markers.push("i2i");
-    if (historyObject(item, "face_detailer").enabled || historyObject(item, "hand_detailer").enabled) markers.push("Detailer");
-    if (historyObject(item, "dynamic_prompt").enabled !== undefined) markers.push("Dynamic Prompt");
+    if (["outfit", "pose", "background"].some((key) => Boolean(modules[key]?.enabled))) markers.push("参照モジュール");
+    if (historyObject(item, "hires_fix").enabled) markers.push("高解像");
+    if (historyObject(item, "image_to_image").enabled) markers.push("下絵");
+    if (historyObject(item, "face_detailer").enabled || historyObject(item, "hand_detailer").enabled) markers.push("補正");
+    if (historyObject(item, "dynamic_prompt").enabled !== undefined) markers.push("動的プロンプト");
     return markers.length ? markers.join("; ") : "no assist recorded";
   }
 
@@ -960,11 +960,11 @@ export function createHistoryFeature({
       addMetaRow(table, "ASSIST SUMMARY", generationAssistSummary(item), true);
       addMetaRow(table, "OFFICIAL PRESET", officialLoraPresetSummary(item));
       addMetaRow(table, "OFFICIAL LORA", officialLorasSummary(item), true);
-      addMetaRow(table, "PROMPT RANDOM", promptRandomSummary(item), true);
-      addMetaRow(table, "REF MODULES", referenceModulesSummary(item), true);
-      addMetaRow(table, "BG REF", backgroundReferenceSummary(item), true);
-      addMetaRow(table, "GEN MODES", `Hires ${hiresSummary(item)}; i2i ${i2iSummary(item)}; Dynamic ${dynamicPromptSummary(item)}`, true);
-      addMetaRow(table, "DETAILERS", detailersSummary(item), true);
+      addMetaRow(table, "ランダム補完", promptRandomSummary(item), true);
+      addMetaRow(table, "参照モジュール", referenceModulesSummary(item), true);
+      addMetaRow(table, "背景参照", backgroundReferenceSummary(item), true);
+      addMetaRow(table, "生成モード", `高解像 ${hiresSummary(item)}; 下絵 ${i2iSummary(item)}; 動的 ${dynamicPromptSummary(item)}`, true);
+      addMetaRow(table, "補正", detailersSummary(item), true);
       addMetaRow(table, "POSITIVE", textProviders.historyPositiveText(item), true);
       addMetaRow(table, "NEGATIVE", textProviders.historyNegativeText(item), true);
     }
