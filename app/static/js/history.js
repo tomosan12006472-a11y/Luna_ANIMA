@@ -7,13 +7,13 @@ import {
   formatDate,
   modelFileName,
   text,
-} from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
+} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
 
 const CONTACT_LIMIT = 24;
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
 const PUBLIC_SAVE_POLL_INTERVAL_MS = 1200;
 const PUBLIC_SAVE_MAX_POLLS = 90;
-const HISTORY_RUNTIME_TOKEN = "v1.64-outfit-category-wildcards-20260630";
+const HISTORY_RUNTIME_TOKEN = "v1.65-comfy-cache-stabilization-20260630";
 const HISTORY_DEBUG_EVENT_LIMIT = 20;
 
 function fallbackErrorMessage(error) {
@@ -909,6 +909,23 @@ export function createHistoryFeature({
     return parts.length ? parts.join(" · ") : "not recorded";
   }
 
+  function comfyCacheResetSummary(item = {}) {
+    const data = historyObject(item, "comfy_cache_reset");
+    if (!Object.keys(data).length) return "not recorded";
+    if (data.applied) {
+      return data.status ? `applied · status ${data.status}` : "applied";
+    }
+    if (data.skipped) {
+      return `skipped${data.reason ? `: ${shortText(data.reason, 64)}` : ""}`;
+    }
+    if (data.requested && (data.reason || data.error)) {
+      const detail = shortText(data.reason || data.error, 72);
+      return `requested but failed${detail ? `: ${detail}` : ""}`;
+    }
+    if (data.requested) return "requested";
+    return "not requested";
+  }
+
   function renderFrameDetail(item) {
     const previousId = state.detailItem?.id || "";
     state.detailItem = item;
@@ -930,6 +947,7 @@ export function createHistoryFeature({
       addMetaRow(table, "FRAME", item.id);
       addMetaRow(table, "CREATED", formatDate(item.created_at));
       addMetaRow(table, "GEN TIME", generationMetricsSummary(item), true);
+      addMetaRow(table, "CACHE RESET", comfyCacheResetSummary(item), true);
       addMetaRow(table, "SEED", item.seed);
       addMetaRow(table, "SIZE", `${item.output_width || item.width || "-"}×${item.output_height || item.height || "-"}`);
       addMetaRow(table, "STEPS·CFG·SHIFT", `${displayValue(item.steps)} · ${displayValue(item.cfg)} · ${displayValue(item.shift ?? item.model_sampling?.shift)}`);

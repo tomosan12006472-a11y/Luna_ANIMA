@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi.responses import JSONResponse
@@ -19,6 +20,28 @@ from .settings_store import load_app_settings
 from .validators import error_response
 
 
+@dataclass
+class ComfyCacheResetResult:
+    requested: bool = False
+    eligible: bool = False
+    applied: bool = False
+    skipped: bool = False
+    reason: str = ""
+    status: int | None = None
+    error: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "requested": bool(self.requested),
+            "eligible": bool(self.eligible),
+            "applied": bool(self.applied),
+            "skipped": bool(self.skipped),
+            "reason": str(self.reason or ""),
+            "status": self.status,
+            "error": str(self.error or ""),
+        }
+
+
 def _has_fixed_character_selection(data: Any) -> bool:
     def selected(value: Any) -> bool:
         normalized = str(value or "").strip().lower()
@@ -30,14 +53,19 @@ def _has_fixed_character_selection(data: Any) -> bool:
     )
 
 
-def reset_comfy_cache_for_character_prompt(addr: str, data: GenerateRequest) -> JSONResponse | None:
-    if not data.reset_comfy_cache:
-        return None
+def prepare_comfy_cache_reset_for_character_prompt(addr: str, data: GenerateRequest) -> tuple[JSONResponse | None, dict[str, Any]]:
+    result = ComfyCacheResetResult(requested=bool(data.reset_comfy_cache))
+    if not result.requested:
+        return None, result.as_dict()
     if not _has_fixed_character_selection(data):
-        return None
+        result.skipped = True
+        result.reason = "no_fixed_character"
+        return None, result.as_dict()
     try:
         queue = comfy_client.queue_info(addr)
     except Exception as exc:
+        result.reason = "queue_check_failed"
+        result.error = str(exc)
         return error_response(
             status_code=502,
             message="Failed to inspect ComfyUI queue before cache reset.",
@@ -45,27 +73,41 @@ def reset_comfy_cache_for_character_prompt(addr: str, data: GenerateRequest) -> 
             data=data,
             comfy_response_text=str(exc),
             retryable=True,
-        )
+            extra={"comfy_cache_reset": result.as_dict()},
+        ), result.as_dict()
+    result.eligible = True
     if queue.get("queue_running") or queue.get("queue_pending"):
+        result.reason = "queue_not_empty"
         return error_response(
             status_code=409,
             message="ComfyUI cache reset was skipped because the queue is not empty.",
             stage="comfy_cache_reset_queue_check",
             data=data,
             retryable=True,
-        )
-    result = comfy_client.reset_execution_cache(addr)
-    if result.get("ok"):
-        return None
+            extra={"comfy_cache_reset": result.as_dict()},
+        ), result.as_dict()
+    reset_result = comfy_client.reset_execution_cache(addr)
+    result.status = reset_result.get("status")
+    if reset_result.get("ok"):
+        result.applied = True
+        return None, result.as_dict()
+    result.reason = "reset_failed"
+    result.error = str(reset_result.get("text") or "")
     return error_response(
         status_code=502,
         message="Failed to reset ComfyUI execution cache before character generation.",
         stage="comfy_cache_reset",
         data=data,
-        comfy_status=result.get("status"),
-        comfy_response_text=str(result.get("text") or ""),
+        comfy_status=reset_result.get("status"),
+        comfy_response_text=str(reset_result.get("text") or ""),
         retryable=True,
-    )
+        extra={"comfy_cache_reset": result.as_dict()},
+    ), result.as_dict()
+
+
+def reset_comfy_cache_for_character_prompt(addr: str, data: GenerateRequest) -> JSONResponse | None:
+    error, _metadata = prepare_comfy_cache_reset_for_character_prompt(addr, data)
+    return error
 
 
 def pending_history_by_prompt_id() -> dict[str, dict[str, Any]]:

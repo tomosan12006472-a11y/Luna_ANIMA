@@ -2,7 +2,7 @@ import {
   intFrom,
   numberFrom,
   setChecked,
-} from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
+} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
 
 export function createHistoryReuseDataFeature({
   state,

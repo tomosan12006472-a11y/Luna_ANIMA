@@ -250,6 +250,50 @@ class GenerationSchemaTests(unittest.TestCase):
         self.assertEqual(body["loras"][0]["name"], "style/off.safetensors")
         self.assertFalse(body["loras"][0]["enabled"])
 
+    def test_generate_response_includes_comfy_cache_reset_metadata(self) -> None:
+        client = TestClient(app)
+        client.post("/api/login", json={"pin": APP_PIN})
+        captured_request_data: dict[str, object] = {}
+
+        def fake_create_pending_history_item(**kwargs):
+            captured_request_data.update(kwargs["request_data"])
+            return {"id": "hist-1"}
+
+        request = {
+            "character1": "Scathach",
+            "character2": "None",
+            "character3": "None",
+            "original_character": "None",
+            "reset_comfy_cache": True,
+            "wait": False,
+            "count": 1,
+            "reference_modules": {"enabled": False},
+            "dynamic_prompt": {"enabled": False},
+            "prompt_random_collect": {"enabled": False},
+        }
+        with (
+            mock.patch.object(generation_api.comfy_client, "queue_info", return_value={"queue_running": [], "queue_pending": []}),
+            mock.patch.object(generation_api.comfy_client, "reset_execution_cache", return_value={"ok": True, "status": 200, "text": ""}),
+            mock.patch.object(generation_api.comfy_client, "run_generation", return_value=generation_api.comfy_client.ComfyResult(ok=True, prompt_id="prompt-1", metrics={"submit_seconds": 0.01})),
+            mock.patch.object(generation_api, "prepare_reference_request", side_effect=lambda request_data, addr, upload: request_data),
+            mock.patch.object(generation_api, "prepare_reference_modules_request", side_effect=lambda request_data, addr, upload: request_data),
+            mock.patch.object(generation_api, "prepare_i2i_request", side_effect=lambda request_data, addr, upload: request_data),
+            mock.patch.object(generation_api, "build_prompt_payload_with_prompts", return_value=({"prompt": {}}, {"seed": 123, "positive": "p", "negative": "n", "characters": ["Scathach"]})),
+            mock.patch.object(generation_api, "save_mobile_payload_data", return_value=Path("payload.json")),
+            mock.patch.object(generation_api, "create_pending_history_item", side_effect=fake_create_pending_history_item),
+            mock.patch.object(generation_api, "save_completed_generation_history"),
+        ):
+            response = client.post("/api/generate", json=request)
+
+        body = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(body["ok"])
+        self.assertTrue(body["comfy_cache_reset"]["requested"])
+        self.assertTrue(body["comfy_cache_reset"]["applied"])
+        self.assertEqual(body["comfy_cache_reset"]["status"], 200)
+        self.assertEqual(captured_request_data["comfy_cache_reset"]["applied"], True)
+        self.assertEqual(body["items"][0]["comfy_cache_reset"]["applied"], True)
+
     def test_validate_official_loras_reports_missing_colorfix_when_enabled(self) -> None:
         data = GenerateRequest(official_loras={"colorfix": {"enabled": True, "strength": 0.55}})
         object_info = {

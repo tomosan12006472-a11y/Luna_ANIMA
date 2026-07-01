@@ -36,6 +36,7 @@ def error_response(
     comfy_node_errors: Any = None,
     traceback_short: str = "",
     retryable: bool = False,
+    extra: dict[str, Any] | None = None,
 ) -> JSONResponse:
     hires_fix = _settings_dict(data.hires_fix) if data else {}
     content = {
@@ -52,6 +53,8 @@ def error_response(
         "traceback_short": traceback_short,
         "retryable": retryable,
     }
+    if extra:
+        content.update(extra)
     return JSONResponse(status_code=status_code, content=content)
 
 

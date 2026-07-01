@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
+import { clone, setChecked, text } from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
 
 const SNAPSHOT_KEYS = [
   "official_loras",

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060403">
   <title>Luna ANIMA</title>
-  <link rel="stylesheet" href="/static/styles.css?v=v1.64-outfit-category-wildcards-20260630">
+  <link rel="stylesheet" href="/static/styles.css?v=v1.65-comfy-cache-stabilization-20260630">
 </head>
 <body>
   <div id="safelight" aria-hidden="true"></div>
@@ -374,6 +374,11 @@
         <section class="assist-hub-panel hidden" id="assistHubQuick" data-workbench-panel="quick" role="tabpanel" hidden>
           <div class="assist-panel-head"><span class="lbl">Quick Controls</span><span class="lbl" id="quickControlsSummary">SESSION</span></div>
           <p id="tuningQuickStatus" class="hint" aria-live="polite">snapshot未保存</p>
+          <div class="switchline">
+            <input id="resetComfyCache" type="checkbox">
+            <span class="grow">キャラ崩れ対策: 次回生成前にComfyUI cacheを解放</span>
+          </div>
+          <p id="comfyCacheResetStatus" class="hint" aria-live="polite">固定キャラ生成で効きが弱い時だけON。queueが空の時だけ実行します。</p>
           <div class="row tuning-primary">
             <button type="button" class="ghost" data-action="tuning-snapshot">Snapshot</button>
             <button type="button" class="ghost" data-action="tuning-restore">Restore</button>
@@ -816,7 +821,7 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/ui.js?v=v1.64-outfit-category-wildcards-20260630"></script>
-  <script src="/static/app.js?v=v1.64-outfit-category-wildcards-20260630"></script>
+  <script src="/static/ui.js?v=v1.65-comfy-cache-stabilization-20260630"></script>
+  <script src="/static/app.js?v=v1.65-comfy-cache-stabilization-20260630"></script>
 </body>
 </html>

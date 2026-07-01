@@ -1,8 +1,9 @@
 import {
   $,
   checked,
+  setChecked,
   text,
-} from "./dom.js?v=v1.64-outfit-category-wildcards-20260630";
+} from "./dom.js?v=v1.65-comfy-cache-stabilization-20260630";
 
 export function createGenerationActionsFeature({
   api,
@@ -68,6 +69,29 @@ export function createGenerationActionsFeature({
     return Number(data.queued_count || data.items?.length || request.count || 1);
   }
 
+  function comfyCacheResetStatusMessage(metadata = {}) {
+    if (metadata.applied) return "ComfyUI cacheを解放してから投入しました";
+    if (metadata.skipped && metadata.reason === "no_fixed_character") return "固定キャラ指定がないためcache解放はスキップされました";
+    if (metadata.skipped) return `cache解放はスキップされました${metadata.reason ? `: ${metadata.reason}` : ""}`;
+    if (metadata.reason === "queue_not_empty") return "queueが空ではないためcache解放できませんでした";
+    if (metadata.reason || metadata.error) return `cache解放できませんでした${metadata.reason ? `: ${metadata.reason}` : ""}`;
+    if (metadata.requested) return "ComfyUI cache解放リクエストを送信しました";
+    return "";
+  }
+
+  function finishComfyCacheResetStatus(data = {}, request = {}) {
+    if (!request.reset_comfy_cache) {
+      text("#comfyCacheResetStatus", "");
+      return;
+    }
+    const message = comfyCacheResetStatusMessage(data.comfy_cache_reset || {});
+    if (message) {
+      text("#comfyCacheResetStatus", message);
+      UI.toast(message);
+    }
+    setChecked("#resetComfyCache", false);
+  }
+
   async function finishGenerateQueued(data, request, options = {}) {
     const queued = generateQueuedCount(data, request);
     const toastMessage = typeof options.toast === "function"
@@ -78,6 +102,7 @@ export function createGenerationActionsFeature({
       : options.safelight || `${queued} FRAMES DEVELOPING`;
     UI.toast(toastMessage);
     UI.safelight("developing", safelightMessage);
+    finishComfyCacheResetStatus(data, request);
     state.pollHadActive = true;
     await history.loadContact(true, { preserveLoadedWindow: true, reason: "generate" });
     return queued;
