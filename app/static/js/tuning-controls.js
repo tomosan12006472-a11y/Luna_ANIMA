@@ -1,4 +1,4 @@
-import { clone, setChecked, text } from "./dom.js?v=v1.69-detailer-sampling-20260702";
+import { clone, setChecked, text } from "./dom.js?v=v2.1-polish-20260702";
 
 const SNAPSHOT_KEYS = [
   "official_loras",

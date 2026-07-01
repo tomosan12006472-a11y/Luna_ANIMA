@@ -7,8 +7,8 @@ import {
   setValue,
   text,
   value,
-} from "./dom.js?v=v1.69-detailer-sampling-20260702";
-import { fillSelect } from "./render-helpers.js?v=v1.69-detailer-sampling-20260702";
+} from "./dom.js?v=v2.1-polish-20260702";
+import { fillSelect } from "./render-helpers.js?v=v2.1-polish-20260702";
 
 export function createDetailerFeature({
   api,
